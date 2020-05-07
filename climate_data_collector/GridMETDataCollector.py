@@ -31,8 +31,8 @@ class Grid:
 
     def __init__(self, verbose=True):
 
-        grid_shp = os.path.join('.', 'data', 'GridMET.shp')
-        index_file = os.path.join('.', 'data', 'MET_INDEX')
+        grid_shp = os.path.join(os.path.dirname(__file__), 'data', 'GridMET.shp')
+        index_file = os.path.join(os.path.dirname(__file__), 'data', 'MET_INDEX')
         index_path = index_file + '.idx'
 
         if not os.path.exists(grid_shp):
@@ -298,11 +298,13 @@ def downloader(weight_dict, year_filter=None, climate_filter=None,
         else:
              raise Exception('climate_filter is not str or list of str')
 
-    for name in climate_filter:
-        if name not in params:
-            name = name.lower()
-            raise Exception('Name {} is a valid GridMET climate '
-                            'variable'.format(name))
+        for name in climate_filter:
+            if name not in params:
+                name = name.lower()
+                raise Exception('Name {} is a valid GridMET climate '
+                                'variable'.format(name))
+    else:
+        climate_filter = params.keys()
 
     if verbose:
         print('Downloading climate data ....')
@@ -449,7 +451,7 @@ def get_data(shp, zone_field, year_filter=None, climate_filter=None,
     shp_geo, shp_attr = read_shapefile(shp, zone_field)
     # print('making weights')
     weights = grid.intersect(shp_geo, zones=shp_attr,
-        ot_shp=os.path.join('.', 'Data', 'test_intersect.shp'))
+        ot_shp=os.path.join(os.path.dirname(__file__), 'Data', 'test_intersect.shp'))
     data_dict = downloader(weights, year_filter=year_filter,
             climate_filter=climate_filter, multiprocessing=multiprocessing,
                            verbose=verbose)
