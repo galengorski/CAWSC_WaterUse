@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata xml:lang="en"><Esri><CreaDate>20200403</CreaDate><CreaTime>12043300</CreaTime><ArcGISFormat>1.0</ArcGISFormat><SyncOnce>TRUE</SyncOnce><DataProperties><lineage><Process ToolSource="c:\arcgis\desktop10.7\ArcToolbox\Toolboxes\Data Management Tools.tbx\CalculateField" Date="20200403" Time="120433">CalculateField multipolygon_test serv_area "La_riviera" PYTHON_9.3 #</Process></lineage></DataProperties></Esri></metadata>
