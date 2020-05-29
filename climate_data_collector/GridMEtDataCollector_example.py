@@ -1,28 +1,34 @@
 import GridMETDataCollector as gmet
 import time
+import os
 
 if __name__ == '__main__':
-    start_time = time.perf_counter()
+    # start_time = time.time()
 
-    # input shapfile
-    zoneShpPath = r'.\data\test_data\ABCWUA_GridMETPrj.shp'
+    # input shapefile folder
+    # wgs84 shapefiles
+    shpFolder = os.path.join('GIS', 'WaterUseAreas', 'WGS84')
+    ohioZones = os.path.join(shpFolder, 'OH_WGS84.shp')
     # field with the zone names
-    zoneField = 'FieldTest'
+    zoneField = 'PLANT_ID'
 
-    # get all dates till current date
-    # climateData = gmet.get_data(zoneShpPath, zone_field=zoneField)
+    # climate types to be processed
+    climateFilter = ['etr', 'pet', 'pr', 'sph', 'srad', 'tmmn', 'tmmx', 'vs']
 
-    yearFilter = '2010-2015'
-    climateFilter = ['pet', 'pr']
-    # get 2010-2015 using year_filter
-    climateData = gmet.get_data(zoneShpPath, zone_field=zoneField,
-            year_filter=yearFilter, climate_filter=climateFilter,
-                                multiprocessing=False)
+    # intialize the data collector
+    gmetDC = gmet.DataCollector()
 
-    # print(climateData.keys())
-    # print(climateData)
-    end_time = time.perf_counter()
-    print('run time', end_time - start_time)
+    # process a single shapefile
+    # s = time.time()
+    gmetDC.get_data(ohioZones, zoneField, climate_filter=climateFilter,
+                    year_filter='2000-2015', multiprocessing=True)
+    # print('time', time.time() - s)
 
+    # loop through mutlipel shapefiles and process
+    shps = {'OH_WGS84.shp': 'PLANT_ID', 'ABCWUA_WGS84.shp': 'CN'}
+    for shp, zoneField in shps.items():
 
+        zoneShp = os.path.join(shpFolder, shp)
 
+        climateData = gmetDC.get_data(zoneShp, zoneField, climate_filter=['pet'],
+                    year_filter='2000-2015', multiprocessing=True)
