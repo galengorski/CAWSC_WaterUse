@@ -13,6 +13,7 @@ from functools import reduce
 
 
 class _DataDict(dict):
+    'test'
 
     def __init__(self):
         super(_DataDict, self).__init__()
