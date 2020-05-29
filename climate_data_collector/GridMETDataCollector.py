@@ -13,7 +13,6 @@ from functools import reduce
 
 
 class _DataDict(dict):
-    'test'
 
     def __init__(self):
         super(_DataDict, self).__init__()
@@ -458,6 +457,8 @@ def _read_shapefile(in_shp, zone_field=None):
         geo_list.append(out_geo)
     layer.ResetReading()
     # print('read shapefile time', time.time() - start_time)
+    if zone_field is None:
+        attr_list = None
     return geo_list, attr_list
 
 
