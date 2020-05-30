@@ -152,7 +152,7 @@ class GeoFeatures(object):
                 flag = 'shapefile'
             elif isinstance(polygons[0], Polygon):
                 flag = "shapely"
-            elif isinstance(polygons[0], list):
+            elif isinstance(polygons[0], (list, tuple)):
                 polygons = np.array(polygons)
                 if len(polygons.shape) == 2:
                     polygons = np.array([polygons])

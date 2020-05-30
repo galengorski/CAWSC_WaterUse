@@ -18,21 +18,54 @@ class CensusTimeSeries(object):
             census api key for data pulls
         field : str
             shapefile field to id multiple polygons
+        filter : tuple
+            name of polygons to grab data from tigerweb and
         radius : float or str
             radius around points to build a query, or shapefile field with
             radius information
 
     """
-    def __init__(self, shp, apikey, field=None, radius=0):
+    def __init__(self, shp, apikey, field=None, filter=(), radius=0):
         self._shp = shp
         self.__apikey = apikey
         self._field = field
+        self._filter = filter
         self._radius = radius
         self._censusobj = None
+        self._shapes = {}
+
+    @property
+    def shapes(self):
+        """
+        Method to get the shape vertices for each shape
+
+        Returns
+        -------
+            dict : {name: [vertices]}
+        """
+        return self._shapes
+
+    def get_shape(self, name):
+        """
+        Method to get the shapefile shapes from the shapes dict
+
+        Parameters
+        ----------
+        name : str or int
+            feature dictionary key
+
+        Returns
+        -------
+            list
+        """
+        if name not in self._shapes:
+            raise KeyError("Name: {} not present in shapes dict".format(name))
+        else:
+            return self._shapes[name]
 
     def get_timeseries(self, feature_name, sf3_variables=(),
-                       sf3_variables_1990=(), acs_variables=(),
-                       years=(), polygons=None, hr_dict=None, retry=1000,
+                       sf3_variables_1990=(), acs_variables=(), years=(),
+                       polygons='internal', hr_dict=None, retry=1000,
                        verbose=1, multiproc=False, multithread=False,
                        thread_pool=4):
         """
@@ -53,8 +86,15 @@ class CensusTimeSeries(object):
             tuple of variables to grab from the ACS1 and ACS5 census
         years : list, optional
             optional method to query only specific years from the Census API
-        polygons : shapefile path, shapefile.Reader, list(shapely Polygon,),
-            list(shapefile.Shape,), or list([x,y],[x_n, y_n])
+        polygons : str ('internal', default uses feature_name to get shape),
+            alternatively:
+                * shapefile path, can be supplied to use a shapefile
+                * shapefile.Reader, can be supplied to use a shapefile
+
+            or the user can pass a custom polygons using:
+                * list(shapely Polygon,),
+                * list(shapefile.Shape,), or
+                * list([x,y],[x_n, y_n])
             shapes or shapefile to intersect the timeseries with.
         hr_dict : dict
             human readable label dict, assists in aligning data. If hr_dict
@@ -81,6 +121,11 @@ class CensusTimeSeries(object):
         from ..datacollector.cbase import CensusBase
         from ..datacollector.acs import AcsHR
         refresh = False
+
+        if self._filter:
+            if feature_name not in self._filter:
+                raise KeyError("Feature name: {} not in filtered "
+                               "features".format(feature_name))
 
         verb = False
         if isinstance(verbose, int):
@@ -117,16 +162,22 @@ class CensusTimeSeries(object):
                                     multiproc=multiproc,
                                     multithread=multithread,
                                     thread_pool=thread_pool,
-                                    retry=retry)
+                                    retry=retry,
+                                    filter=self._filter)
                     else:
                         tw.get_data(year, level="tract",
                                     verbose=verb,
                                     multiproc=multiproc,
                                     multithread=multithread,
                                     thread_pool=thread_pool,
-                                    retry=retry)
+                                    retry=retry,
+                                    filter=self._filter)
 
                     twobjs[year] = tw
+
+                    if not self._shapes:
+                        self._shapes = tw.shapes
+
                 url0 = url
                 year0 = year
 
@@ -173,7 +224,11 @@ class CensusTimeSeries(object):
             censusobj = self._censusobj
 
         if isinstance(polygons, str):
-            polygons = shapefile.Reader(polygons)
+            if polygons.lower() == "internal":
+                polygons = self.get_shape(feature_name)
+
+            else:
+                polygons = shapefile.Reader(polygons)
 
         if verbose:
             print("Performing intersections and building DataFrame")

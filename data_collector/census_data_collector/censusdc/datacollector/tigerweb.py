@@ -130,7 +130,7 @@ class TigerWebBase(object):
         -------
             dict : {name: [vertices]}
         """
-        return self._shapes
+        return copy.deepcopy(self._shapes)
 
     @property
     def features(self):
