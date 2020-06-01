@@ -35,7 +35,7 @@ class DataCollector(object):
         # dictionary to store met data
         self._met_dict = {}
         # folder of gridMET nc files
-        self._met_folder = folder
+        self.out_folder = folder
         self._verbose = verbose
 
         self._params = {
@@ -84,8 +84,14 @@ class DataCollector(object):
            """
         return self._met_dict
 
+    def divide_chunks(self, l, n):
+
+        # looping till length l
+        for i in range(0, len(l), n):
+            yield l[i:i + n]
+
     def get_data(self, shp, zone_field, year_filter=None, climate_filter=None,
-             multiprocessing=False, verbose=True):
+             multiprocessing=False, verbose=True, chunksize = 2):
 
         # get shapefile projection epsg code
         shp_epsg = _get_spatial_ref(shp)
@@ -94,20 +100,39 @@ class DataCollector(object):
                             'projection must be WGS84')
 
         # read in zones
-        shp_geo, shp_attr = _read_shapefile(shp, zone_field)
+        shp_geo_list, shp_attr_list = _read_shapefile(shp, zone_field)
+        shp_geo_list = list(self.divide_chunks(shp_geo_list, chunksize ))
+        shp_attr_list = list(self.divide_chunks(shp_attr_list, chunksize))
+        for ichunk in range(len(shp_geo_list)):
+            shp_geo = shp_geo_list[ichunk]
+            shp_attr = shp_attr_list[ichunk]
 
-        # intersect the shp with the met grid
-        # returns a weights dictionary
-        weights = self._met_grid.intersect(shp_geo, zones=shp_attr)
+            # intersect the shp with the met grid
+            # returns a weights dictionary
+            weights = self._met_grid.intersect(shp_geo, zones=shp_attr)
 
-        # download grid met data
-        self._downloader(climate_filter=climate_filter)
+            # download grid met data
+            self._downloader(climate_filter=climate_filter)
 
-        # process the downloaded data
-        climate_dict = self._process(weights, year_filter=year_filter,
-                         multiprocessing=multiprocessing)
+            # process the downloaded data
+            climate_dict = self._process(weights, year_filter=year_filter,
+                             multiprocessing=multiprocessing)
+            self.clim_to_csv(climate_dict)
 
-        return climate_dict
+            #return climate_dict
+
+    def clim_to_csv(self, climate_dict):
+
+        for item in climate_dict.items():
+            df = climate_dict[item[0]]
+            for col in df.columns:
+                ws = self.out_folder
+                fn = '{}_{}.csv'.format(item[0], col)
+                fn = os.path.join(ws,fn )
+                df_ = pd.DataFrame(climate_dict[item[0]][col])
+                df_.to_csv(fn)
+
+
 
     def _downloader(self, climate_filter=None):
 
@@ -370,7 +395,10 @@ class _Grid(object):
 
                     if geo2.Intersects(geo1):
                         intersection = geo2.Intersection(geo1)
-                        intersection_area = intersection.GetArea()
+                        try:
+                            intersection_area = intersection.GetArea()
+                        except:
+                            intersection_area = 0
                         frac_area = intersection_area / cell_area
                         if zones is None:
                             weight_dict.add_val(fid2, fid1, frac_area)
