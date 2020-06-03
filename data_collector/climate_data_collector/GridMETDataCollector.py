@@ -89,9 +89,15 @@ class DataCollector(object):
         # looping till length l
         for i in range(0, len(l), n):
             yield l[i:i + n]
+    def _read_shapefile_filter(self, shp, att_filter):
+
+        #layer.SetAttributeFilter("HUC2 = '13'")
+
+        pass
+
 
     def get_data(self, shp, zone_field, year_filter=None, climate_filter=None,
-             multiprocessing=False, verbose=True, chunksize = 2):
+             multiprocessing=False, verbose=True, chunksize = 2, save_to_csv = False):
 
         # get shapefile projection epsg code
         shp_epsg = _get_spatial_ref(shp)
@@ -100,9 +106,13 @@ class DataCollector(object):
                             'projection must be WGS84')
 
         # read in zones
+        if not (save_to_csv):
+            chunksize = 1
         shp_geo_list, shp_attr_list = _read_shapefile(shp, zone_field)
         shp_geo_list = list(self.divide_chunks(shp_geo_list, chunksize ))
         shp_attr_list = list(self.divide_chunks(shp_attr_list, chunksize))
+
+
         for ichunk in range(len(shp_geo_list)):
             shp_geo = shp_geo_list[ichunk]
             shp_attr = shp_attr_list[ichunk]
@@ -117,9 +127,10 @@ class DataCollector(object):
             # process the downloaded data
             climate_dict = self._process(weights, year_filter=year_filter,
                              multiprocessing=multiprocessing)
-            self.clim_to_csv(climate_dict)
-
-            #return climate_dict
+            if save_to_csv:
+                self.clim_to_csv(climate_dict)
+            else:
+                return climate_dict
 
     def clim_to_csv(self, climate_dict):
 

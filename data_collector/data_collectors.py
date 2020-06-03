@@ -14,7 +14,7 @@ class DataCollector(object):
         self.fieldName = fieldName
         self.output_folder = output_folder
 
-    def get_training_data(self, huc2 = 13, thread_num=8, years = [2000,2001]):
+    def get_training_data(self, huc2 = 3, thread_num=8, years = [2000,2001]):
         """
 
         :param huc2:
