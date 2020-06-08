@@ -881,5 +881,5 @@ class TigerWeb(object):
         elif shapetype in (5, 15, 25):
             return TigerWebPolygon(shp, field)
         else:
-            raise TypeError('Shapetype: {}, is not a valid polygon'
+            raise TypeError('Shapetype: {}, is not a valid point or polygon'
                             .format(shapename))

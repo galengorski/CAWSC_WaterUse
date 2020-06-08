@@ -45,6 +45,17 @@ class CensusTimeSeries(object):
         """
         return self._shapes
 
+    @property
+    def available_years(self):
+        """
+        Available census data years
+
+        Returns
+        -------
+            list
+        """
+        return TigerWebMapServer.base.keys()
+
     def get_shape(self, name):
         """
         Method to get the shapefile shapes from the shapes dict
@@ -240,7 +251,7 @@ class CensusTimeSeries(object):
                                                                feature_name))
             gf = GeoFeatures(cen.get_feature(feature_name), feature_name)
             if polygons is not None:
-                gf.intersect(polygons, multiproc=multiproc,
+                gf.intersect(polygons, verbose=verb, multiproc=multiproc,
                              multithread=multithread,
                              thread_pool=thread_pool)
                 features = gf.intersected_features

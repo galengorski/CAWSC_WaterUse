@@ -150,5 +150,5 @@ def create_filter(shp, criteria, return_field):
     for k, v in c2.items():
         df = df.loc[df[k].isin(v)]
 
-    x = tuple(df[return_field.lower()].values)
+    x = tuple(df[return_field].values)
     return x

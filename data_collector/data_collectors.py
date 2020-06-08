@@ -34,10 +34,11 @@ class DataCollector(object):
 
         # we can also use the default "internal" flag to intesect with the polygons
         # that are associated with our filter and have already been loaded
-        years_list = [2000,2001,2002,2003,2004,2011,2012,2013]
-        for pid in cfilter:
+        #years_list = [2011,2012]
+        for ipid, pid in enumerate(cfilter):
+            print("====== Downloading {}. Total Downloaded is {}".format( pid, int(100 * float(ipid)/len(cfilter))))
             df = ts.get_timeseries(pid, polygons="internal", multithread=True,
-                                   thread_pool=8, verbose=1, years=years_list)
+                                   thread_pool=8, verbose=2)#, years = years_list
 
             df.to_csv(os.path.join(self.output_folder,"census_huc2_{}.csv".format(pid)),
                       index=False)
@@ -56,15 +57,15 @@ class DataCollector(object):
         pass
 
 if __name__ == "__main__":
-    shp = r"D:\Workspace\projects\machine_learning\data\GUall_no_lakes_erased_v1_1_geo_huc2assigned\GUall_no_lakes_erased_v1_1_geo_huc2assigned.shp"
+    shp = r"D:\Workspace\projects\machine_learning\data\dataset\gis\GUall_no_lakes_erased_v1_1_geo_huc2assigned.shp"
     apikey = r"D:\Workspace\projects\machine_learning\scripts\apikey"
     outws = r"D:\Workspace\projects\machine_learning\data\dataset"
-    dc = DataCollector(service_area_shapefile=shp, apikey=apikey, fieldName='GNIS_ID', output_folder= outws)
+    dc = DataCollector(service_area_shapefile=shp, apikey=apikey, fieldName='GNIS_ID'.lower(), output_folder= outws)
 
-    dc.get_training_data(huc2=13, thread_num=4, years = [2000, 2010])
+    dc.get_training_data(huc2=13, thread_num=4)
 
 
-def get_training_data(huc2=13, service_area_id='1852627', apikey='1234', thread_num=8, start_year=2015, end_year=2016):
+def get_training_data111(huc2=13, service_area_id='1852627', apikey='1234', thread_num=8, start_year=2015, end_year=2016):
     """
 
     """
@@ -95,12 +96,3 @@ def get_training_data(huc2=13, service_area_id='1852627', apikey='1234', thread_
 
     # (5) Link data to Water use data
     # pass
-
-
-# ------------------------------------
-# Download HUC12 data
-# -----------------------------------
-
-# test function
-get_training_data(huc2=13, service_area_id='1852627', apikey='1234',
-                  start_year=2010, end_year=2019)

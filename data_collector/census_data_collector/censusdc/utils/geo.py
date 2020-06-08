@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import threading
 from shapely.geometry import Polygon, MultiPolygon
+from shapely.validation import explain_validity
 from . import thread_count
 import platform
 import geojson
@@ -119,7 +120,7 @@ class GeoFeatures(object):
     def intersected_features(self):
         return copy.deepcopy(self._ifeatures)
 
-    def intersect(self, polygons, multiproc=False,
+    def intersect(self, polygons, verbose=False, multiproc=False,
                   multithread=False, thread_pool=4):
         """
         Intersection method that creates a new dictionary of geoJSON
@@ -131,6 +132,8 @@ class GeoFeatures(object):
             list of shapely polygons, list of shapefile.Shape objects,
             shapefile.Reader object, shapefile.Shape object, or
             list of xy points [[(lon, lat)...(lon_n, lat_n)],[...]]
+        verbose : bool
+            boolean flag for verbosity
         multiproc : bool
             flag for multiprocessing with ray on linux machines
         multithread : bool
@@ -224,7 +227,21 @@ class GeoFeatures(object):
         elif flag == "list":
             t = []
             for shape in polygons:
-                t.append(Polygon(shape))
+                p = Polygon(shape)
+                if not p.is_valid:
+                    if verbose:
+                        print("Reparing Geometry {}".format(self.__name), ":",
+                              explain_validity(p))
+                    p = p.buffer(0.0)
+                    if isinstance(p, MultiPolygon):
+                        p = list(p)
+                    else:
+                        p = [p,]
+                else:
+                    p = [p,]
+
+                for poly in p:
+                    t.append(poly)
 
             polygons = t
 
