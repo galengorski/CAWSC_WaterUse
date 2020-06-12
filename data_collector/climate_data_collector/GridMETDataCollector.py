@@ -10,6 +10,15 @@ import datetime as dt
 import math
 import multiprocessing as mp
 from functools import reduce
+import logging
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
+formatter = logging.Formatter('%(levelname)s:%(message)s')
+file_handler = logging.FileHandler('GridMETDataCollector.log', mode='w')
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 
 
 class _DataDict(dict):
@@ -85,19 +94,13 @@ class DataCollector(object):
         return self._met_dict
 
     def divide_chunks(self, l, n):
-
         # looping till length l
         for i in range(0, len(l), n):
             yield l[i:i + n]
-    def _read_shapefile_filter(self, shp, att_filter):
-
-        #layer.SetAttributeFilter("HUC2 = '13'")
-
-        pass
-
 
     def get_data(self, shp, zone_field, year_filter=None, climate_filter=None,
-             multiprocessing=False, verbose=True, chunksize = 2, save_to_csv = False):
+             multiprocessing=False, verbose=True, chunksize=None, save_to_csv=False, cpu_count=None,
+                 filter_field=None):
 
         # get shapefile projection epsg code
         shp_epsg = _get_spatial_ref(shp)
@@ -105,28 +108,48 @@ class DataCollector(object):
             raise Exception('PROJECTION ERROR: The shapefile '
                             'projection must be WGS84')
 
+        # download grid met data
+        self._downloader(climate_filter=climate_filter)
+
         # read in zones
-        if not (save_to_csv):
-            chunksize = 1
-        shp_geo_list, shp_attr_list = _read_shapefile(shp, zone_field)
-        shp_geo_list = list(self.divide_chunks(shp_geo_list, chunksize ))
-        shp_attr_list = list(self.divide_chunks(shp_attr_list, chunksize))
+        # if not (save_to_csv):
+        #     chunksize = None
+        if chunksize is not None:
+            save_to_csv = True
+        shp_geo_list, shp_attr_list = _read_shapefile(shp, zone_field, filter_field=filter_field)
+        # shp_geo, shp_attr = _read_shapefile(shp, zone_field)
+        # print('shape attr list', shp_attr_list)
+        if chunksize is not None:
+            shp_geo_list = list(self.divide_chunks(shp_geo_list, chunksize ))
+            shp_attr_list = list(self.divide_chunks(shp_attr_list, chunksize))
 
+            for ichunk in range(len(shp_geo_list)):
+                shp_geo = shp_geo_list[ichunk]
+                shp_attr = shp_attr_list[ichunk]
 
-        for ichunk in range(len(shp_geo_list)):
-            shp_geo = shp_geo_list[ichunk]
-            shp_attr = shp_attr_list[ichunk]
+                # intersect the shp with the met grid
+                # returns a weights dictionary
+                weights = self._met_grid.intersect(shp_geo, zones=shp_attr)
+
+                # process the downloaded data
+                climate_dict = self._process(weights, year_filter=year_filter,
+                                 multiprocessing=multiprocessing, cpu_count=cpu_count)
+                if save_to_csv:
+                    self.clim_to_csv(climate_dict)
+                # else:
+                #     return climate_dict # doesn't work
+
+        else:
 
             # intersect the shp with the met grid
             # returns a weights dictionary
-            weights = self._met_grid.intersect(shp_geo, zones=shp_attr)
-
-            # download grid met data
-            self._downloader(climate_filter=climate_filter)
+            weights = self._met_grid.intersect(shp_geo_list, zones=shp_attr_list)
 
             # process the downloaded data
             climate_dict = self._process(weights, year_filter=year_filter,
-                             multiprocessing=multiprocessing)
+                                         multiprocessing=multiprocessing,
+                                         cpu_count=cpu_count)
+
             if save_to_csv:
                 self.clim_to_csv(climate_dict)
             else:
@@ -139,15 +162,11 @@ class DataCollector(object):
             for col in df.columns:
                 ws = self.out_folder
                 fn = '{}_{}.csv'.format(item[0], col)
-                fn = os.path.join(ws,fn )
+                fn = os.path.join(ws, fn)
                 df_ = pd.DataFrame(climate_dict[item[0]][col])
                 df_.to_csv(fn)
 
-
-
     def _downloader(self, climate_filter=None):
-
-        # download_time = time.time()
 
         pd.options.display.float_format = '{:,.10f}'.format
         # set up url and paramters
@@ -190,12 +209,11 @@ class DataCollector(object):
 
         # print('download time', time.time() - download_time)
 
-    def _process(self, weights, year_filter=None, multiprocessing=False):
+    def _process(self, weights, year_filter=None, multiprocessing=False, cpu_count=None):
         if self._verbose:
             print('print processing climate data...')
 
         start_date, end_date = self._build_dates(year_filter)
-
         # convert weight dict to df
         weight_df = pd.DataFrame(weights)
 
@@ -224,12 +242,14 @@ class DataCollector(object):
                     rows, cols)]
             # print('build data input time', time.time() - data_time)
             if multiprocessing:
-                # mp_proc_time = time.time()
-                pool = mp.Pool(processes=mp.cpu_count())
+                mp_proc_time = time.time()
+                if cpu_count is None:
+                    cpu_count = mp.cpu_count()
+                pool = mp.Pool(processes=cpu_count)
                 data = pool.map(self._to_df, data_input)
                 pool.close()
                 pool.join()
-                # print('mp_proc_time', time.time() - mp_proc_time)
+                print('mp_proc_time', time.time() - mp_proc_time)
             else:
                 # normal_proc_time = time.time()
                 data = []
@@ -243,7 +263,7 @@ class DataCollector(object):
         return climate_dict
 
     def _post_proc(self, data, weight_df):
-        # post_start = time.time()
+        post_start = time.time()
 
         if self._verbose:
             print('post processing...')
@@ -275,7 +295,7 @@ class DataCollector(object):
             d.drop([val_col, weight_col], axis=1, inplace=True)
 
         # print(d)
-        # print('post proc time ', time.time() - post_start)
+        print('post proc time ', time.time() - post_start)
         return d
 
     @staticmethod
@@ -394,6 +414,9 @@ class _Grid(object):
         cell_area = None
         for fid2 in range(0, len(in_geo)):
             geo2 = in_geo[fid2]
+            if not geo2.IsValid():
+                logger.warning("Geo FID: {} not valid".format(fid2))
+                continue
             if self._spatial_index is not None:
                 xmin, xmax, ymin, ymax = geo2.GetEnvelope()
                 for fid1 in list(self._spatial_index.intersection((xmin, xmax, ymin,
@@ -405,12 +428,11 @@ class _Grid(object):
                         cell_area = geo1.GetArea()
 
                     if geo2.Intersects(geo1):
+
                         intersection = geo2.Intersection(geo1)
-                        try:
-                            intersection_area = intersection.GetArea()
-                        except:
-                            intersection_area = 0
+                        intersection_area = intersection.GetArea()
                         frac_area = intersection_area / cell_area
+
                         if zones is None:
                             weight_dict.add_val(fid2, fid1, frac_area)
                         else:
@@ -474,7 +496,7 @@ class _Grid(object):
         return poly
 
 
-def _read_shapefile(in_shp, zone_field=None):
+def _read_shapefile(in_shp, zone_field=None, filter_field=None):
 
     # start_time = time.time()
     """
@@ -487,13 +509,36 @@ def _read_shapefile(in_shp, zone_field=None):
     layer = data_source.GetLayer()
     geo_list = []
     attr_list = []
+
+    # field limitter
+    limit_field = None
+    limit_vals = None
+    if filter_field is not None:
+        if not isinstance(filter_field, dict):
+            raise Exception('Filter field must be dictionary {field: [values to process]')
+        if len(filter_field.keys()) > 1:
+            raise Exception("Filter field only supports one field")
+        limit_field = list(filter_field.keys())[0]
+        limit_vals = filter_field[limit_field]
+        if not isinstance(limit_vals, list):
+            limit_vals = [limit_vals]
+
     for feature in layer:
-        if zone_field is not None:
-            field = feature.GetField(zone_field)
-            attr_list.append(field)
-        geo = feature.GetGeometryRef().ExportToWkb()
-        out_geo = ogr.CreateGeometryFromWkb(geo)
-        geo_list.append(out_geo)
+        if filter_field is not None:
+            filter_val = feature.GetField(limit_field)
+            if filter_val in limit_vals:
+                process = True
+            else:
+                process = False
+        else:
+            process = True
+        if process:
+            if zone_field is not None:
+                zone = feature.GetField(zone_field)
+                attr_list.append(zone)
+            geo = feature.GetGeometryRef().ExportToWkb()
+            out_geo = ogr.CreateGeometryFromWkb(geo)
+            geo_list.append(out_geo)
     layer.ResetReading()
     # print('read shapefile time', time.time() - start_time)
     if zone_field is None:
