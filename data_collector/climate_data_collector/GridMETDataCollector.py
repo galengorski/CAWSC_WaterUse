@@ -12,11 +12,11 @@ import multiprocessing as mp
 from functools import reduce
 import logging
 
-
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.WARNING)
-formatter = logging.Formatter('%(levelname)s:%(message)s')
-file_handler = logging.FileHandler('GridMETDataCollector.log', mode='w')
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(message)s')
+# file_handler = logging.FileHandler('GridMETDataCollector.log', mode='w')
+file_handler = logging.FileHandler('GridMETDataCollector.log')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
@@ -99,12 +99,13 @@ class DataCollector(object):
             yield l[i:i + n]
 
     def get_data(self, shp, zone_field, year_filter=None, climate_filter=None,
-             multiprocessing=False, verbose=True, chunksize=None, save_to_csv=False, cpu_count=None,
+             multiprocessing=False, chunksize=None, save_to_csv=False, cpu_count=None,
                  filter_field=None):
 
         # get shapefile projection epsg code
         shp_epsg = _get_spatial_ref(shp)
         if shp_epsg != 4326:  # WGS84 GridMET prj
+            logger.error('PROJECTION ERROR: THE shapefile projection must be WGS84')
             raise Exception('PROJECTION ERROR: The shapefile '
                             'projection must be WGS84')
 
@@ -116,14 +117,21 @@ class DataCollector(object):
         #     chunksize = None
         if chunksize is not None:
             save_to_csv = True
+            # logger.info('ChunkSize is {}'.format(chunksize))
+        # print('chunk size is', chunksize)
         shp_geo_list, shp_attr_list = _read_shapefile(shp, zone_field, filter_field=filter_field)
         # shp_geo, shp_attr = _read_shapefile(shp, zone_field)
         # print('shape attr list', shp_attr_list)
+        if self._verbose:
+            print('Processing climate data')
+        logger.info('Processing climate data')
         if chunksize is not None:
+            # logger.info('Dividing Chunks')
             shp_geo_list = list(self.divide_chunks(shp_geo_list, chunksize ))
             shp_attr_list = list(self.divide_chunks(shp_attr_list, chunksize))
 
             for ichunk in range(len(shp_geo_list)):
+
                 shp_geo = shp_geo_list[ichunk]
                 shp_attr = shp_attr_list[ichunk]
 
@@ -166,7 +174,7 @@ class DataCollector(object):
                 df_ = pd.DataFrame(climate_dict[item[0]][col])
                 df_.to_csv(fn)
 
-    def _downloader(self, climate_filter=None):
+    def _downloader(self, climate_filter=None, retry=False):
 
         pd.options.display.float_format = '{:,.10f}'.format
         # set up url and paramters
@@ -193,25 +201,31 @@ class DataCollector(object):
 
         # check whats in the climate dictionary
         # add whats needed
-        missing_met = [met for met in climate_filter if met not in
-                     self._met_dict]
+        # if retry ad the climate filter (data type) to the missing_met so it downloads again
+        if retry:
+            if self._verbose:
+                print('Retrying downloads for', climate_filter)
+            logger.info('Retrying download for {}'.format(','.join(climate_filter)))
+            missing_met = climate_filter
+        else:
+            # otherwise check what needs to be downloaded
+            missing_met = [met for met in climate_filter if met not in
+                         self._met_dict]
 
         for met_name in missing_met:
+            logger.info('downloading data for {}'.format(met_name))
             if self._verbose:
-                print('getting data for ', met_name)
+                print('downloading data for ', met_name)
             # Pulling the full time series then filtering later seems faster than selecting here
             met_nc = '{}/{}.nc#fillmismatch'.format(opendap_url, self._params[met_name]['nc'])
-
-            # ds_load_time = time.time()
             ds = xr.open_dataset(met_nc)
-            # print('ds load time', time.time() - ds_load_time)
             self._met_dict[met_name] = ds
-
         # print('download time', time.time() - download_time)
 
     def _process(self, weights, year_filter=None, multiprocessing=False, cpu_count=None):
-        if self._verbose:
-            print('print processing climate data...')
+        # logger.info('Processing climate data')
+        # if self._verbose:
+        #     print('print processing climate data...')
 
         start_date, end_date = self._build_dates(year_filter)
         # convert weight dict to df
@@ -220,55 +234,87 @@ class DataCollector(object):
         # get the gridmet cells that have been intersected
         # fid_time = time.time()
         fids = list(weight_df.index.values)
-        rows = []
-        cols = []
+        # rows = []
+        # cols = []
         fid_dict = {}
         for fid in fids:
             row, col = self._get_rowcol(fid, 1386) # number of cols in gridmet
-            fid_dict[(row, col)] = fid
-            rows.append(row)
-            cols.append(col)
+            # fid_dict[(row, col)] = fid
+            fid_dict[fid] = row, col
+            # rows.append(row)
+            # cols.append(col)
         # print(fid_dict)
         # print('fid time', time.time() - fid_time)
-
         climate_dict = {}
         for met_name in self._met_dict:
-            if self._verbose:
-                print('Processing ', met_name)
-            # data_time = time.time()
-            data_input = [
-                [self._params[met_name]['var'], fid_dict[(row, col)], self._met_dict[
-                    met_name], row, col, start_date, end_date] for row, col in zip(
-                    rows, cols)]
-            # print('build data input time', time.time() - data_time)
-            if multiprocessing:
-                mp_proc_time = time.time()
-                if cpu_count is None:
-                    cpu_count = mp.cpu_count()
-                pool = mp.Pool(processes=cpu_count)
-                data = pool.map(self._to_df, data_input)
-                pool.close()
-                pool.join()
-                print('mp_proc_time', time.time() - mp_proc_time)
-            else:
-                # normal_proc_time = time.time()
-                data = []
-                for in_data in data_input:
-                    data.append(self._to_df(in_data))
-                # print('normal proc time', time.time() - normal_proc_time)
 
+            # if self._verbose:
+            #     print('Processing ', met_name)
+            logger.info('Processing {}'.format(met_name))
+
+            data = self._process_cells(met_name, fid_dict, start_date, end_date,
+                                     multiprocessing, cpu_count)
+
+            # set up retry
+            # get gridmet cells that fialed
+            retry_fids = self._check_retry(data)
+            # if there are failed cells redownload climate and retry
+            # max retrys
+            max_retry = 10
+            retry_count = 0
+            while len(retry_fids) > 0:
+                if retry_count == max_retry:
+                    # log retry error
+                    logger.error('Maximum retry', exc_info=True)
+                    raise Exception('Maximum retry')
+                # logger.info('Retrying')
+                # re downloaded the data
+                self._downloader(climate_filter=met_name, retry=True)
+                # update fid dict to fids that need to be retried
+                retry_fid_dict = {k: fid_dict[k] for k in retry_fids}
+                data = self._process_cells(met_name, retry_fid_dict, start_date, end_date,
+                                           multiprocessing, cpu_count)
+                retry_fids = self._check_retry(data)
+                retry_count += 1
+
+                # re reprocess the data
             climate_df = self._post_proc(data, weight_df)
             climate_dict[met_name] = climate_df
 
         return climate_dict
 
-    def _post_proc(self, data, weight_df):
-        post_start = time.time()
+    def _process_cells(self, met_name, fid_dict, start_date, end_date,
+                     multiprocessing, cpu_count):
+        data_input = [
+            [self._params[met_name]['var'], fid,
+             self._met_dict[
+                 met_name], fid_dict[fid][0], fid_dict[fid][1], start_date, end_date] for fid in fid_dict]
 
+        if multiprocessing:
+            logger.info('Multiprocessing')
+            # mp_proc_time = time.time()
+            if cpu_count is None:
+                cpu_count = mp.cpu_count()
+            pool = mp.Pool(processes=cpu_count)
+            data = pool.map(self._to_df, data_input)
+            pool.close()
+            pool.join()
+            # print('mp_proc_time', time.time() - mp_proc_time)
+        else:
+            # normal_proc_time = time.time()
+            data = []
+            for in_data in data_input:
+                fid, df = self._to_df(in_data)
+                if df is not None:
+                    data.append(self._to_df(in_data))
+                    data.append((fid, df))
+
+        return data
+
+    def _post_proc(self, data, weight_df):
+        # post_start = time.time()
         if self._verbose:
             print('post processing...')
-        # load wegihts from file for teting (df pandas
-        # weight_df = pd.read_csv('test_weights.csv', index_col=0)
         # get the area names
         area_keys = list(weight_df.columns.values)
         # c1 = time.time()
@@ -295,8 +341,14 @@ class DataCollector(object):
             d.drop([val_col, weight_col], axis=1, inplace=True)
 
         # print(d)
-        print('post proc time ', time.time() - post_start)
+        # print('post proc time ', time.time() - post_start)
         return d
+
+    @staticmethod
+    def _check_retry(data):
+        retry_fids = [item[0] for item in data if item[1] is None]
+        # if there are failed cells redownload climate and retry
+        return retry_fids
 
     @staticmethod
     def _build_dates(year_filter):
@@ -356,9 +408,23 @@ class DataCollector(object):
     @staticmethod
     def _to_df(in_data):
         met_name, fid, ds, row, col, start_date, end_date = in_data
-        return fid, ds.sel(day=slice(start_date, end_date)).isel({'lat':
+        selection = ds.sel(day=slice(start_date, end_date)).isel({'lat':
             row, 'lon': col}).drop(['crs', 'lat', 'lon']).rename({met_name:
-                'VAL'}).to_dataframe()
+                'VAL'})
+
+        try:
+            out_df = selection.to_dataframe()
+        except:
+            array_logfile = 'array_log_{}.txt'.format(fid)
+            logger.error('To DataFrame Export Error: '
+                         '{}, FID:{}, ROW:{}, COL:{}, StartDate:{}, EndDate:'
+                         '{}\nData@:{}'.format(met_name, fid, row,
+                        col, start_date, end_date, array_logfile), exc_info=True)
+            np.savetxt(array_logfile, selection['VAL'])
+            return fid, None
+            # raise Exception("DF ERROR:")
+
+        return fid, out_df
 
 
 class _Grid(object):
@@ -373,6 +439,7 @@ class _Grid(object):
         index_path = index_file + '.idx'
 
         if not os.path.exists(grid_shp):
+            logger.info('creating GridMET Polygons {}'.format(grid_shp))
             if verbose:
                 print('creating GridMet Polygons ', grid_shp)
             # start = time.time()
@@ -380,14 +447,17 @@ class _Grid(object):
             # print('build met shape grid time', time.time() - start)
 
         else:
+            logger.info('loading GridMEt polygons from {}'.format(grid_shp))
             if verbose:
                 print('GridMet polygons exist ', grid_shp)
             self.grid_polys = _read_shapefile(grid_shp)[0]
         if not os.path.exists(index_path):
+            logger.info('creating spatial index {}'.format(index_file))
             if verbose:
                 print('creating spatial index ', index_file)
             self._spatial_index = self.create_spatial_index(index_file)
         else:
+            logger.info('loading spatial index from {}'.format(index_file))
             if verbose:
                 print('spatial index exists', index_file)
             self._spatial_index = rtree.index.Index(index_file, interleaved=False)
@@ -402,6 +472,7 @@ class _Grid(object):
         return index
 
     def intersect(self, in_geo, zones=None, ot_shp=None):
+        # logger.info('INTERSECTING')
         weight_dict = _DataDict()
         if ot_shp is not None:
             # export to shape
@@ -497,6 +568,8 @@ class _Grid(object):
 
 
 def _read_shapefile(in_shp, zone_field=None, filter_field=None):
+
+    print('my zone field is', zone_field)
 
     # start_time = time.time()
     """
