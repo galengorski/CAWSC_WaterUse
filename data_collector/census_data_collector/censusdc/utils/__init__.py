@@ -4,3 +4,4 @@ from . import geometry
 from .geo import GeoFeatures
 from .servers import TigerWebMapServer, Acs5Server, Acs1Server, Sf3Server
 from .timeseries import CensusTimeSeries
+from .export import geojson_to_shapefile
