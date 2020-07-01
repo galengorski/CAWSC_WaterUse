@@ -59,9 +59,12 @@ class TigerWebBase(object):
         shapefile tag reference field
     geotype : str
         shapefile geometry type
+    filter : tuple
+        tuple of names or polygon numbers to pull from
+        default is () which grabs all polygons
 
     """
-    def __init__(self, shp, field, geotype):
+    def __init__(self, shp, field, geotype, filter):
         if not os.path.isfile(shp):
             raise FileNotFoundError("{} not a valid file path".format(shp))
         prj = shp[:-4] + ".prj"
@@ -86,6 +89,14 @@ class TigerWebBase(object):
         self._points = {}
         self._esri_json = {}
         self._features = {}
+
+        if filter:
+            if isinstance(filter, (int, str, float)):
+                filter = (filter,)
+            filter = tuple([i.lower() if isinstance(i, str) else
+                            i for i in filter])
+
+        self._filter = filter
 
     @property
     def esri_wkid(self):
@@ -291,9 +302,8 @@ class TigerWebBase(object):
         s = s.replace(" ", "")
         return s
 
-    def get_data(self, year, level='finest', outfields=(), filter=(),
-                 verbose=True, multiproc=False, multithread=False,
-                 thread_pool=4, retry=100):
+    def get_data(self, year, level='finest', outfields=(), verbose=True,
+                 multiproc=False, multithread=False, thread_pool=4, retry=100):
         """
         Method to pull data feature data from tigerweb
 
@@ -307,9 +317,6 @@ class TigerWebBase(object):
             tuple of output variables to grab from tigerweb
             default is () which grabs GEOID,BLKGRP,STATE,COUNTY,TRACT
             from TigerWeb
-        filter : tuple
-            tuple of names or polygon numbers to pull from
-            default is () which grabs all polygons
         verbose : bool
             verbose operation mode
         multiproc : bool
@@ -372,12 +379,6 @@ class TigerWebBase(object):
         if "GEOID" not in outfields:
             outfields += ",GEOID"
 
-        if filter:
-            if isinstance(filter, (int, str, float)):
-                filter = (filter,)
-            filter = tuple([i.lower() if isinstance(i, str) else
-                            i for i in filter])
-
         if multiproc and platform.system().lower() == "windows":
             multiproc = False
             multithread = True
@@ -386,9 +387,6 @@ class TigerWebBase(object):
         if multiproc:
             actors = []
             for key, esri_json in self._esri_json.items():
-                if filter:
-                    if key not in filter:
-                        continue
 
                 actor = multiproc_request_data.remote(key, base, mapserver,
                                                       esri_json, geotype,
@@ -409,9 +407,6 @@ class TigerWebBase(object):
             thread_list = []
             container = threading.BoundedSemaphore(thread_pool)
             for key, esri_json in self._esri_json.items():
-                if filter:
-                    if key not in filter:
-                        continue
 
                 x = threading.Thread(target=self.threaded_request_data,
                                      args=(key, base, mapserver, esri_json,
@@ -426,9 +421,6 @@ class TigerWebBase(object):
 
         else:
             for key, esri_json in self._esri_json.items():
-                if filter:
-                    if key not in filter:
-                        continue
 
                 self.__request_data(key, base, mapserver, esri_json, geotype,
                                     outfields, verbose, retry)
@@ -516,7 +508,8 @@ class TigerWebBase(object):
                                        'resultRecordCount': 32})
                 r.raise_for_status()
             except (requests.exceptions.HTTPError,
-                    requests.exceptions.ConnectionError) as e:
+                    requests.exceptions.ConnectionError,
+                    requests.exceptions.ChunkedEncodingError) as e:
                 n += 1
                 if verbose:
                     print("ConnectionError: retry number {}".format(n))
@@ -638,7 +631,8 @@ def multiproc_request_data(key, base, mapserver, esri_json, geotype,
                                    'resultRecordCount': 32})
             r.raise_for_status()
         except (requests.exceptions.HTTPError,
-                requests.exceptions.ConnectionError) as e:
+                requests.exceptions.ConnectionError,
+                requests.exceptions.ChunkedEncodingError) as e:
             n += 1
             if verbose:
                 print("ConnectionError: retry number {}".format(n))
@@ -676,12 +670,15 @@ class TigerWebPoint(TigerWebBase):
     radius : str or value
         shapefile radius field (in projection units) or a floating point value
         to define the polygon to query
+    filter : tuple
+        tuple of names or polygon numbers to pull from
+        default is () which grabs all polygons
     """
-    def __init__(self, shp, field=None, radius=0):
+    def __init__(self, shp, field=None, radius=0, filter=()):
         if isinstance(radius, str) or radius > 0:
-            super(TigerWebPoint, self).__init__(shp, field, "polygon")
+            super(TigerWebPoint, self).__init__(shp, field, "polygon", filter)
         else:
-            super(TigerWebPoint, self).__init__(shp, field, "point")
+            super(TigerWebPoint, self).__init__(shp, field, "point", filter)
 
         self.radius = radius
 
@@ -690,6 +687,8 @@ class TigerWebPoint(TigerWebBase):
 
         else:
             self._get_points()
+
+        self.sf.close()
 
     def _get_polygons(self):
         """
@@ -746,9 +745,14 @@ class TigerWebPoint(TigerWebBase):
             else:
                 name += 1
 
+            if self._filter:
+                if name not in self._filter:
+                    continue
+
             self._esri_json[name] = esri_json
             self._points[name] = points
-            self._shapes[name] = polygon
+            polygon = geojson.Polygon(points)
+            self._shapes[name] = geojson.Feature(geometry=polygon)
 
     def _get_points(self):
         """
@@ -787,6 +791,10 @@ class TigerWebPoint(TigerWebBase):
             else:
                 name += 1
 
+            if self._filter:
+                if name not in self._filter:
+                    continue
+
             self._esri_json[name] = esri_json
             self._points[name] = points
             self._shapes[name] = points
@@ -802,12 +810,16 @@ class TigerWebPolygon(TigerWebBase):
         shapefile path
     field : str
         shapefile field to id multiple polygons
+    filter : tuple
+        tuple of names or polygon numbers to pull from
+        default is () which grabs all polygons
 
     """
-    def __init__(self, shp, field=None):
-        super(TigerWebPolygon, self).__init__(shp, field, 'polygon')
+    def __init__(self, shp, field=None, filter=()):
+        super(TigerWebPolygon, self).__init__(shp, field, 'polygon', filter)
 
         self._get_polygons()
+        self.sf.close()
 
     def _get_polygons(self):
         """
@@ -835,6 +847,7 @@ class TigerWebPolygon(TigerWebBase):
 
         name = -1
         for ix, shape in enumerate(self.sf.shapes()):
+            shape = self.sf.shape(ix)
             if len(shape.points) > 20:
                 # get the bbox to do the tigerweb data pull
                 bbox = shape.bbox
@@ -852,8 +865,21 @@ class TigerWebPolygon(TigerWebBase):
             else:
                 name += 1
 
+            if self._filter:
+                if name not in self._filter:
+                    continue
+
             self._esri_json[name] = esri_json
-            self._shapes[name] = shape.points
+
+            geofeat = shape.__geo_interface__
+            if geofeat['type'].lower() == "polygon":
+                poly = geojson.Polygon(geofeat['coordinates'])
+            else:
+                poly = geojson.MultiPolygon(geofeat['coordinates'])
+
+            geofeat = geojson.Feature(geometry=poly)
+
+            self._shapes[name] = geofeat
 
 
 class TigerWeb(object):
@@ -869,17 +895,20 @@ class TigerWeb(object):
     radius : float or str
         radius around points to build a query, or shapefile field with
         radius information
+    filter : tuple
+        tuple of names or polygon numbers to pull from
+        default is () which grabs all polygons
 
     """
-    def __new__(cls, shp, field=None, radius=0):
+    def __new__(cls, shp, field=None, radius=0, filter=()):
         with shapefile.Reader(shp) as sf:
             shapetype = sf.shapeType
             shapename = sf.shapeTypeName
 
         if shapetype in (1, 11, 21):
-            return TigerWebPoint(shp, field, radius)
+            return TigerWebPoint(shp, field, radius, filter)
         elif shapetype in (5, 15, 25):
-            return TigerWebPolygon(shp, field)
+            return TigerWebPolygon(shp, field, filter)
         else:
             raise TypeError('Shapetype: {}, is not a valid point or polygon'
                             .format(shapename))

@@ -3,6 +3,8 @@ import copy
 import shapefile
 import calendar
 import pandas as pd
+import warnings
+warnings.simplefilter('always', UserWarning)
 
 
 class CensusTimeSeries(object):
@@ -54,7 +56,25 @@ class CensusTimeSeries(object):
         -------
             list
         """
-        return TigerWebMapServer.base.keys()
+        return tuple(TigerWebMapServer.base.keys())
+
+    def get_census_object(self, year):
+        """
+        Method to grab census objects for further post-processing
+
+        Parameters
+        ----------
+        year : int
+            census year
+
+        Returns
+        -------
+            censusdc.datacollector.cbase.CensusBase object
+        """
+        if year in self._censusobj:
+            return self._censusobj[year]
+        else:
+            return None
 
     def get_shape(self, name):
         """
@@ -155,7 +175,7 @@ class CensusTimeSeries(object):
         if self._censusobj is None:
             url0 = ""
             year0 = 0
-            twobjs = {}
+            censusobj = {}
             for year, url in TigerWebMapServer.base.items():
                 if year not in years:
                     continue
@@ -164,36 +184,33 @@ class CensusTimeSeries(object):
                     print("Getting Tigerline data for census "
                           "year {}".format(year))
                 if url == url0:
-                    twobjs[year] = copy.copy(twobjs[year0])
+                    # reuse tigerweb from previous year
+                    pass
+
                 else:
-                    tw = TigerWeb(self._shp, self._field, self._radius)
+                    tw = TigerWeb(self._shp, self._field, self._radius,
+                                  self._filter)
                     if year in (2005, 2006, 2007, 2008, 2009):
                         tw.get_data(year, level="county",
                                     verbose=verb,
                                     multiproc=multiproc,
                                     multithread=multithread,
                                     thread_pool=thread_pool,
-                                    retry=retry,
-                                    filter=self._filter)
+                                    retry=retry)
                     else:
                         tw.get_data(year, level="tract",
                                     verbose=verb,
                                     multiproc=multiproc,
                                     multithread=multithread,
                                     thread_pool=thread_pool,
-                                    retry=retry,
-                                    filter=self._filter)
+                                    retry=retry)
 
-                    twobjs[year] = tw
-
-                    if not self._shapes:
+                    if not self.shapes:
                         self._shapes = tw.shapes
 
                 url0 = url
                 year0 = year
 
-            censusobj = {}
-            for year, tw in twobjs.items():
                 if verbose:
                     print("Getting data for census year {}".format(year))
                 if year in (1990, 2000):
@@ -262,6 +279,10 @@ class CensusTimeSeries(object):
                 raise AssertionError("Check that intersection polygons "
                                      "intersect the census AOI and that "
                                      "projection is WGS84")
+            if not features:
+                msg = "No census data found for {}: year {}, check that " \
+                      "projection is in WGS84".format(feature_name, year)
+                warnings.warn(msg, UserWarning)
 
             if hr_dict is None:
                 refresh = True
