@@ -1,3 +1,4 @@
+import pycurl
 import sys
 import os
 import numpy as np
@@ -105,26 +106,21 @@ class DataCollector(object):
         # get shapefile projection epsg code
         shp_epsg = _get_spatial_ref(shp)
         if shp_epsg != 4326:  # WGS84 GridMET prj
-            logger.error('PROJECTION ERROR: THE shapefile projection must be WGS84')
+            logger.error('PROJECTION ERROR: The shapefile projection must be WGS84')
             raise Exception('PROJECTION ERROR: The shapefile '
                             'projection must be WGS84')
 
         # download grid met data
         self._downloader(climate_filter=climate_filter)
-
-        # read in zones
-        # if not (save_to_csv):
-        #     chunksize = None
         if chunksize is not None:
             save_to_csv = True
-            # logger.info('ChunkSize is {}'.format(chunksize))
-        # print('chunk size is', chunksize)
+
         shp_geo_list, shp_attr_list = _read_shapefile(shp, zone_field, filter_field=filter_field)
         # shp_geo, shp_attr = _read_shapefile(shp, zone_field)
         # print('shape attr list', shp_attr_list)
         if self._verbose:
             print('Processing climate data')
-        logger.info('Processing climate data')
+        # logger.info('Processing climate data')
         if chunksize is not None:
             # logger.info('Dividing Chunks')
             shp_geo_list = list(self.divide_chunks(shp_geo_list, chunksize ))
@@ -174,7 +170,7 @@ class DataCollector(object):
                 df_ = pd.DataFrame(climate_dict[item[0]][col])
                 df_.to_csv(fn)
 
-    def _downloader(self, climate_filter=None, retry=False):
+    def _downloader(self, climate_filter=None):
 
         pd.options.display.float_format = '{:,.10f}'.format
         # set up url and paramters
@@ -201,15 +197,7 @@ class DataCollector(object):
 
         # check whats in the climate dictionary
         # add whats needed
-        # if retry ad the climate filter (data type) to the missing_met so it downloads again
-        if retry:
-            if self._verbose:
-                print('Retrying downloads for', climate_filter)
-            logger.info('Retrying download for {}'.format(','.join(climate_filter)))
-            missing_met = climate_filter
-        else:
-            # otherwise check what needs to be downloaded
-            missing_met = [met for met in climate_filter if met not in
+        missing_met = [met for met in climate_filter if met not in
                          self._met_dict]
 
         for met_name in missing_met:
@@ -218,10 +206,18 @@ class DataCollector(object):
                 print('downloading data for ', met_name)
             # Pulling the full time series then filtering later seems faster than selecting here
             met_nc = '{}/{}.nc#fillmismatch'.format(opendap_url, self._params[met_name]['nc'])
+            # fname = '{}.nc'.format(met_name)
             ds = xr.open_dataset(met_nc)
+            # print(ds)
+            # print('saving to netcdf')
+            #     mode = 'w'
+            #     if os.path.exists(fname):
+            #         mode = 'a'
+            #     ds.to_netcdf('{}.nc'.format(met_name), mode=mode)
+            # print('1 year download time', time.time() - t1)
             self._met_dict[met_name] = ds
-        # print('download time', time.time() - download_time)
 
+    #
     def _process(self, weights, year_filter=None, multiprocessing=False, cpu_count=None):
         # logger.info('Processing climate data')
         # if self._verbose:
@@ -250,34 +246,11 @@ class DataCollector(object):
 
             # if self._verbose:
             #     print('Processing ', met_name)
-            logger.info('Processing {}'.format(met_name))
+            # logger.info('Processing {}'.format(met_name))
 
             data = self._process_cells(met_name, fid_dict, start_date, end_date,
                                      multiprocessing, cpu_count)
 
-            # set up retry
-            # get gridmet cells that fialed
-            retry_fids = self._check_retry(data)
-            # if there are failed cells redownload climate and retry
-            # max retrys
-            max_retry = 10
-            retry_count = 0
-            while len(retry_fids) > 0:
-                if retry_count == max_retry:
-                    # log retry error
-                    logger.error('Maximum retry', exc_info=True)
-                    raise Exception('Maximum retry')
-                # logger.info('Retrying')
-                # re downloaded the data
-                self._downloader(climate_filter=met_name, retry=True)
-                # update fid dict to fids that need to be retried
-                retry_fid_dict = {k: fid_dict[k] for k in retry_fids}
-                data = self._process_cells(met_name, retry_fid_dict, start_date, end_date,
-                                           multiprocessing, cpu_count)
-                retry_fids = self._check_retry(data)
-                retry_count += 1
-
-                # re reprocess the data
             climate_df = self._post_proc(data, weight_df)
             climate_dict[met_name] = climate_df
 
@@ -291,7 +264,7 @@ class DataCollector(object):
                  met_name], fid_dict[fid][0], fid_dict[fid][1], start_date, end_date] for fid in fid_dict]
 
         if multiprocessing:
-            logger.info('Multiprocessing')
+            # logger.info('Multiprocessing')
             # mp_proc_time = time.time()
             if cpu_count is None:
                 cpu_count = mp.cpu_count()
@@ -344,11 +317,11 @@ class DataCollector(object):
         # print('post proc time ', time.time() - post_start)
         return d
 
-    @staticmethod
-    def _check_retry(data):
-        retry_fids = [item[0] for item in data if item[1] is None]
-        # if there are failed cells redownload climate and retry
-        return retry_fids
+    # @staticmethod
+    # def _check_retry(data):
+    #     retry_fids = [item[0] for item in data if item[1] is None]
+    #     # if there are failed cells redownload climate and retry
+    #     return retry_fids
 
     @staticmethod
     def _build_dates(year_filter):
@@ -407,22 +380,30 @@ class DataCollector(object):
 
     @staticmethod
     def _to_df(in_data):
-        met_name, fid, ds, row, col, start_date, end_date = in_data
-        selection = ds.sel(day=slice(start_date, end_date)).isel({'lat':
-            row, 'lon': col}).drop(['crs', 'lat', 'lon']).rename({met_name:
-                'VAL'})
 
-        try:
-            out_df = selection.to_dataframe()
-        except:
-            array_logfile = 'array_log_{}.txt'.format(fid)
-            logger.error('To DataFrame Export Error: '
-                         '{}, FID:{}, ROW:{}, COL:{}, StartDate:{}, EndDate:'
-                         '{}\nData@:{}'.format(met_name, fid, row,
-                        col, start_date, end_date, array_logfile), exc_info=True)
-            np.savetxt(array_logfile, selection['VAL'])
-            return fid, None
-            # raise Exception("DF ERROR:")
+        met_name, fid, ds, row, col, start_date, end_date = in_data
+        out_df = None
+        try_num = 1
+        while out_df is None:
+            if try_num > 300:
+                logger.error('Max Retry for fid {}'.format(fid))
+                raise Exception('MAX RETRY')
+
+            try:
+
+                selection = ds.sel(day=slice(start_date, end_date)).isel({'lat':
+                    row, 'lon': col}).drop(['crs', 'lat', 'lon']).rename({met_name:'VAL'})
+                out_df = selection.to_dataframe()
+            except Exception as e:
+                print(e)
+                out_df = None
+                logger.error('To DataFrame Export Error: '
+                             '{}, FID:{}, ROW:{}, COL:{}, StartDate:{}, EndDate:'
+                             '{}\n'.format(met_name, fid, row,
+                            col, start_date, end_date), exc_info=True)
+                print('RETRYING {}'.format(try_num))
+                logger.info('Retrying export to df FID {}...Retry #{}'.format(fid, try_num))
+            try_num += 1
 
         return fid, out_df
 
