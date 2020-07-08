@@ -1,4 +1,3 @@
-import pycurl
 import sys
 import os
 import numpy as np
@@ -12,6 +11,13 @@ import math
 import multiprocessing as mp
 from functools import reduce
 import logging
+import platform
+
+if platform.system().lower() != "windows":
+    import ray
+else:
+    # fake ray wrapper function for windows
+    from utils import ray
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -82,6 +88,10 @@ class DataCollector(object):
                 'var': 'daily_minimum_temperature',
                 'col': 'tmin_k'},
         }
+        self._ray = False
+        if platform.system().lower() != "windows":
+            self._ray = True
+
 
     @property
     def met_dict(self):
@@ -266,13 +276,22 @@ class DataCollector(object):
         if multiprocessing:
             # logger.info('Multiprocessing')
             # mp_proc_time = time.time()
-            if cpu_count is None:
-                cpu_count = mp.cpu_count()
-            pool = mp.Pool(processes=cpu_count)
-            data = pool.map(self._to_df, data_input)
-            pool.close()
-            pool.join()
-            # print('mp_proc_time', time.time() - mp_proc_time)
+            if self._ray:
+                actors = []
+                for item in data_input:
+                    actor = _to_df_ray.remote(item)
+                    actors.append(actor)
+                data = ray.get(actors)
+
+            else:
+
+                if cpu_count is None:
+                    cpu_count = mp.cpu_count()
+                pool = mp.Pool(processes=cpu_count)
+                data = pool.map(self._to_df, data_input)
+                pool.close()
+                pool.join()
+                # print('mp_proc_time', time.time() - mp_proc_time)
         else:
             # normal_proc_time = time.time()
             data = []
@@ -546,6 +565,36 @@ class _Grid(object):
                 out_feature = None
         out_file = None
         return poly
+
+
+@ray.remote
+def _to_df_ray(in_data):
+
+    met_name, fid, ds, row, col, start_date, end_date = in_data
+    out_df = None
+    try_num = 1
+    while out_df is None:
+        if try_num > 300:
+            logger.error('Max Retry for fid {}'.format(fid))
+            raise Exception('MAX RETRY')
+
+        try:
+
+            selection = ds.sel(day=slice(start_date, end_date)).isel({'lat':
+                row, 'lon': col}).drop(['crs', 'lat', 'lon']).rename({met_name:'VAL'})
+            out_df = selection.to_dataframe()
+        except Exception as e:
+            print(e)
+            out_df = None
+            logger.error('To DataFrame Export Error: '
+                         '{}, FID:{}, ROW:{}, COL:{}, StartDate:{}, EndDate:'
+                         '{}\n'.format(met_name, fid, row,
+                        col, start_date, end_date), exc_info=True)
+            print('RETRYING {}'.format(try_num))
+            logger.info('Retrying export to df FID {}...Retry #{}'.format(fid, try_num))
+        try_num += 1
+
+    return fid, out_df
 
 
 def _read_shapefile(in_shp, zone_field=None, filter_field=None):
