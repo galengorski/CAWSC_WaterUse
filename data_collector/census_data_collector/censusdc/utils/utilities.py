@@ -89,7 +89,7 @@ class RestartableThread(threading.Thread):
         super().__init__(*args, **kwargs)
 
     def clone(self):
-        return RestartableThread(self._args, self._kwargs)
+        return RestartableThread(*self._args, **self._kwargs)
 
 
 def create_filter(shp, criteria, return_field):

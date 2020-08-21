@@ -17,7 +17,7 @@ if platform.system().lower() != "windows":
     import ray
 else:
     # fake ray wrapper function for windows
-    from utils import ray
+    from .utils import ray
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

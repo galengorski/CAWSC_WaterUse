@@ -406,7 +406,8 @@ class CensusBase(object):
                 break
             except (requests.exceptions.HTTPError,
                     requests.exceptions.ConnectionError,
-                    requests.exceptions.ChunkedEncodingError) as e:
+                    requests.exceptions.ChunkedEncodingError,
+                    requests.exceptions.ReadTimeout) as e:
                 n += 1
                 print("Connection Error: Retry number "
                       "{}".format(n))
@@ -559,7 +560,8 @@ def multiproc_data_request(year, apikey, feature, featix, name,
             break
         except (requests.exceptions.HTTPError,
                 requests.exceptions.ConnectionError,
-                requests.exceptions.ChunkedEncodingError) as e:
+                requests.exceptions.ChunkedEncodingError,
+                requests.exceptions.ReadTimeout) as e:
             n += 1
             print("Connection Error: Retry number {}".format(n))
 

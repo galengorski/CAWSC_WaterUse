@@ -7,8 +7,10 @@ import os
 import shapefile
 import pycrs
 import copy
+import numpy as np
 from ..utils import get_wkt_wkid_table, TigerWebMapServer, thread_count
 from ..utils.geometry import calculate_circle
+from ..utils.geometry import lat_lon_geojson_to_albers_geojson
 import threading
 import platform
 
@@ -84,11 +86,18 @@ class TigerWebBase(object):
         self.sf = shapefile.Reader(self._shpname)
         self.prj = pycrs.load.from_file(self._prjname)
 
+        if self.prj.name != "GCS_WGS_1984":
+            raise AssertionError("Census data Collector only supports "
+                                 "GCS_WGS_1984 projection as input, please "
+                                 "re-project your shapefile")
+
         self._wkid = None
         self._shapes = {}
+        self._albers_shapes = {}
         self._points = {}
         self._esri_json = {}
         self._features = {}
+        self._albers_features = {}
 
         if filter:
             if isinstance(filter, (int, str, float)):
@@ -144,6 +153,21 @@ class TigerWebBase(object):
         return copy.deepcopy(self._shapes)
 
     @property
+    def albers_shapes(self):
+        """
+        Method to get the geoJSON representation of albers projection
+        for each input shape
+
+        Returns
+        -------
+            dict : {name: [vertices]}
+        """
+        if not self._albers_shapes:
+            self.__geojson_to_albers_geojson('shapes')
+
+        return copy.deepcopy(self._albers_shapes)
+
+    @property
     def features(self):
         """
         Method to get all features in the feature dictionary
@@ -157,6 +181,21 @@ class TigerWebBase(object):
             print('Please run get_data() to get TigerWeb features')
 
         return copy.deepcopy(self._features)
+
+    @property
+    def albers_features(self):
+        """
+        Method to get all features in the feature dictionary in an
+        albers projection
+
+        Returns
+        -------
+            dict : {name: geoJSON objects}
+        """
+        if not self._albers_features:
+            self.__geojson_to_albers_geojson('features')
+
+        return copy.deepcopy(self._albers_features)
 
     @property
     def feature_names(self):
@@ -190,6 +229,30 @@ class TigerWebBase(object):
         else:
             return copy.deepcopy(self._features[name])
 
+    def get_albers_feature(self, name):
+        """
+        Method to get a single GeoJSON feature from the feature dict
+
+        Parameters
+        ----------
+        name : str or int
+            feature dictionary key
+
+        Returns
+        -------
+            geoJSON object
+        """
+        if not self._albers_features:
+            self.__geojson_to_albers_geojson('features')
+
+        if name not in self._albers_features:
+            name = str(name)
+
+        if name not in self._features:
+            raise KeyError("Name: {} not present in feature dict".format(name))
+        else:
+            return copy.deepcopy(self._features[name])
+
     def get_shape(self, name):
         """
         Method to get the shapefile shapes from the shapes dict
@@ -201,8 +264,29 @@ class TigerWebBase(object):
 
         Returns
         -------
-            list
+            geoJSON feature
         """
+        if name not in self._shapes:
+            raise KeyError("Name: {} not present in shapes dict".format(name))
+        else:
+            return self._shapes[name]
+
+    def get_albers_shape(self, name):
+        """
+        Method to get the albers projection of shapefile shapes from the
+        shapes dict
+
+        Parameters
+        ----------
+        name
+
+        Returns
+        -------
+            geoJSON feature
+        """
+        if not self.albers_shapes:
+            self.__geojson_to_albers_geojson('shapes')
+
         if name not in self._shapes:
             raise KeyError("Name: {} not present in shapes dict".format(name))
         else:
@@ -301,6 +385,50 @@ class TigerWebBase(object):
         s = s.replace("'", '"')
         s = s.replace(" ", "")
         return s
+
+    def __geojson_to_albers_geojson(self, which='features'):
+        """
+        Method to convert data in the features or shapes dict to
+        albers projection and set the albers_features or albers_shapes
+        dictionary
+
+        Parameters
+        ----------
+        which : str
+            <'features' or 'shapes'>
+
+        Returns
+        -------
+            None
+        """
+        if which == 'features':
+            data = self.features
+        elif which == "shapes":
+            data = self.shapes
+        else:
+            raise Exception("Not a valid selection")
+
+        alb_data = {}
+        for name, features in data.items():
+            if isinstance(features, list):
+                alb_features = []
+                for feature in features:
+                    geofeat = lat_lon_geojson_to_albers_geojson(feature,
+                                                                precision=100.)
+                    alb_features.append(geofeat)
+                alb_data[name] = alb_features
+
+            else:
+                geofeat = lat_lon_geojson_to_albers_geojson(features,
+                                                            precision=100.)
+                alb_data[name] = geofeat
+
+        if which == "features":
+            self._albers_features = alb_data
+        elif which == "shapes":
+            self._albers_shapes = alb_data
+        else:
+            raise Exception("Code shoudn't have made it here")
 
     def get_data(self, year, level='finest', outfields=(), verbose=True,
                  multiproc=False, multithread=False, thread_pool=4, retry=100):
@@ -509,7 +637,8 @@ class TigerWebBase(object):
                 r.raise_for_status()
             except (requests.exceptions.HTTPError,
                     requests.exceptions.ConnectionError,
-                    requests.exceptions.ChunkedEncodingError) as e:
+                    requests.exceptions.ChunkedEncodingError,
+                    requests.exceptions.ReadTimeout) as e:
                 n += 1
                 if verbose:
                     print("ConnectionError: retry number {}".format(n))
@@ -632,7 +761,8 @@ def multiproc_request_data(key, base, mapserver, esri_json, geotype,
             r.raise_for_status()
         except (requests.exceptions.HTTPError,
                 requests.exceptions.ConnectionError,
-                requests.exceptions.ChunkedEncodingError) as e:
+                requests.exceptions.ChunkedEncodingError,
+                requests.exceptions.ReadTimeout) as e:
             n += 1
             if verbose:
                 print("ConnectionError: retry number {}".format(n))

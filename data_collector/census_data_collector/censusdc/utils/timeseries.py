@@ -35,6 +35,7 @@ class CensusTimeSeries(object):
         self._radius = radius
         self._censusobj = None
         self._shapes = {}
+        self._albers_shapes = {}
 
     @property
     def shapes(self):
@@ -43,9 +44,20 @@ class CensusTimeSeries(object):
 
         Returns
         -------
-            dict : {name: [vertices]}
+            dict : {name: geojson.Feature}
         """
         return self._shapes
+
+    @property
+    def albers_shapes(self):
+        """
+        Method to get the albers geoJSON feature for each shape
+
+        Returns
+        -------
+            dict : {name: geojson.Feature}
+        """
+        return self._albers_shapes
 
     @property
     def available_years(self):
@@ -87,12 +99,29 @@ class CensusTimeSeries(object):
 
         Returns
         -------
-            list
+            geojson.Feature
         """
         if name not in self._shapes:
             raise KeyError("Name: {} not present in shapes dict".format(name))
         else:
             return self._shapes[name]
+
+    def get_albers_shape(self, name):
+        """
+        Method to get the albers projection of the shapefile shapes form the
+        shapes dict
+
+        name : str or int
+            feature dictionary key
+
+        Returns
+        -------
+            geojson.Feature
+        """
+        if name not in self._albers_shapes:
+            raise KeyError("Name: {} not present in shapes dict".format(name))
+        else:
+            return self._albers_shapes[name]
 
     def get_timeseries(self, feature_name, sf3_variables=(),
                        sf3_variables_1990=(), acs_variables=(), years=(),
@@ -207,6 +236,7 @@ class CensusTimeSeries(object):
 
                     if not self.shapes:
                         self._shapes = tw.shapes
+                        self._albers_shapes = tw.albers_shapes
 
                 url0 = url
                 year0 = year
@@ -214,7 +244,8 @@ class CensusTimeSeries(object):
                 if verbose:
                     print("Getting data for census year {}".format(year))
                 if year in (1990, 2000):
-                    cen = CensusBase(tw.features, year, self.__apikey, 'sf3')
+                    cen = CensusBase(tw.albers_features, year,
+                                     self.__apikey, 'sf3')
                     if year == 1990:
                         cen.get_data(level='tract',
                                      variables=sf3_variables_1990,
@@ -230,14 +261,14 @@ class CensusTimeSeries(object):
                                      thread_pool=thread_pool)
 
                 elif year in (2005, 2006, 2007, 2008, 2009):
-                    cen = Acs1(tw.features, year, self.__apikey)
+                    cen = Acs1(tw.albers_features, year, self.__apikey)
                     cen.get_data(level='county', variables=acs_variables,
                                  retry=retry, verbose=verb,
                                  multiproc=multiproc,
                                  multithread=multithread,
                                  thread_pool=thread_pool)
                 else:
-                    cen = Acs5(tw.features, year, self.__apikey)
+                    cen = Acs5(tw.albers_features, year, self.__apikey)
                     cen.get_data(level='tract', variables=acs_variables,
                                  retry=retry, verbose=verb,
                                  multiproc=multiproc,
@@ -253,7 +284,7 @@ class CensusTimeSeries(object):
 
         if isinstance(polygons, str):
             if polygons.lower() == "internal":
-                polygons = self.get_shape(feature_name)
+                polygons = self.get_albers_shape(feature_name)
 
             else:
                 polygons = shapefile.Reader(polygons)
