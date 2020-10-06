@@ -68,7 +68,7 @@ class DataCollector(object):
 
         if 1:  ## census data
             cfilter = None
-            ts = CensusTimeSeries(shp, self.apikey, field=self.fieldName, filter=cfilter)
+            ts = CensusTimeSeries(shp, self.apikey, field=self.fieldName.lower(), filter=cfilter)
             fidw = open(os.path.join(self.output_folder, 'failed_pid_{}.dat'.format('None')), 'w')
             avail_years = [year for year in TigerWebMapServer.base.keys()]
 
@@ -77,10 +77,12 @@ class DataCollector(object):
                 if yr in avail_years:
                     pull_years.append(yr)
 
-            for ipid, pid in enumerate(dfS[fieldname.lower()].values):
+
+            for ipid, pid in enumerate(dfS[self.fieldName.lower() ].values):
                 try:
                     print("====== Downloading {}. Total Downloaded is {}".format(pid, int(
-                        100 * float(ipid) / len(dfS[fieldname.lower()].values))))
+                        100 * float(ipid) / len(dfS[self.fieldName.lower() ].values))))
+
 
                     df = ts.get_timeseries(pid, polygons="internal", multithread=True,
                                            thread_pool=thread_num, verbose=2, years=pull_years)  # , years = years_list
