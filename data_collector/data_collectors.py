@@ -62,6 +62,7 @@ class DataCollector(object):
     def get_training_data_for_shapefile(self, thread_num=1, years=None, climateFilter=None):
 
         start_time = time.time()
+        fieldname = self.fieldName
         shp = self.service_area_shapefile
         dfS = self.get_shapefile_df(shp)
 
@@ -76,10 +77,10 @@ class DataCollector(object):
                 if yr in avail_years:
                     pull_years.append(yr)
 
-            for ipid, pid in enumerate(dfS['wsa_agg_id'].values):
+            for ipid, pid in enumerate(dfS[fieldname.lower()].values):
                 try:
                     print("====== Downloading {}. Total Downloaded is {}".format(pid, int(
-                        100 * float(ipid) / len(dfS['wsa_agg_id'].values))))
+                        100 * float(ipid) / len(dfS[fieldname.lower()].values))))
 
                     df = ts.get_timeseries(pid, polygons="internal", multithread=True,
                                            thread_pool=thread_num, verbose=2, years=pull_years)  # , years = years_list

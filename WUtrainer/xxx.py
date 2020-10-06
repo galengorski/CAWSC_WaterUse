@@ -1,9 +1,11 @@
-from wuse import data_collector, Learner
+def func(arg1="foo", arg_a= "bar", firstarg=1):
+   print(arg1, arg_a, firstarg)
 
-data_collector.get_training_data(huc2=13)
-data_collector.prediction_data(huc2 = 13)
+arguments_dictionary = {
+  'arg1': "foo",
+  'arg_a': "bar",
+  'firstarg':42
+   }
 
-Learner.generate_model(huc2 = 13)
-
-Learner.predict(huc2 = 13)
+func(**arguments_dictionary)
 
