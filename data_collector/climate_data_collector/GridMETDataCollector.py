@@ -369,10 +369,10 @@ class DataCollector(object):
             # normal_proc_time = time.time()
             data = []
             for in_data in data_input:
-                fid, df = self._to_df(in_data)
+                fid, df, try_num = self._to_df(in_data)
                 if df is not None:
                     data.append(self._to_df(in_data))
-                    data.append((fid, df))
+                    data.append((fid, df, try_num))
 
         return data
 
@@ -391,7 +391,11 @@ class DataCollector(object):
         store = True  #  update logic
         store_df = None
         pp1 = time.time()
-        for fid, df in data:
+        for fid, df, retry_ct in data:
+            if retry_ct > 0:
+                logger.info('FID: {} RETRY COUNT = {}'.format(fid, retry_ct))
+            if df is None:
+                logger.warning('FID: {} DOWNLOAD FAILED'.format(fid))
             # loop through the areas
             df.fillna(0, inplace=True)
             for area in area_keys:
@@ -509,33 +513,41 @@ class DataCollector(object):
 
     @staticmethod
     def _to_df(in_data):
-
         met_name, fid, met_nc, row, col, start_date, end_date = in_data
-        ds = xr.open_dataset(met_nc)
+
         out_df = None
-        try_num = 1
+        try_num = 0
+        retry_warning = True
         while out_df is None:
             if try_num > 300:
-                logger.error('Max Retry for fid {}'.format(fid))
-                raise Exception('MAX RETRY')
+                # logger.error('Max Retry for fid {}'.format(fid))
+                raise Exception('MAX DOWNLOAD RETRY FOR FID {}'.format(fid))
 
             try:
 
+                # logger.info('ray remote in try')
+                ds = xr.open_dataset(met_nc)
                 selection = ds.sel(day=slice(start_date, end_date)).isel({'lat':
-                    row, 'lon': col}).drop(['crs', 'lat', 'lon']).rename({met_name:'VAL'})
+                                                                              row,
+                                                                          'lon': col}).drop(
+                    ['crs', 'lat', 'lon']).rename({met_name: 'VAL'})
                 out_df = selection.to_dataframe()
             except Exception as e:
                 # print(e)
                 out_df = None
-                logger.error('To DataFrame Export Error: '
-                             '{}, FID:{}, ROW:{}, COL:{}, StartDate:{}, EndDate:'
-                             '{}\n'.format(met_name, fid, row,
-                            col, start_date, end_date), exc_info=False)
-                print('RETRYING {}'.format(try_num))
-                logger.info('Retrying export to df FID {}...Retry #{}'.format(fid, try_num))
-            try_num += 1
+                # logger.error('To DataFrame Export Error: '
+                #              '{}, FID:{}, ROW:{}, COL:{}, StartDate:{}, EndDate:'
+                #              '{}\n'.format(met_name, fid, row,
+                #             col, start_date, end_date), exc_info=True)
+                # print('RETRYING {}'.format(try_num))
+                # logger.info('Retrying export to df FID {}...Retry #{}'.format(fid, try_num))
+                if retry_warning:
+                    logger.warning('Retrying Download for FID {}'.format(fid))
+                retry_warning = False
 
-        return fid, out_df
+                try_num += 1
+
+        return fid, out_df, try_num
 
 
 class _Grid(object):
@@ -680,40 +692,42 @@ class _Grid(object):
         out_file = None
         return poly
 
+
 @ray.remote
 def to_df_ray(in_data):
     met_name, fid, met_nc, row, col, start_date, end_date = in_data
 
-    logger.info('IN DF')
-    ds = xr.open_dataset(met_nc)
-    logger.info(ds)
-    logger.info("DS PAss")
-
     out_df = None
-    try_num = 1
+    try_num = 0
+    retry_warning = True
     while out_df is None:
         if try_num > 300:
-            logger.error('Max Retry for fid {}'.format(fid))
-            raise Exception('MAX RETRY')
+            # logger.error('Max Retry for fid {}'.format(fid))
+            raise Exception('MAX DOWNLOAD RETRY FOR FID {}'.format(fid))
 
         try:
 
-            logger.info('ray remote in try')
+            # logger.info('ray remote in try')
+            ds = xr.open_dataset(met_nc)
             selection = ds.sel(day=slice(start_date, end_date)).isel({'lat':
                 row, 'lon': col}).drop(['crs', 'lat', 'lon']).rename({met_name:'VAL'})
             out_df = selection.to_dataframe()
         except Exception as e:
-            print(e)
+            # print(e)
             out_df = None
-            logger.error('To DataFrame Export Error: '
-                         '{}, FID:{}, ROW:{}, COL:{}, StartDate:{}, EndDate:'
-                         '{}\n'.format(met_name, fid, row,
-                        col, start_date, end_date), exc_info=True)
-            print('RETRYING {}'.format(try_num))
-            logger.info('Retrying export to df FID {}...Retry #{}'.format(fid, try_num))
-        try_num += 1
+            # logger.error('To DataFrame Export Error: '
+            #              '{}, FID:{}, ROW:{}, COL:{}, StartDate:{}, EndDate:'
+            #              '{}\n'.format(met_name, fid, row,
+            #             col, start_date, end_date), exc_info=True)
+            # print('RETRYING {}'.format(try_num))
+            # logger.info('Retrying export to df FID {}...Retry #{}'.format(fid, try_num))
+            if retry_warning:
+                logger.warning('Retrying Download for FID {}'.format(fid))
+            retry_warning = False
+            try_num += 1
 
-    return fid, out_df
+    return fid, out_df, try_num
+
 
 
 def write_pickle(val):
@@ -813,57 +827,57 @@ def get_envelope(geom):
 
 if __name__ == '__main__':
 
-    pass
+    # pass
 
-    # huc12shp = r"C:\Users\domartin\Documents\WU\WaterUseData\Missing_HUC5.shp"
-    # huc12field = 'huc12'
-    # huc2Field = 'HUC2'
-    #
-    # # climate types to be processed
-    # climateFilter = ['pr', 'tmmn', 'tmmx', 'etr']
-    # # climateFilter = ['pr']
-    #
-    # huc2List = ['05']
-    # gmetDC = DataCollector(verbose=True)
-    #
-    # ot_folder = r'C:\Users\domartin\Documents\WU\WaterUseData\climate_data'
-    #
-    # # logger.info('Shapefile is {}'.format(wsaShp))
-    # # logger.info('Climate Filter is {}'.format(','.join(climateFilter)))
-    # # logger.info("Processing HUC12s for HUC2s {}".format(','.join(huc2List)))
-    # # logger.info('Output Folder {}'.format(ot_folder))
-    # totalTime = time.time()
-    # for huc2 in huc2List:
-    #     # logger.info("Processing huc12s for huc2 {}".format(huc2))
-    #     filterField = {huc2Field: huc2}
-    #     # filterField = {huc12Field: '102701040105'}
-    #     # filterField = {huc12Field: '031102030601'}
-    #     out_folder = os.path.join(ot_folder, 'huc{}'.format(huc2))
-    #     if not os.path.exists(out_folder):
-    #         os.mkdir(out_folder)
-    #     # process a single shapefile
-    #     huc12Time = time.time()
-    #     retry = True
-    #     loadpickle = False  # change this to start fresh
-    #     while retry:
-    #         try:
-    #             gmetDC.get_data(huc12shp, huc12field,
-    #                             climate_filter=climateFilter,
-    #                             year_filter='2000-2001', multiprocessing=True,
-    #                             filter_field=filterField,
-    #                             chunksize=20, save_to_csv=True,
-    #                             out_folder=out_folder, loadpickle=loadpickle,
-    #                             cpu_count=None)
-    #             retry = False
-    #         except Exception as e:
-    #             # logger.error('CDC CRASHED... RETRYING', exc_info=True)
-    #             print(e)
-    #             retry = False
-    #             loadpickle = False
-    #     huc12Time = time.time() - huc12Time
-    #     # logger.info(
-    #     #     'HUC12s for HUC2 = {} processing time = {}'.format(huc2, huc12Time))
-    #
-    # print('DONE!!!!')
-    # totalTime = time.time() - totalTime
-    # # logger.info('Script Complete: Run Time = {}'.format(totalTime))
+    huc12shp = r"C:\Users\domartin\Documents\WU\WaterUseData\Missing_HUC5.shp"
+    huc12field = 'huc12'
+    huc2Field = 'HUC2'
+
+    # climate types to be processed
+    climateFilter = ['pr', 'tmmn', 'tmmx', 'etr']
+    # climateFilter = ['pr']
+
+    huc2List = ['05']
+    gmetDC = DataCollector(verbose=True)
+
+    ot_folder = r'C:\Users\domartin\Documents\WU\WaterUseData\climate_data'
+
+    # logger.info('Shapefile is {}'.format(wsaShp))
+    # logger.info('Climate Filter is {}'.format(','.join(climateFilter)))
+    # logger.info("Processing HUC12s for HUC2s {}".format(','.join(huc2List)))
+    # logger.info('Output Folder {}'.format(ot_folder))
+    totalTime = time.time()
+    for huc2 in huc2List:
+        # logger.info("Processing huc12s for huc2 {}".format(huc2))
+        filterField = {huc2Field: huc2}
+        # filterField = {huc12Field: '102701040105'}
+        # filterField = {huc12Field: '031102030601'}
+        out_folder = os.path.join(ot_folder, 'huc{}'.format(huc2))
+        if not os.path.exists(out_folder):
+            os.mkdir(out_folder)
+        # process a single shapefile
+        huc12Time = time.time()
+        retry = True
+        loadpickle = False  # change this to start fresh
+        while retry:
+            try:
+                gmetDC.get_data(huc12shp, huc12field,
+                                climate_filter=climateFilter,
+                                year_filter='2000-2001', multiprocessing=True,
+                                filter_field=filterField,
+                                chunksize=20, save_to_csv=True,
+                                out_folder=out_folder, loadpickle=loadpickle,
+                                cpu_count=None)
+                retry = False
+            except Exception as e:
+                # logger.error('CDC CRASHED... RETRYING', exc_info=True)
+                print(e)
+                retry = False
+                loadpickle = False
+        huc12Time = time.time() - huc12Time
+        # logger.info(
+        #     'HUC12s for HUC2 = {} processing time = {}'.format(huc2, huc12Time))
+
+    print('DONE!!!!')
+    totalTime = time.time() - totalTime
+    # logger.info('Script Complete: Run Time = {}'.format(totalTime))
