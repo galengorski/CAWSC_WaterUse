@@ -6,7 +6,7 @@ class AcsVariables(object):
     Small listing of common census variable names for querying data
     """
     population = 'B01003_001E'
-    households = 'B11005_001E'
+    households = 'B11001_001E'
     households2 = "B19001_001E"
     income_lt_10k = "B19001_002E"
     income_10K_15k = "B19001_003E"
@@ -25,6 +25,17 @@ class AcsVariables(object):
     income_150k_200k = "B19001_016E"
     income_gt_200k = "B19001_017E"
     median_income = "B19013_001E"
+    tot_h_age = "B25034_001E"
+    h_age_newer_2005 = "B25034_002E"
+    h_age_2000_2004 = "B25034_003E"
+    h_age_1990_1999 = "B25034_004E"
+    h_age_1980_1989 = "B25034_005E"
+    h_age_1970_1979 = "B25034_006E"
+    h_age_1960_1969 = "B25034_007E"
+    h_age_1950_1959 = "B25034_008E"
+    h_age_1940_1949 = "B25034_009E"
+    h_age_older_1939 = "B25034_010E"
+    median_h_year = "B25036_001E"
 
 
 AcsHR = {v: k for k, v in AcsVariables.__dict__.items()

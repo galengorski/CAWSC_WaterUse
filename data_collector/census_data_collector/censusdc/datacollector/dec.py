@@ -1,6 +1,14 @@
 from .cbase import CensusBase
 
 
+class Sf1Variables(object):
+    """
+    Small listing of common census variable names for querying data
+    """
+    population = "P001001"
+    households = "P015001"
+
+
 class Sf3Variables(object):
     """
     Small listing of common census variable names for querying data
@@ -60,6 +68,9 @@ class Sf3Variables1990(object):
     median_income = "P080A001"
 
 
+Sf1HR = {v: k for k, v in Sf1Variables.__dict__.items()
+         if not k.startswith("__")}
+
 Sf3HR = {v: k for k, v in Sf3Variables.__dict__.items()
          if not k.startswith("__")}
 
@@ -116,6 +127,61 @@ class Sf3(CensusBase):
 
         """
         super(Sf3, self).get_data(level=level, variables=variables,
+                                  retry=retry, verbose=verbose,
+                                  multiproc=multiproc,
+                                  multithread=multithread,
+                                  thread_pool=thread_pool)
+
+
+class Sf1(CensusBase):
+    """
+    Class to collect data from the Sf1 census using geojson features
+    from TigerWeb
+
+    Parameters
+    ----------
+    features: dict
+        features from TigerWeb data collections
+        {polygon_name: [geojson, geojson,...]}
+    year : int
+        census data year of the TigerWeb data
+    apikey : str
+        users specific census apikey (obtained from
+        https://api.census.gov/data/key_signup.html)
+
+    """
+
+    def __init__(self, features, year, apikey):
+        super(Sf1, self).__init__(features, year, apikey, 'sf1')
+
+    def get_data(self, level='finest', variables=(), retry=100, verbose=True,
+                 multiproc=False, multithread=False, thread_pool=4):
+        """
+        Method to get data from the Sf3 servers and set it to feature
+        properties!
+
+        Parameters
+        ----------
+        level : str
+            determines the geographic level of data queried
+            default is 'finest' available based on census dataset and
+            the geoJSON feature information
+        variables : list, tuple
+            user specified Acs1 variables, default pulls variables from
+            the AcsVariables class
+        retry : int
+            number of retries for HTTP connection issues before failure
+        verbose : bool
+            verbose operation mode
+        multiproc : bool
+            multiprocessing support using ray, linux only!
+        multithread : bool
+            boolean flag to allow multithreading of data collection
+        thread_pool : int
+            number of CPU threads to use during multithread operations
+
+        """
+        super(Sf1, self).get_data(level=level, variables=variables,
                                   retry=retry, verbose=verbose,
                                   multiproc=multiproc,
                                   multithread=multithread,

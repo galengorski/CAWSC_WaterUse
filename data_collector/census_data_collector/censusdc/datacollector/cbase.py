@@ -1,7 +1,7 @@
 import requests
 from .tigerweb import TigerWebVariables
 from ..utils import Acs5Server, Acs1Server, Sf3Server, RestartableThread, \
-    thread_count
+    thread_count, Sf1Server
 import threading
 import platform
 import copy
@@ -57,6 +57,13 @@ class CensusBase(object):
                                   "tract": 3, "block_group": 4}
         elif server == "sf3":
             self._server = Sf3Server
+            self.__level_dict = {1: "state", 2: "county",
+                                 3: 'tract', 4: 'block_group'}
+            self.__ilevel_dict = {"state": 1, "county": 2,
+                                  "tract": 3, "block_group": 4}
+
+        elif server == "sf1":
+            self._server = Sf1Server
             self.__level_dict = {1: "state", 2: "county",
                                  3: 'tract', 4: 'block_group'}
             self.__ilevel_dict = {"state": 1, "county": 2,

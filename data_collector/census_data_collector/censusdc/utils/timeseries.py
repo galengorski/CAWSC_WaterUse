@@ -177,7 +177,7 @@ class CensusTimeSeries(object):
 
         """
         from .. import TigerWeb, Acs1, Acs5, Sf3
-        from ..datacollector.dec import Sf3HR1990, Sf3HR
+        from ..datacollector.dec import Sf3HR1990, Sf3HR, Sf1HR
         from ..datacollector.cbase import CensusBase
         from ..datacollector.acs import AcsHR
         refresh = False
@@ -243,9 +243,9 @@ class CensusTimeSeries(object):
 
                 if verbose:
                     print("Getting data for census year {}".format(year))
-                if year in (1990, 2000):
+                if year in (2000, ):
                     cen = CensusBase(tw.albers_features, year,
-                                     self.__apikey, 'sf3')
+                                     self.__apikey, 'sf1')
                     if year == 1990:
                         cen.get_data(level='tract',
                                      variables=sf3_variables_1990,
@@ -320,7 +320,7 @@ class CensusTimeSeries(object):
                 if year == 1990:
                     hr_dict = Sf3HR1990
                 elif year == 2000:
-                    hr_dict = Sf3HR
+                    hr_dict = Sf1HR
                 else:
                     hr_dict = AcsHR
 

@@ -66,11 +66,12 @@ class DataCollector(object):
         shp = self.service_area_shapefile
         dfS = self.get_shapefile_df(shp)
 
-        if 1:  ## census data
+        if 0:  ## census data
             cfilter = None
             ts = CensusTimeSeries(shp, self.apikey, field=self.fieldName.lower(), filter=cfilter)
             fidw = open(os.path.join(self.output_folder, 'failed_pid_{}.dat'.format('None')), 'w')
-            avail_years = [year for year in TigerWebMapServer.base.keys()]
+            #avail_years = [year for year in TigerWebMapServer.base.keys()]
+            avail_years = ts.available_years[1:2] + ts.available_years[8:]
 
             pull_years = []
             for yr in years:
@@ -106,12 +107,12 @@ class DataCollector(object):
         # filter_field = {'HUC2': str(int(huc2)).zfill(2)}
         year_filter = '{},{}'.format(min(years), max(years))
 
-        gmetDC = gmet.DataCollector(folder=self.output_folder)
+        gmetDC = gmet.DataCollector()
         start_time = time.time()
 
         climateData = gmetDC.get_data(shpfile, zoneField, climate_filter=climateFilter,
                                       year_filter=year_filter, multiprocessing=True, chunksize=20,
-                                      filter_field=None)
+                                      filter_field=None, out_folder=self.output_folder, save_to_csv=True)
 
         end_time = time.time()
         print(end_time - start_time)

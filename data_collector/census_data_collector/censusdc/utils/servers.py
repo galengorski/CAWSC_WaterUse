@@ -117,7 +117,7 @@ class Sf3Server(object):
     """
     Class to store map server information for Decennial Sf3 census data queries
     """
-    base = "https://api.census.gov/data/{}/sf3"
+    base = "https://api.census.gov/data/{}/dec/sf3"
 
     levels = ("block_group", "block", "tract", "county", "state")
 
@@ -154,6 +154,39 @@ class Sf3Server(object):
     block_group = block_group(__variables)
 
 
+class Sf1Server(object):
+    """
+    Class to store map server information for Decennial Sf1 census data queries
+    """
+    base = "https://api.census.gov/data/{}/dec/sf1"
+
+    levels = ("block_group", "block", "tract", "county", "state")
+    __variables = "P001001,P015001" #  population & households
+
+    def state(variables):
+        return {i: {"fmt": "state:{}", "variables": variables}
+                for i in (2000, 2010)}
+    state = state(__variables)
+
+    def county(variables):
+        return {i: {"fmt": "county:{}&in=state:{}", "variables": variables}
+                for i in (2000, 2010)}
+    county = county(__variables)
+
+    def tract(variables):
+        return {i: {"fmt": "tract:{}&in=state:{}&in=county:{}",
+                    "variables": variables} for i in (2000, 2010)}
+
+    tract = tract(__variables)
+
+    def block_group(variables):
+        return {i: {"fmt":
+                    'block%20group:{}&in=state:{}&in=county:{}&in=tract:{}',
+                    "variables": variables}
+                for i in (2000, 2010)}
+    block_group = block_group(__variables)
+
+
 class Acs5Server(object):
     """
     Class to store map server information for ACS5 census data queries
@@ -163,7 +196,9 @@ class Acs5Server(object):
     levels = ("block_group", "tract", "county", "state")
 
     __income = ["B19001_0{:02d}E".format(i) for i in range(1,18)]
-    __variables = "B01003_001E," + ",".join(__income) + ",B19013_001E"
+    __house_age = ["B25034_0{:02d}E".format(i) for i in range(1, 11)]
+    __variables = "B01003_001E," + ",".join(__income) + ",B19013_001E," + \
+                  ",".join(__house_age) + ",B25036_001E"
 
     def state(variables):
         return {i: {"fmt": "state:{}", "variables": variables}

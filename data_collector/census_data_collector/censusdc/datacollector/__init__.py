@@ -1,2 +1,2 @@
 from .acs import AcsHR
-from .dec import Sf3HR, Sf3HR1990
+from .dec import Sf3HR, Sf3HR1990, Sf1HR
