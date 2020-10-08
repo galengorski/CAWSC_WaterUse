@@ -51,7 +51,7 @@ class DataCollector(object):
         # build gridMET grid
         self._met_grid = _Grid(verbose=verbose)
         # dictionary to store met data
-        self._met_dict = {}
+        self._met_list = []
         self._verbose = verbose
 
         self._params = {
@@ -93,17 +93,6 @@ class DataCollector(object):
             self._ray = True
             ray.init(address="auto")
 
-    @property
-    def met_dict(self):
-
-        """
-           Method to get the grid met data dictionary
-           Returns
-           -------
-               dict : {met name: met dataframe}
-           """
-        return self._met_dict
-
     @staticmethod
     def divide_chunks(l, n):
         # looping till length l
@@ -123,6 +112,8 @@ class DataCollector(object):
             logger.error('PROJECTION ERROR: The shapefile projection must be WGS84')
             raise Exception('PROJECTION ERROR: The shapefile '
                             'projection must be WGS84')
+
+        self._build_met(climate_filter=climate_filter)
 
         shp_geo_list, shp_attr_list = _read_shapefile(shp, zone_field, filter_field=filter_field)
         total_polygons = len(shp_attr_list)
@@ -257,6 +248,42 @@ class DataCollector(object):
                 df_ = pd.DataFrame(climate_dict[item[0]][col])
                 df_.to_csv(fn)
 
+    def _build_met(self, climate_filter=None):
+
+        pd.options.display.float_format = '{:,.10f}'.format
+        # set up url and paramters
+        opendap_url = 'http://thredds.northwestknowledge.net:8080/thredds/dodsC'
+        # elev_nc = '{}/{}'.format(
+        #     opendap_url, '/MET/elev/metdata_elevationdata.nc#fillmismatch')
+
+        # configure climate filter
+        if climate_filter is not None:
+            if isinstance(climate_filter, str):
+                climate_filter = [climate_filter]
+            elif isinstance(climate_filter, list):
+                pass
+            else:
+                raise Exception('climate_filter is not str or list of str')
+
+            for name in climate_filter:
+                if name not in self._params:
+                    name = name.lower()
+                    raise Exception('Name {} is a valid GridMET climate '
+                                    'variable'.format(name))
+        else:
+            climate_filter = self._params.keys()
+
+        # check whats in the climate dictionary
+        # add whats needed
+        missing_met = [met for met in climate_filter if met not in
+                       self._met_list]
+
+        for met_name in missing_met:
+            logger.info('adding {} to metlist'.format(met_name))
+            # if self._verbose:
+            #     print('downloading data for ', met_name)
+            self._met_list.append(met_name)
+
     def _set_up_opendap(self, met_name):
 
         pd.options.display.float_format = '{:,.10f}'.format
@@ -276,7 +303,6 @@ class DataCollector(object):
         # convert weight dict to df
         weight_df = pd.DataFrame(weights)
 
-
         # get the gridmet cells that have been intersected
         fid_time = time.time()
         fids = list(weight_df.index.values)
@@ -291,7 +317,7 @@ class DataCollector(object):
         fid_time = time.time() - fid_time
         logger.info('FID TIME = {}'.format(fid_time))
         climate_dict = {}
-        for met_name in self._met_dict:
+        for met_name in self._met_list:
 
             # if self._verbose:
             #     print('Processing ', met_name)
@@ -654,14 +680,6 @@ class _Grid(object):
         out_file = None
         return poly
 
-
-# @ray.remote
-# def ray_mp(met_name, fid, ds, row, col, start_date, end_date):
-#     # met_name, fid, ds, row, col, start_date, end_date = in_data
-#     # logger.info('IN TEST RAY')
-#     pass
-
-
 @ray.remote
 def to_df_ray(in_data):
     met_name, fid, met_nc, row, col, start_date, end_date = in_data
@@ -707,6 +725,7 @@ def load_pickle():
     with open('cdc_pickle_file', 'rb') as f:
         data = pickle.load(f)
     return data
+
 
 def _read_shapefile(in_shp, zone_field=None, filter_field=None):
     logger.info("reading shapefile, {} {} {}".format(in_shp, zone_field, filter_field))
@@ -792,7 +811,6 @@ def get_envelope(geom):
     return poly_envelope
 
 
-
 if __name__ == '__main__':
 
     pass
@@ -806,7 +824,7 @@ if __name__ == '__main__':
     # # climateFilter = ['pr']
     #
     # huc2List = ['05']
-    # gmetDC = DataCollector(verbose=False)
+    # gmetDC = DataCollector(verbose=True)
     #
     # ot_folder = r'C:\Users\domartin\Documents\WU\WaterUseData\climate_data'
     #
@@ -831,7 +849,7 @@ if __name__ == '__main__':
     #         try:
     #             gmetDC.get_data(huc12shp, huc12field,
     #                             climate_filter=climateFilter,
-    #                             year_filter='2000-2001', multiprocessing=False,
+    #                             year_filter='2000-2001', multiprocessing=True,
     #                             filter_field=filterField,
     #                             chunksize=20, save_to_csv=True,
     #                             out_folder=out_folder, loadpickle=loadpickle,
