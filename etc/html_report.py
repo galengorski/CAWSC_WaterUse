@@ -10,34 +10,37 @@ import plotly.plotly as py
 import plotly.tools as plotly_tools
 import plotly.graph_objs as go
 
-import os
-import tempfile
-os.environ['MPLCONFIGDIR'] = tempfile.mkdtemp()
-from matplotlib.finance import quotes_historical_yahoo
-import matplotlib.pyplot as plt
 
-from scipy.stats import gaussian_kde
 
-from IPython.display import HTML
+class Hreport():
+    def __init__(self):
+        self.filename  = "wu.html"
+        self.sections = []
+        pass
 
-x = []
-y = []
-ma = []
+    def add_section(self, section):
+        """
+        usually this is called Div in html; the div can contain
+            - break line
+            - title or section name
+            - regular text (multiple paragraphs)
+            - tables
+            - figures
+        :return:
+        """
+        self.sections.append(section)
 
-def moving_average(interval, window_size):
-    window = np.ones(int(window_size))/float(window_size)
-    return np.convolve(interval, window, 'same')
+    def add_break_line(self, section, options = {}):
+        pass
+    def add_text(self, section, text, options = {}):
+        pass
+    def add_figure(self, section, figObj, options = {}):
+        pass
+    def add_table(self, section, df, options = {}):
+        pass
+    def from_html(self, fname):
+        pass
+    def to_html(self, fname):
+        pass
 
-date1 = dt_date( 2014, 1, 1 )
-date2 = dt_date( 2014, 12, 12 )
-quotes = quotes_historical_yahoo('AAPL', date1, date2)
-if len(quotes) == 0:
-    print ("Couldn't connect to yahoo trading database")
-else:
-    dates = [q[0] for q in quotes]
-    y = [q[1] for q in quotes]
-    for date in dates:
-        x.append(datetime.fromordinal(int(date))\
-                .strftime('%Y-%m-%d')) # Plotly timestamp format
-    ma = moving_average(y, 10)
-
+    
