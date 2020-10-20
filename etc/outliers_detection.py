@@ -4,6 +4,14 @@ import pandas as pd
 
 def filter1 (X, y):
 
+    """
+
+    :param X: original dataframe
+    :param y: original tragtes
+    :return: X_0, y_0: dropped data
+             X_, y_: remaining data
+    """
+
     return X_0, y_0, X_, y_
 
 
