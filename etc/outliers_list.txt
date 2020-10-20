@@ -1,0 +1,7 @@
+1) flag total water use data above or below a certain percentile  
+2) Given a certain per capita use distribution (mean and standard deviation (STD)), flag per capita WU within a certain interval (5%,95%)
+3) flag abnormal seasonality (I started this, see outliers_dection.py file)
+4) given lat, lon information and a radius, find monthly fractions, average and STD of WU, and flag outliers give using 1 to 3
+5) Service area boundaries are uncertain, and thus census data downloaded are uncertain. Can we think of a way to flag areas where WU is not consistent with population size (item 2 might helpful).
+6) moving average filters (check with Josh …)
+7).....
