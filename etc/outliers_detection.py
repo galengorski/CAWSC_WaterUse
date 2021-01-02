@@ -68,3 +68,14 @@ def is_similair(x, y):
     magnitude_similarity = np.mean(Xrel_change/Yrel_change)
     return sign_similarity, magnitude_similarity
 
+
+
+
+def flag_abnormal_wu(X, y, feature_to_compare = 'tmmin'):
+
+    for ws_i in wsas:
+        X_for_curr_ent_ws , Y_
+        x = get_monthly_frac(X_[tmin])
+        y =  get_monthly_frac((y_))
+
+        sim_sig, sim_mag = is_similair(x, y)

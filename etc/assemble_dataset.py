@@ -5,18 +5,18 @@ import numpy as np
 import geopandas as gpd
 from scipy import interpolate
 
-def get_features(huc2s = [], database_root = ""):
 
+def get_features(huc2s=[], database_root=""):
     cs_features = ['population', 'households2', 'median_income', 'pop_density']
     cs_features = cs_features + ['h_age_newer_2005', 'h_age_2000_2004', 'h_age_1990_1999', 'h_age_1980_1989',
                                  'h_age_1970_1979', 'h_age_1960_1969', 'h_age_1950_1959',
                                  'h_age_1940_1949', 'h_age_older_1939']
-    if len (huc2s) == 0:
-        huc2s = range(1,23)
+    if len(huc2s) == 0:
+        huc2s = range(1, 23)
     huc2_folders = os.listdir(database_root)
     for huc2 in huc2s:
         # loop over all huc2s
-        if not(str(huc2) in huc2_folders):
+        if not (str(huc2) in huc2_folders):
             print("There is no HUC2 = {} in {} folder".format(huc2, database_root))
             continue
 
@@ -29,7 +29,7 @@ def get_features(huc2s = [], database_root = ""):
 
         # extract climate
         climate_folder = os.path.join(database_root,
-                                     os.path.join(str(huc2), "climate"))
+                                      os.path.join(str(huc2), "climate"))
         climate_df = aggregate_climate_date(climate_folder=climate_folder)
         climate_df.to_csv(os.path.join(climate_folder, "daily_climate_{}.csv".format(huc2)))
         xxx = 1
@@ -41,45 +41,53 @@ def get_features(huc2s = [], database_root = ""):
 
     pass
 
-def get_all_annual_db(database_root, wu_file, wsa_file):
 
+def get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=False, wu_field = '',
+                      sys_id_field=''):
     cs_features = ['population', 'households2', 'median_income', 'pop_density']
     cs_features = cs_features + ['h_age_newer_2005', 'h_age_2000_2004', 'h_age_1990_1999', 'h_age_1980_1989',
                                  'h_age_1970_1979', 'h_age_1960_1969', 'h_age_1950_1959',
                                  'h_age_1940_1949', 'h_age_older_1939']
 
-    huc2s = range(1,23)
+    huc2s = range(1, 23)
     huc2_folders = os.listdir(database_root)
     for huc2 in huc2s:
         # loop over all huc2s
-        if not(str(huc2) in huc2_folders):
+        if not (str(huc2) in huc2_folders):
             print("There is no HUC2 = {} in {} folder".format(huc2, database_root))
             continue
+
+        feature_folder = os.path.join(database_root,
+                                      os.path.join(str(huc2)))
+        assemble_folder = os.path.join(feature_folder, "assemble")
+        if not ("assemble" in os.listdir(feature_folder)):
+            os.mkdir(assemble_folder)
+        else:
+            fn_train = os.path.join(assemble_folder, "train_db_{}.csv".format(huc2))
+            if not (update_train_file):
+                continue
 
         # extract census
         census_folder = os.path.join(database_root,
                                      os.path.join(str(huc2), "census"))
         # extract climate
         climate_folder = os.path.join(database_root,
-                                     os.path.join(str(huc2), "climate"))
+                                      os.path.join(str(huc2), "climate"))
 
-        df_annual =assemble_annual_training_dataset(wu_file=wu_file, wsa_file=wsa_file, year_field='YEAR', wu_field='TOT_WD_MGD'
-                                         , sys_id_field='WSA_AGIDF',
-                                         shp_sys_id_field='WSA_AGIDF', output_file='',
-                                         census_folder=census_folder, climate_folder=climate_folder,
-                                         func_to_process_sys_name=None, to_galon=1e6,
-                                         census_file_prefex="cs_wsa_", climate_file_prefix="",
-                                         cs_features=cs_features)
-        df_annual['HUC2'] = huc2
-        # check if folder assemble exist
-        feature_folder = os.path.join(database_root,
-                                     os.path.join(str(huc2)))
-        if not("assemble" in os.listdir(feature_folder)):
-            os.mkdir(os.path.join(feature_folder, "assemble"))
-        assemble_folder = os.path.join(feature_folder, "assemble")
-        df_annual.to_csv(os.path.join(assemble_folder, "train_db_{}.csv".format(huc2)))
+        df_annual = assemble_annual_training_dataset(wu_file=wu_file, wsa_file=wsa_file, year_field='YEAR',
+                                                     wu_field=wu_field
+                                                     , sys_id_field=sys_id_field,
+                                                     shp_sys_id_field='WSA_AGIDF', output_file='',
+                                                     census_folder=census_folder, climate_folder=climate_folder,
+                                                     func_to_process_sys_name=None, to_galon=1e6,
+                                                     census_file_prefex="cs_wsa_", climate_file_prefix="",
+                                                     cs_features=cs_features)
+        if len(df_annual) > 0:
+            df_annual['HUC2'] = huc2
+            df_annual.to_csv(os.path.join(assemble_folder, "train_db_{}.csv".format(huc2)))
 
     # now loop over assemble folders to assemble the final file
+
 
 def aggregate_climate_date(climate_folder):
     li = []
@@ -198,16 +206,35 @@ def assemble_annual_training_dataset(wu_file, wsa_file='', year_field='year', wu
                                      func_to_process_sys_name=None, to_galon=1.0,
                                      census_file_prefex="", climate_file_prefix="",
                                      cs_features=[], maxYear=2020, minYear=2000):
+    """
+    Get annual data for one HUC2
+    :param wu_file:
+    :param wsa_file:
+    :param year_field:
+    :param wu_field:
+    :param sys_id_field:
+    :param shp_sys_id_field:
+    :param output_file:
+    :param census_folder:
+    :param climate_folder:
+    :param func_to_process_sys_name:
+    :param to_galon:
+    :param census_file_prefex:
+    :param climate_file_prefix:
+    :param cs_features:
+    :param maxYear:
+    :param minYear:
+    :return:
+    """
     wsa_shp = gpd.read_file(wsa_file)
-    wu_df = pd.read_csv(wu_file)[[year_field, sys_id_field, wu_field]]
+    wu_df = pd.read_csv(wu_file)[[year_field, sys_id_field, wu_field, 'T_LAT', 'T_LONG']]
 
-    # extract intersection of wsa shapefile and wu_df
     sys_ids = set(wsa_shp[shp_sys_id_field]).intersection(set(wu_df[sys_id_field]))
     wu_df = wu_df[wu_df[sys_id_field].isin(sys_ids)]
 
     wu_df[wu_field] = wu_df[wu_field] * to_galon
     sys_in_census = get_water_system_ids_from_folder(census_folder, prefix='cs_wsa_')
-    # wu_df = wu_df.set_index(keys=[date_field])
+
     index = 0
     all_wu = []
     for sys_id in sys_in_census:
@@ -219,6 +246,8 @@ def assemble_annual_training_dataset(wu_file, wsa_file='', year_field='year', wu
         # get current wu
         sa_mask = wu_df[sys_id_field] == sys_id
         curr_wu = wu_df[sa_mask]
+        LAT = curr_wu['T_LAT'].values[0]
+        LONG = curr_wu['T_LONG'].values[0]
         curr_wu = curr_wu.groupby(by=year_field).sum()
         wu_ = pd.DataFrame(columns=curr_wu.columns, index=np.arange(minYear, maxYear + 1))
         for cc in curr_wu.columns:
@@ -263,14 +292,20 @@ def assemble_annual_training_dataset(wu_file, wsa_file='', year_field='year', wu
                 wu_[var] = cc_df
         # wu_.reset_index(inplace=True)
         wu_['sys_id'] = sys_id
-        all_wu.append(wu_.copy())
-    all_wu = pd.concat(all_wu)
-    all_wu['Year'] = all_wu.index.values
-    all_wu['wu_rate'] = all_wu[wu_field]
-    all_wu.reset_index(inplace=True)
+        wu_['LAT'] = LAT
+        wu_['LONG'] = LONG
+        del (wu_['T_LAT'])
+        del (wu_['T_LONG'])
 
-    del (all_wu['index'])
-    del (all_wu[wu_field])
+        all_wu.append(wu_.copy())
+    if len(all_wu) > 0:
+        all_wu = pd.concat(all_wu)
+        all_wu['Year'] = all_wu.index.values
+        all_wu['wu_rate'] = all_wu[wu_field]
+        all_wu.reset_index(inplace=True)
+
+        del (all_wu['index'])
+        del (all_wu[wu_field])
     return all_wu
 
 
@@ -279,6 +314,7 @@ def assemble_monthly_training_dataset(wu_file, wsa_file='', year_field='year', w
                                       func_to_process_sys_name=None, to_galon=1.0,
                                       census_file_prefex="", climate_file_prefix="",
                                       cs_features=[], maxYear=2020, minYear=2000):
+
     mon = {1: 'JAN_MGD', 2: 'FEB_MGD', 3: 'MAR_MGD', 4: 'APR_MGD', 5: 'MAY_MGD', 6: 'JUN_MGD',
            7: 'JUL_MGD', 8: 'AUG_MGD', 9: 'SEP_MGD', 10: 'OCT_MGD', 11: 'NOV_MGD', 12: 'DEC_MGD'}
     cols_to_load = [year_field, sys_id_field] + list(mon.values())
@@ -446,12 +482,12 @@ if __name__ == '__main__':
                                   output_file=output_file, census_climate_folder=os.path.dirname(wu_file),
                                   to_galon=1000)
 
-    test_assemble_all_annual = True
+    test_assemble_all_annual = False
     if test_assemble_all_annual:
-        wu_file = r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\SWUDS v13.csv"
+        wu_file = r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\SWUDS_v14.csv"
         wsa_file = r"C:\work\water_use\mldataset\gis\wsa\WSA_v2_1_alb83_attrib.shp"
         database_root = r"C:\work\water_use\mldataset\ml\training\features"
-        get_all_annual_db(database_root, wu_file, wsa_file)
+        get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=True)
         pass
 
     if test_annually:
@@ -470,7 +506,7 @@ if __name__ == '__main__':
                                          func_to_process_sys_name=None, to_galon=1e6,
                                          census_file_prefex="cs_wsa_", climate_file_prefix="",
                                          cs_features=cs_features)
-    if False: # test aggregate_climate
+    if False:  # test aggregate_climate
         climate_folder = r"C:\work\water_use\mldataset\ml\training\features\6\climate"
         aggregate_climate_date(climate_folder)
 

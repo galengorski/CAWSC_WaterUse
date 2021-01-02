@@ -66,7 +66,7 @@ class DataCollector(object):
         shp = self.service_area_shapefile
         dfS = self.get_shapefile_df(shp)
 
-        if 0:  ## census data
+        if 1:  ## census data
             cfilter = None
             ts = CensusTimeSeries(shp, self.apikey, field=self.fieldName.lower(), filter=cfilter)
             fidw = open(os.path.join(self.output_folder, 'failed_pid_{}.dat'.format('None')), 'w')
