@@ -3,9 +3,9 @@ The python code in this folder is for synchronizing local files and folders with
 
 ## Dependencies
 
-	ScienceBasePy
+* ScienceBasePy
 	
-	PyQT5
+* PyQT5
 
 ## sbsync.py
 sbsync.py contains a simple python library for synchronizing a ScienceBase archive with a local structure of files and folders.  It uses the ScienceBasePy libarary to communicate with ScienceBase.  All calls to ScienceBasePy are made through the SBAccess class, which encapsulates certain ScienceBasePy operations adding error/retry code to the operations.  By default SBAccess tries each operation up to 100 times before failing.  
