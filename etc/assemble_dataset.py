@@ -157,14 +157,28 @@ def extrapolate_census_data(df, fields_to_interpolate, index_type='year'):
     for var in fields_to_interpolate:
         y = df[var].values
         maskNaN = np.isnan(y)
+        if np.sum(maskNaN) == len(y):
+            df[var] = y
+            continue
         mask = np.logical_not(maskNaN)
         x_ = x[mask]
         y_ = y[mask]
         mean_value = np.mean(y_)
-        x_ = moving_average(x_, n=3)
-        y_ = moving_average(y_, n=3)
+        if len(y_)<3:
+            df[var] = np.nanmean(y_)
+            continue
+        else:
+            x_ = moving_average(x_, n=3)
+            y_ = moving_average(y_, n=3)
+            if len(y_) == 1:
+                df[var] = np.nanmean(y_)
+                continue
+        try:
+            f = interpolate.interp1d(x_, y_, fill_value='extrapolate', kind='linear')
+        except:
+            pass
 
-        f = interpolate.interp1d(x_, y_, fill_value='extrapolate', kind='linear')
+
         xnew = x[maskNaN]
         ynew = f(xnew)
         ynew[ynew <= 0] = mean_value
@@ -186,14 +200,26 @@ def frac_to_date(frac_date):
     return ddate
 
 
-def get_water_system_ids_from_folder(folder, prefix='cs_'):
+def get_water_system_ids_from_folder(folder, prefix=['cs_'], skip_prfix = 'X_X_X' ):
     if not (type(prefix) is list):
         prefix = [prefix]
 
+    if not (type(skip_prfix) is list):
+        skip_prfix = [skip_prfix]
+
     files = os.listdir(folder)
     ws_list = []
+
     for file in files:
+        skipp = False
         fn = os.path.splitext(file)[0]
+        for sk_pre in skip_prfix:
+            if sk_pre in fn:
+                skipp = True
+                break
+        if skipp:
+            continue
+
         for pre in prefix:
             fn = fn.replace(pre, "")
         ws_list.append(fn.upper())
@@ -233,28 +259,33 @@ def assemble_annual_training_dataset(wu_file, wsa_file='', year_field='year', wu
     wu_df = wu_df[wu_df[sys_id_field].isin(sys_ids)]
 
     wu_df[wu_field] = wu_df[wu_field] * to_galon
-    sys_in_census = get_water_system_ids_from_folder(census_folder, prefix='cs_wsa_')
+    sys_in_census = get_water_system_ids_from_folder(census_folder, prefix=['cs_wsa_'], skip_prfix = "_yearly")
 
     index = 0
     all_wu = []
     for sys_id in sys_in_census:
 
-        if not (sys_id in sys_ids):
-            continue
+        # if not (sys_id in sys_ids):
+        #     continue
 
         index = index + 1
         # get current wu
         sa_mask = wu_df[sys_id_field] == sys_id
         curr_wu = wu_df[sa_mask]
-        LAT = curr_wu['T_LAT'].values[0]
-        LONG = curr_wu['T_LONG'].values[0]
+        continueEmpty = False
+        if len(curr_wu) == 0:
+            continueEmpty = True
+            LAT = np.NAN
+            LONG = np.NAN
+        else:
+            LAT = curr_wu['T_LAT'].values[0]
+            LONG = curr_wu['T_LONG'].values[0]
         curr_wu = curr_wu.groupby(by=year_field).sum()
         wu_ = pd.DataFrame(columns=curr_wu.columns, index=np.arange(minYear, maxYear + 1))
         for cc in curr_wu.columns:
             wu_[cc] = curr_wu[cc]
 
-        if len(curr_wu) == 0:
-            continue
+
 
         print(sys_id)
 
@@ -482,12 +513,12 @@ if __name__ == '__main__':
                                   output_file=output_file, census_climate_folder=os.path.dirname(wu_file),
                                   to_galon=1000)
 
-    test_assemble_all_annual = False
+    test_assemble_all_annual = True
     if test_assemble_all_annual:
         wu_file = r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\SWUDS_v14.csv"
         wsa_file = r"C:\work\water_use\mldataset\gis\wsa\WSA_v2_1_alb83_attrib.shp"
         database_root = r"C:\work\water_use\mldataset\ml\training\features"
-        get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=True)
+        get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=True, wu_field = 'TOT_WD_MGD')
         pass
 
     if test_annually:

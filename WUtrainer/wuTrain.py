@@ -138,7 +138,7 @@ class Learner(object):
         """
         Any feature changes or feature additions that is not implemented in sklearn is implemented herein
         :param feat_chain: is a list of functions. Each function take X (df)
-        :return: argument and return changed X
+        :return: return changed X
         """
         print(" Feature Engineering ......")
         if len(feat_chain) > 0:
