@@ -33,6 +33,8 @@ def spatial_detect(df, radius, funcs):
         for fun in funcs:
             df = fun(df, agidf, neighbors, 1)
 
+    return df
+
 
 def mean_stdev(df, agidf, neighbors, iteration=1):
     """
@@ -58,13 +60,40 @@ def mean_stdev(df, agidf, neighbors, iteration=1):
     olbase = "std_flg_{}".format(iteration)
     if iteration == 1:
         key = 'tot_wd_mgd'
+    else:
+        key = "mean_{}".format(iteration - 1)
 
     if mbase not in list(df):
         df[mbase] = np.zeros((len(df),)) * np.nan
         df[olbase] = np.zeros((len(df),), dtype=int)
 
     tdf = df[df.wsa_agidf.isin(neighbors)]
+    tdf = tdf[tdf.wsa_agidf != agidf]
+    val = df.loc[df["wsa_agidf"] == agidf, key].values[0]
 
-    # todo: write code for mean and stdev once we have data...
-    print('break')
+    if len(tdf) >= 1:
+        mean = tdf[key].mean()
+        std = tdf[key].std()
+        std2 = 2 * std
+        std3 = 3 * std
+    else:
+        mean = val
+        std = np.nan
+        std2 = np.nan
+        std3 = np.nan
+
+    if mean + std < val < mean - std:
+        flg = 1
+    elif mean + std2 < val < mean - std2:
+        flg = 2
+    elif mean + std3 < val < mean - std3:
+        flg = 3
+    else:
+        flg = 0
+
+    if val == 0:
+        flg = 4
+
+    df.loc[df.wsa_agidf == agidf, mbase] = mean
+    df.loc[df.wsa_agidf == agidf, olbase] = flg
     return df
