@@ -56,6 +56,8 @@ def mean_stdev(df, agidf, neighbors, iteration=1):
     """
     mbase = "mean_{}".format(iteration)
     olbase = "std_flg_{}".format(iteration)
+    if iteration == 1:
+        key = 'tot_wd_mgd'
 
     if mbase not in list(df):
         df[mbase] = np.zeros((len(df),)) * np.nan
