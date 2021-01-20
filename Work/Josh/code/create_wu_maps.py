@@ -8,7 +8,7 @@ def dummy(ddf):
 
 
 miles_to_m = 1.60934 * 1000
-radius = 50 * miles_to_m
+radius = 100 * miles_to_m
 ws = os.path.abspath(os.path.dirname(__file__))
 wsa_locations = os.path.join(ws, "..", "data", "WSA_v2_1_alb83_attrib.txt")
 wsa_data = os.path.join(ws, "..", "data", "Join_swud_nswud.csv")
@@ -18,4 +18,5 @@ df.drop(columns=["tot_wd_mgd"], inplace=True)
 df = utl.get_input_data(wsa_data, df)
 df1 = sod.spatial_detect(df, radius, sod.mean_stdev)
 print(df1.std_flg_1.unique())
-print('break')
+df1.to_csv(os.path.join(ws, "..", "data", "wu_mean_spatial_2010.csv"),
+           index=False)

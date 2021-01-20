@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 
 FIELDS = (
@@ -7,6 +8,7 @@ FIELDS = (
     "x_centroid",
     "y_centroid",
     "tot_wd_mgd",
+    "year"
 )
 
 
@@ -36,7 +38,7 @@ def get_input_data(f, dataframe=None):
     lowered = {i: i.lower() for i in list(df)}
     df = df.drop(columns=drop)
     df = df.rename(columns=lowered)
-
+    print(len(df))
     if dataframe is not None:
         df = pd.merge(
             left=dataframe,
@@ -44,4 +46,15 @@ def get_input_data(f, dataframe=None):
             left_on='wsa_agidf',
             right_on='wsa_agidf'
         )
+
+        if "sum_gu_pop" in list(df) and "tot_wd_mgd" in list(df):
+            df["wu_pp_gd"] = (df.tot_wd_mgd / df.sum_gu_pop) * 10e+6
+            df = df[df.wu_pp_mgd != 0]
+            df = df.replace([np.inf, -np.inf], 0)
+        if "year" in list(df):
+            df = df.loc[df.year == 2010]
+
+
+    print(len(df))
     return df
+

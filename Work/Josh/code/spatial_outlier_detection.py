@@ -25,6 +25,8 @@ def spatial_detect(df, radius, funcs):
     agidfs = df.wsa_agidf.values
 
     for ix, agidf in enumerate(agidfs):
+        if (ix % 250) == 0:
+            print("Percent done: {:.3f}".format(ix/len(df)))
         a2 = np.power(xc - xc[ix], 2)
         b2 = np.power(yc - yc[ix], 2)
         dist = np.sqrt(a2 + b2)
@@ -59,40 +61,54 @@ def mean_stdev(df, agidf, neighbors, iteration=1):
     mbase = "mean_{}".format(iteration)
     olbase = "std_flg_{}".format(iteration)
     if iteration == 1:
-        key = 'tot_wd_mgd'
+        key = 'wu_pp_gd'
     else:
         key = "mean_{}".format(iteration - 1)
 
     if mbase not in list(df):
         df[mbase] = np.zeros((len(df),)) * np.nan
-        df[olbase] = np.zeros((len(df),), dtype=int)
+        df[olbase] = np.zeros((len(df),))
 
     tdf = df[df.wsa_agidf.isin(neighbors)]
     tdf = tdf[tdf.wsa_agidf != agidf]
     val = df.loc[df["wsa_agidf"] == agidf, key].values[0]
 
     if len(tdf) >= 1:
-        mean = tdf[key].mean()
+        mean = tdf[key].mean(skipna=True)
+        if np.isinf(mean):
+            print('break')
         std = tdf[key].std()
         std2 = 2 * std
         std3 = 3 * std
+        std_half = 0.5 * std
+        std_qrt = 0.25 * std
+        std_ei = 0.125 * std
     else:
         mean = val
         std = np.nan
         std2 = np.nan
         std3 = np.nan
+        std_half = np.nan
+        std_qrt = np.nan
+        std_ei = np.nan
 
-    if mean + std < val < mean - std:
-        flg = 1
-    elif mean + std2 < val < mean - std2:
-        flg = 2
-    elif mean + std3 < val < mean - std3:
+    if (mean + std3) < val or val < (mean - std3):
         flg = 3
+    elif (mean + std2) < val or val < (mean - std2):
+        flg = 2
+    elif (mean + std) < val or val < (mean - std):
+        flg = 1
+    elif (mean + std_half) < val or val < (mean - std_half):
+        flg = 0.50
+    elif (mean + std_qrt) < val or val < (mean - std_half):
+        flg = 0.25
+    elif (mean + std_qrt) < val or val < (mean - std_half):
+        flg = 0.125
     else:
         flg = 0
 
     if val == 0:
-        flg = 4
+        flg = -1
 
     df.loc[df.wsa_agidf == agidf, mbase] = mean
     df.loc[df.wsa_agidf == agidf, olbase] = flg
