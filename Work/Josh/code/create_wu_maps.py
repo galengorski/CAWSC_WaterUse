@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 
 
 miles_to_m = 1.60934 * 1000
-radius = 100 * miles_to_m
+miles = 100
+radius = miles * miles_to_m
 ws = os.path.abspath(os.path.dirname(__file__))
 us_shapefile = os.path.join(ws, "..", "data", "US_nation_2010_alb83.shp")
 wsa_locations = os.path.join(ws, "..", "data", "WSA_v2_1_alb83_attrib.txt")
@@ -18,10 +19,12 @@ boundary = utl.load_national_polygons(us_shapefile)
 df = utl.get_input_data(wsa_locations)
 df.drop(columns=["tot_wd_mgd"], inplace=True)
 df = utl.get_input_data(wsa_data, df)
+
 df1 = sod.spatial_detect(df, radius, sod.mean_stdev)
 print(df1.std_flg_1.unique())
-print(df1.mean_1.min, df1.mean_1.max)
-df1.to_csv(os.path.join(ws, "..", "data", "wu_mean_spatial_2010.csv"),
+print(df1.mean_1.min(), df1.mean_1.max())
+df1.to_csv(os.path.join(ws, "..", "data",
+                        "wu_mean_spatial_2010_{}m.csv".format(miles)),
            index=False)
 
 xshape, yshape = 1000, 1000  # 5000, 8000
@@ -52,16 +55,28 @@ mask = utl.get_interp_mask(xx, yy, boundary,
 t[~mask] = np.nan
 print("Finished raster intersections")
 
-dx = abs(xx[0, 0] - xx[0, 1])
-dy = abs(yy[0, 0] - yy[1, 0])
-xxv = np.arange(minx - dx/2, maxx + 1 + dx/2, dx)
-yyv = np.arange(miny - dy/2, maxy + 1 + dy/2, dy)
-
-xxv, yyv = np.meshgrid(xxv, yyv)
-
-print('break')
-plt.pcolormesh(xxv, yyv, t)
-# plt.scatter(xv, yv,)  #  'bo')
-plt.colorbar()
+quadmesh = utl.plot_map(t, xx, yy)
+plt.colorbar(quadmesh)
+plt.title("2010 Mean yearly water use, "
+          "in gallons per person: {} mile radius".format(miles))
 plt.show()
 
+
+cdict = {-1.: "m", 0.: 'k', 0.125: 'darkblue',
+         0.25: 'b', 0.5: 'c',
+         1.: 'yellow', 2.: "r",
+         3.: "darkred"}
+ax = None
+for val in sorted(df1.std_flg_1.unique()):
+    tdf = df1[df1.std_flg_1 == val]
+    label = "stdev {}".format(val)
+    color = cdict[val]
+    ax = utl.plot_1_to_1(tdf, ["wu_pp_gd", "mean_1"],
+                         ax=ax, color=color, label=label)
+
+plt.xlim([0, df.mean_1.max()])
+plt.ylim([0, df.mean_1.max()])
+plt.xlabel("SWUD water use, in gallons per person")
+plt.ylabel("Mean 'neighborhood' water use, {} mile radius".format(miles))
+plt.legend()
+plt.show()

@@ -3,6 +3,8 @@ import numpy as np
 import threading
 import queue
 import os
+import matplotlib.pyplot as plt
+
 
 FIELDS = (
     "wsa_agidf",
@@ -10,7 +12,8 @@ FIELDS = (
     "x_centroid",
     "y_centroid",
     "tot_wd_mgd",
-    "year"
+    "year",
+
 )
 
 
@@ -51,8 +54,9 @@ def get_input_data(f, dataframe=None):
 
         if "sum_gu_pop" in list(df) and "tot_wd_mgd" in list(df):
             df["wu_pp_gd"] = (df.tot_wd_mgd / df.sum_gu_pop) * 10e+6
-            df = df[df.wu_pp_gd != 0]
             df = df.replace([np.inf, -np.inf], 0)
+            df = df[df.wu_pp_gd != 0]
+
         if "year" in list(df):
             df = df.loc[df.year == 2010]
 
@@ -226,3 +230,73 @@ def get_interp_mask(xc, yc, polygons,
         mask = np.asarray(mask, dtype=bool)
 
     return mask
+
+
+def array_to_shapefile():
+    pass
+
+
+def points_to_shapefile():
+    pass
+
+
+def plot_map(array, xc, yc, ax=None, **kwargs):
+    """
+    Method to plot up mapped arrays of water use
+
+    Parameters
+    ----------
+    array : np.ndarray
+        array of interpolated data
+    xc : np.ndarray
+        array of xvertices (cell centers)
+    yc : np.ndarray
+        array of yvertices (cell centers)
+    bounds : np.ndarray
+
+    ax : Axes object
+        optional matplotlib axes object
+    kwargs : matplotlib keyword arguments
+
+    Returns
+    -------
+        ax : matplotlib axes object
+    """
+    minx, maxx = np.min(xc), np.max(xc)
+    miny, maxy = np.min(yc), np.max(yc)
+
+    dx = abs(xc[0, 0] - xc[0, 1])
+    dy = abs(yc[0, 0] - yc[1, 0])
+    xxv = np.arange(minx - dx / 2, maxx + 1 + dx / 2, dx)
+    yyv = np.arange(miny - dy / 2, maxy + 1 + dy / 2, dy)
+
+    xxv, yyv = np.meshgrid(xxv, yyv)
+
+    if ax is None:
+        ax = plt.gca()
+
+    quadmesh = ax.pcolormesh(xxv, yyv, array, **kwargs)
+    return quadmesh
+
+
+def plot_1_to_1(df, fields, ax=None, **kwargs):
+    """
+    Method to create one to one plots colored by outlier level
+
+    Parameters
+    ----------
+    df : pd.dataframe
+    fields : list of str
+        fields (observed, processed data) to plot
+    ax : matplotlib ax object (optional
+    kwargs : matplotlib keyword arguments
+
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    obs = df[fields[0]].values
+    sim = df[fields[1]].values
+
+    ax.scatter(obs, sim, **kwargs)
+    return ax

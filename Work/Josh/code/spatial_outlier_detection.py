@@ -75,8 +75,6 @@ def mean_stdev(df, agidf, neighbors, iteration=1):
 
     if len(tdf) >= 1:
         mean = tdf[key].mean(skipna=True)
-        if np.isinf(mean):
-            print('break')
         std = tdf[key].std()
         std2 = 2 * std
         std3 = 3 * std
@@ -100,9 +98,9 @@ def mean_stdev(df, agidf, neighbors, iteration=1):
         flg = 1
     elif (mean + std_half) < val or val < (mean - std_half):
         flg = 0.50
-    elif (mean + std_qrt) < val or val < (mean - std_half):
+    elif (mean + std_qrt) < val or val < (mean - std_qrt):
         flg = 0.25
-    elif (mean + std_qrt) < val or val < (mean - std_half):
+    elif (mean + std_ei) < val or val < (mean - std_ei):
         flg = 0.125
     else:
         flg = 0
