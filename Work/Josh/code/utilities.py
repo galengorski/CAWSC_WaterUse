@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
-
+import threading
+import queue
+import os
 
 FIELDS = (
     "wsa_agidf",
@@ -133,3 +135,93 @@ def load_national_polygons(f):
             for poly in feat['coordinates']:
                 t.append(poly[0])
     return t
+
+
+def threaded_point_in_polygon(q, xc, yc, polygon, container):
+    """
+    Theaded method for doing point in polygon array operations
+
+    q : Queue.Queue object
+    xc : np.ndarray
+        array of xpoints
+    yc : np.ndarray
+        array of ypoints
+    polygon : iterable (list)
+        polygon vertices [(x0, y0),....(xn, yn)]
+        note: polygon can be open or closed
+    container : threading.BoundedSemaphore
+
+    Returns
+    -------
+    mask: np.array
+        True value means point is in polygon!
+    """
+    container.acquire()
+    mask = point_in_polygon(xc, yc, polygon)
+    q.put(mask)
+    container.release()
+
+
+def get_interp_mask(xc, yc, polygons,
+                    multithread=False,
+                    num_threads=8):
+    """
+    Method to build, save, and load a mask for interpolation
+
+    Parameters
+    ----------
+    xc : np.ndarray
+        xcenters array
+    yc : np.ndarray
+        ycenters array
+    polygons : list
+        list of polygons vertices
+    multithread : bool
+        boolean flag to enable multithreading
+    num_threads : int
+        number of threads to use for calculation
+    Returns
+    -------
+        mask: boolean np.ndarray
+    """
+    yshape, xshape = xc.shape
+
+    fbase = "interp_mask_{}_{}.dat".format(yshape, xshape)
+    fname = os.path.join("..", "data", fbase)
+    if os.path.exists(fname):
+        mask = np.genfromtxt(fname, dtype=bool)
+
+    elif multithread:
+        q = queue.Queue()
+        container = threading.BoundedSemaphore(num_threads)
+        threads = []
+        mask = np.zeros((yshape, xshape), dtype=int)
+        for ix, poly in enumerate(polygons):
+            t = threading.Thread(target=threaded_point_in_polygon,
+                                 args=(q, xc, yc, poly, container))
+            threads.append(t)
+
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        result = [q.get() for _ in range(len(threads))]
+        for m in result:
+            mask[m] = 1
+
+        np.savetxt(fname, mask, fmt="%d", delimiter="  ")
+        mask = np.asarray(mask, dtype=bool)
+
+    else:
+        mask = np.zeros((yshape, xshape), dtype=int)
+        for ix, poly in enumerate(polygons):
+            print("Creating mask: Percent done: "
+                  "{:.3f}".format(ix/len(polygons)))
+            m = point_in_polygon(xc, yc, list(poly))
+            mask[m] = 1
+
+        np.savetxt(fname, mask, fmt="%d", delimiter="  ")
+        mask = np.asarray(mask, dtype=bool)
+
+    return mask

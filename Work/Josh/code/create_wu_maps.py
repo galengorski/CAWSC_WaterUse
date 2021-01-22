@@ -20,10 +20,11 @@ df.drop(columns=["tot_wd_mgd"], inplace=True)
 df = utl.get_input_data(wsa_data, df)
 df1 = sod.spatial_detect(df, radius, sod.mean_stdev)
 print(df1.std_flg_1.unique())
+print(df1.mean_1.min, df1.mean_1.max)
 df1.to_csv(os.path.join(ws, "..", "data", "wu_mean_spatial_2010.csv"),
            index=False)
 
-xshape, yshape = 1500, 3000
+xshape, yshape = 1000, 1000  # 5000, 8000
 xv = df1.x_centroid.values
 yv = df1.y_centroid.values
 points = list(zip(xv, yv))
@@ -45,9 +46,10 @@ t = griddata((xv, yv), values, (xpts, ypts), method="linear")
 t.shape = (yshape, xshape)
 
 print("Starting raster intersections")
-for poly in boundary:
-    mask = utl.point_in_polygon(xx, yy, list(poly))
-    t[~mask] = np.nan
+mask = utl.get_interp_mask(xx, yy, boundary,
+                           multithread=True,
+                           num_threads=8)
+t[~mask] = np.nan
 print("Finished raster intersections")
 
 dx = abs(xx[0, 0] - xx[0, 1])
@@ -59,7 +61,7 @@ xxv, yyv = np.meshgrid(xxv, yyv)
 
 print('break')
 plt.pcolormesh(xxv, yyv, t)
-plt.scatter(xv, yv,)  #  'bo')
+# plt.scatter(xv, yv,)  #  'bo')
 plt.colorbar()
 plt.show()
 
