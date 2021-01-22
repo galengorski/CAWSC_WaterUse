@@ -4,6 +4,7 @@ import threading
 import queue
 import os
 import matplotlib.pyplot as plt
+import shapefile
 
 
 FIELDS = (
@@ -26,7 +27,7 @@ def get_input_data(f, dataframe=None):
     ----------
     f : str
         csv file name to be imported by pandas
-    df : None or pd.Dataframe
+    dataframe : None or pd.Dataframe
         if not none we can join by wsa
 
     Returns
@@ -43,7 +44,6 @@ def get_input_data(f, dataframe=None):
     lowered = {i: i.lower() for i in list(df)}
     df = df.drop(columns=drop)
     df = df.rename(columns=lowered)
-    print(len(df))
     if dataframe is not None:
         df = pd.merge(
             left=dataframe,
@@ -60,8 +60,6 @@ def get_input_data(f, dataframe=None):
         if "year" in list(df):
             df = df.loc[df.year == 2010]
 
-
-    print(len(df))
     return df
 
 
@@ -232,12 +230,114 @@ def get_interp_mask(xc, yc, polygons,
     return mask
 
 
-def array_to_shapefile():
-    pass
+def array_to_shapefile(shp_name, array, xc, yc):
+    """
+    Method to write a dictionary of arrays to a shapefile
+
+    Parameters
+    ----------
+    shp_name : str
+    array : dict
+        {attribute name : array}
+    xc : np.ndarray
+        array of cell centers
+    yc : np.ndarray
+        array of cell centers
+
+    Returns
+    -------
+        None
+    """
+    minx, maxx = np.min(xc), np.max(xc)
+    miny, maxy = np.min(yc), np.max(yc)
+
+    dx = abs(xc[0, 0] - xc[0, 1])
+    dy = abs(yc[0, 0] - yc[1, 0])
+    xxv = np.arange(minx - dx / 2, maxx + 1 + dx / 2, dx)
+    yyv = np.arange(miny - dy / 2, maxy + 1 + dy / 2, dy)
+
+    xxv, yyv = np.meshgrid(xxv, yyv)
+
+    with shapefile.Writer(shp_name, shapeType=shapefile.POLYGON) as w:
+        for k in array.keys():
+            w.field(k, 'N')
+
+        for i in range(xc.shape[0]):
+            for j in range(xc.shape[1]):
+                verts = [(xxv[i, j], yyv[i, j]),
+                         (xxv[i, j+1], yyv[i, j+1]),
+                         (xxv[i+1, j+1], yyv[i+1, j+1]),
+                         (xxv[i+1, j], yyv[i+1, j])]
+
+                vals = [v[i, j] for k, v in array.items()]
+                if np.isnan(vals).all():
+                    continue
+
+                else:
+                    w.poly([verts])
+                    w.record(*vals)
+
+    make_alb83_proj(shp_name)
 
 
-def points_to_shapefile():
-    pass
+def points_to_shapefile(shp_name, df):
+    """
+    Method to export a pandas dataframe to shapefile
+
+    Parameters
+    ----------
+    shp_name : str
+    df : pd.DataFrame
+        dataframe must contain x_centroid and y_centriod fields!
+
+    Returns
+    -------
+        None
+    """
+    cols = list(df)
+    if "x_centroid" not in cols or "y_centroid" not in cols:
+        raise AssertionError("spatial information not in df")
+
+    with shapefile.Writer(shp_name, shapeType=shapefile.POINT) as w:
+        for col in cols:
+            if col == "wsa_agidf":
+                w.field(col, "C")
+            else:
+                w.field(col, 'N', decimal=1)
+
+        for iloc, rec in df.iterrows():
+            w.point(rec.x_centroid, rec.y_centroid)
+            vals = [rec[i] for i in cols]
+            w.record(*vals)
+
+    make_alb83_proj(shp_name)
+
+
+def make_alb83_proj(shp_name):
+    """
+    Method to add an albers83 projection file to shapefile
+
+    Parameters
+    ----------
+    shp_name : str
+
+    Returns
+    -------
+        None
+    """
+    proj = 'PROJCS["NAD_1983_Contiguous_USA_Albers",' \
+           'GEOGCS["GCS_North_American_1983",DATUM["D_North_American_1983",' \
+           'SPHEROID["GRS_1980",6378137.0,298.257222101]],' \
+           'PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],' \
+           'PROJECTION["Albers"],PARAMETER["False_Easting",0.0],' \
+           'PARAMETER["False_Northing",0.0],' \
+           'PARAMETER["Central_Meridian",-96.0],' \
+           'PARAMETER["Standard_Parallel_1",29.5],' \
+           'PARAMETER["Standard_Parallel_2",45.5],' \
+           'PARAMETER["Latitude_Of_Origin",23.0],UNIT["Meter",1.0]]'
+    prj_name = shp_name[:-4] + ".prj"
+    with open(prj_name, "w") as foo:
+        foo.write(proj)
 
 
 def plot_map(array, xc, yc, ax=None, **kwargs):
@@ -252,8 +352,6 @@ def plot_map(array, xc, yc, ax=None, **kwargs):
         array of xvertices (cell centers)
     yc : np.ndarray
         array of yvertices (cell centers)
-    bounds : np.ndarray
-
     ax : Axes object
         optional matplotlib axes object
     kwargs : matplotlib keyword arguments
