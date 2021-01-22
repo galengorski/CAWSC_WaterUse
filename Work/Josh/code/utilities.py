@@ -189,7 +189,8 @@ def get_interp_mask(xc, yc, polygons,
     fbase = "interp_mask_{}_{}.dat".format(yshape, xshape)
     fname = os.path.join("..", "data", fbase)
     if os.path.exists(fname):
-        mask = np.genfromtxt(fname, dtype=bool)
+        mask = np.genfromtxt(fname, dtype=int)
+        mask = np.asarray(mask, dtype=bool)
 
     elif multithread:
         q = queue.Queue()
