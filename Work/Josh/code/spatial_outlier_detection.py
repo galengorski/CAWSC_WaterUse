@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def spatial_detect(df, radius, funcs):
+def spatial_detect(df, radius, funcs, field="wu_pp_gd"):
     """
     Driver method for spatial outlier detection. Method
     uses distance formula to determine if records are within a
@@ -15,7 +15,8 @@ def spatial_detect(df, radius, funcs):
         radius in meters to consider data from for each WSA
     funcs : list [object,]
         python function(s) for outlier detection
-
+    field : str
+        field to perform outlier detection on
     """
     if not isinstance(funcs, list):
         funcs = [funcs]
@@ -33,12 +34,12 @@ def spatial_detect(df, radius, funcs):
         idx = np.where(dist <= radius)[0]
         neighbors = agidfs[idx]
         for fun in funcs:
-            df = fun(df, agidf, neighbors, 1)
+            df = fun(df, agidf, neighbors, field, 1)
 
     return df
 
 
-def mean_stdev(df, agidf, neighbors, iteration=1):
+def mean_stdev(df, agidf, neighbors, field="wu_pp_gd", iteration=1):
     """
     Method to take the a mean and standard deviation of a group of
     water service areas and flag the water service area of interest
@@ -51,17 +52,19 @@ def mean_stdev(df, agidf, neighbors, iteration=1):
         water service area agidf of interest
     neighbors : list [str,]
         "neighborhood" water service area agidfs
-    iter : int
+    field : str
+        field to perform outlier detection on
+    iteration : int
         iteration number
 
-    Returns:
+    Returns
     -------
         df
     """
     mbase = "mean_{}".format(iteration)
     olbase = "std_flg_{}".format(iteration)
     if iteration == 1:
-        key = 'wu_pp_gd'
+        key = field
     else:
         key = "mean_{}".format(iteration - 1)
 

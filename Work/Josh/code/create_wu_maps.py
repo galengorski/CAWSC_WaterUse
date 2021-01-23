@@ -33,7 +33,7 @@ for miles in miles_list:
     df1 = sod.spatial_detect(df, radius, sod.mean_stdev)
     print(df1.std_flg_1.unique())
     print(df1.mean_1.min(), df1.mean_1.max())
-    df1.to_csv(os.path.join(ws, "..", "data",
+    df1.to_csv(os.path.join(ws, "..", "output",
                             "wu_mean_spatial_2010_{}m.csv".format(miles)),
                index=False)
 
@@ -90,8 +90,8 @@ for miles in miles_list:
         ax = utl.plot_1_to_1(tdf, ["wu_pp_gd", "mean_1"],
                              ax=ax, color=color, label=label)
 
-    plt.xlim([0, df.mean_1.max()])
-    plt.ylim([0, df.mean_1.max()])
+    plt.xlim([0, df1.mean_1.max()])
+    plt.ylim([0, df1.mean_1.max()])
     plt.xlabel("SWUD water use, in gallons per person")
     plt.ylabel("Mean 'neighborhood' water use, {} mile radius".format(miles))
     plt.legend()

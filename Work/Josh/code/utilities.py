@@ -7,18 +7,36 @@ import matplotlib.pyplot as plt
 import shapefile
 
 
-FIELDS = (
+COMMON = (
     "wsa_agidf",
     "sum_gu_pop",
     "x_centroid",
     "y_centroid",
-    "tot_wd_mgd",
     "year",
-
 )
 
 
-def get_input_data(f, dataframe=None):
+YEARLY = (
+    "tot_wd_mgd",
+)
+
+MONTHLY = (
+    "jan_mgd",
+    "feb_mgd",
+    "mar_mgd",
+    "apr_mgd",
+    "may_mgd",
+    "jun_mgd",
+    "jul_mgd",
+    "aug_mgd",
+    "sep_mgd",
+    "oct_mgd",
+    "nov_mgd",
+    "dec_mgd"
+)
+
+
+def get_input_data(f, dataframe=None, monthly=False):
     """
     Method to read and clean input data for processing in outlier detection
     work
@@ -34,6 +52,11 @@ def get_input_data(f, dataframe=None):
     -------
         pd.DataFrame
     """
+    if not monthly:
+        FIELDS = COMMON + YEARLY
+    else:
+        FIELDS = COMMON + MONTHLY
+
     df = pd.read_csv(f)
 
     drop = []
@@ -52,10 +75,18 @@ def get_input_data(f, dataframe=None):
             right_on='wsa_agidf'
         )
 
-        if "sum_gu_pop" in list(df) and "tot_wd_mgd" in list(df):
-            df["wu_pp_gd"] = (df.tot_wd_mgd / df.sum_gu_pop) * 10e+6
-            df = df.replace([np.inf, -np.inf], 0)
-            df = df[df.wu_pp_gd != 0]
+        if "sum_gu_pop" in list(df):
+            if "tot_wd_mgd" in list(df):
+                df["wu_pp_gd"] = (df.tot_wd_mgd / df.sum_gu_pop) * 10e+6
+                df = df.replace([np.inf, -np.inf], 0)
+                df = df[df.wu_pp_gd != 0]
+            elif "jan_mgd" in list(df):
+                for field in MONTHLY:
+                    new = field.split("_")[0] + "_pp_gd"
+                    df[new] = (df[field] / df.sum_gu_pop) * 10e+6
+
+                df = df.replace([np.inf, -np.inf], 0)
+                df = df.replace([np.nan,], 0)
 
         if "year" in list(df):
             df = df.loc[df.year == 2010]
