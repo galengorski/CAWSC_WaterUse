@@ -1,10 +1,11 @@
 import sciencebasepy
 import time
 from datetime import datetime
+import sys
 import os
+import inspect
 import csv
 import hashlib
-import zipfile
 import ntpath
 import enum
 from getpass import getpass
@@ -21,10 +22,58 @@ class FileStatus(enum.Enum):
     out_of_date_merge_status_unknown = 8
 
 
+class ErrorLog:
+    # ErrorLog is used to write errors out to a file to help with debugging
+    # this python application
+    _instance = None
+
+    def __init__(self):
+        raise RuntimeError('Call instance() instead')
+
+    @classmethod
+    def instance(cls):
+        if cls._instance is None:
+            cls._instance = cls.__new__(cls)
+            cls._instance._log_dict = None
+            cls._instance._fd_log_file = open('debug_log_sbsync.txt', 'w')
+
+        return cls._instance
+
+    def write_log(self, err_class, err_method, stack, err_type, value):
+        self._fd_log_file.write('---------------------------------------------')
+        self._fd_log_file.write('---------------------------------------------')
+        self._fd_log_file.write('\nAn error was caught in class "{}" method '
+                                '"{}"\nSee Debugging information below:'
+                                '\n'.format(err_class, err_method))
+        self._fd_log_file.write('\nEXCEPTION TYPE: ')
+        self._fd_log_file.write(err_type)
+        self._fd_log_file.write('\nADDITIONAL INFORMATION: ')
+        self._fd_log_file.write(value)
+        self._fd_log_file.write('\n')
+        self._fd_log_file.write('\nCALL STACK\n---------------------\n')
+        for entry in reversed(stack):
+            self._fd_log_file.write('{} (line {}): '
+                                    '{}\n'.format(entry[3], entry[2], entry[1]))
+
+        self._fd_log_file.write('\n')
+        self._fd_log_file.write('---------------------------------------------')
+        self._fd_log_file.write('---------------------------------------------')
+        self._fd_log_file.write('\n\n')
+        self._fd_log_file.flush()
+
+    def write_warning(self, message):
+        self._fd_log_file.write(message)
+        self._fd_log_file.write('\n\n')
+        self._fd_log_file.flush()
+
+    def __del__(self):
+        self._fd_log_file.close()
+
+
 class SyncLog:
     # SyncLog is used to produce a log of original file modification dates
     # and SHA1 hashes in order to detect merge conflicts.  The log contains a
-    # line for each downlaoded file:
+    # line for each downloaded file:
     #       file_path, original_modification_date, SHA1 hash
     # SyncLog is a singleton class, only one instance of it can exist
     class LogFileInfo:
@@ -52,16 +101,24 @@ class SyncLog:
         self._load_log()
 
     def _load_log(self):
-        self._log_dict = {}
-        if os.path.isfile(self._log_file_path):
-            with open(self._log_file_path, 'r') as fd_read:
-                csv_rd = csv.reader(fd_read, delimiter=',', quotechar='\"')
-                for line_lst in csv_rd:
-                    local_mod_time = datetime.fromisoformat(line_lst[1])
-                    sb_mod_time = datetime.fromisoformat(line_lst[2])
-                    self._log_dict[line_lst[0]] = \
-                        SyncLog.LogFileInfo(local_mod_time, sb_mod_time,
-                                            line_lst[3])
+        try:
+            self._log_dict = {}
+            if os.path.isfile(self._log_file_path):
+                with open(self._log_file_path, 'r') as fd_read:
+                    csv_rd = csv.reader(fd_read, delimiter=',', quotechar='\"')
+                    for line_lst in csv_rd:
+                        local_mod_time = datetime.fromisoformat(line_lst[1])
+                        sb_mod_time = datetime.fromisoformat(line_lst[2])
+                        self._log_dict[line_lst[0]] = \
+                            SyncLog.LogFileInfo(local_mod_time, sb_mod_time,
+                                                line_lst[3])
+        except Exception as ex:
+            type_, value_, traceback_ = sys.exc_info()
+            stack = inspect.stack()
+            ErrorLog.instance().write_log('SyncLog', '_load_log', stack,
+                                          str(type_),
+                                          str(value_))
+            self._log_dict = {}
 
     def clear_log(self):
         if os.path.isfile(self._log_file_path):
@@ -77,12 +134,20 @@ class SyncLog:
         self.write_log()
 
     def write_log(self):
-        with open(self._log_file_path, 'w') as fd_write:
-            for file_path, file_info in self._log_dict.items():
-                fd_write.write('{},{},{},{}\n'.format(
-                    file_path, file_info.local_modification_date,
-                    file_info.sb_modification_date,
-                    file_info.checksum))
+        try:
+            with open(self._log_file_path, 'w') as fd_write:
+                for file_path, file_info in self._log_dict.items():
+                    fd_write.write('{},{},{},{}\n'.format(
+                        file_path, file_info.local_modification_date,
+                        file_info.sb_modification_date,
+                        file_info.checksum))
+        except Exception as ex:
+            type_, value_, traceback_ = sys.exc_info()
+            stack = inspect.stack()
+            print('WARNING: Unable to write sync log.')
+            ErrorLog.instance().write_log('SyncLog', '_load_log', stack,
+                                          str(type_),
+                                          str(value_))
 
     def get_file_info(self, file_path):
         if file_path in self._log_dict:
@@ -123,13 +188,30 @@ class SBAccess:
             jsnf.pop(item)
         return jsnf
 
-    def _handle_error(self, err):
+    def _handle_error(self, err, sb_id=None):
         if err.errno == 10060:
-            print('Connection aborted, reconnecting...')
+            w_str = 'WARNING: Connection aborted, reconnecting...'
+            print(w_str)
+            ErrorLog.instance().write_warning(w_str)
             self._authenticate()
         else:
-            print('Error "{}" occurred while getting item id {}, '
-                  'retrying...'.format(err.strerror, sb_id))
+            if sb_id is not None:
+                id_text = ' while getting item identified by {}'.format(sb_id)
+            else:
+                id_text = ''
+            w_str = 'WARNING: "{}" occurred{}, ' \
+                    'error number {}.  Retrying..' \
+                    '.'.format(err.strerror, id_text, err.errno)
+            print(w_str)
+            ErrorLog.instance().write_warning(w_str)
+
+    def _handle_too_many_retries(op_name, **kwargs):
+        msg = 'WARNING: Unable to {}.'.format(op_name)
+        print(msg)
+        msg = '{}  Parameters:'.format(msg)
+        for value in kwargs.values():
+            msg = '{}\n{}'.format(msg, value)
+        ErrorLog.instance().write_warning(msg)
 
     def get_item(self, sb_id):
         success = False
@@ -140,8 +222,10 @@ class SBAccess:
                 item_json = self.sb.get_item(sb_id)
                 success = True
             except OSError as err:
-                self._handle_error(err)
+                self._handle_error(err, sb_id)
                 retry_attempt += 1
+        if retry_attempt >= self.max_retries:
+            self._handle_too_many_retries('get item', sb_id)
         return item_json
 
     def get_child_ids(self, sb_id):
@@ -153,8 +237,10 @@ class SBAccess:
                 child_ids = self.sb.get_child_ids(sb_id)
                 success = True
             except OSError as err:
-                self._handle_error(err)
+                self._handle_error(err, sb_id)
                 retry_attempt += 1
+        if retry_attempt >= self.max_retries:
+            self._handle_too_many_retries('get child ids', sb_id)
         return child_ids
 
     def get_item_files(self, sb_json, destination):
@@ -168,6 +254,9 @@ class SBAccess:
             except OSError as err:
                 self._handle_error(err)
                 retry_attempt += 1
+        if retry_attempt >= self.max_retries:
+            self._handle_too_many_retries('get item files', sb_json,
+                                          destination)
         return success
 
     def download_file(self, sb_url, file_name, local_folder_path):
@@ -178,8 +267,11 @@ class SBAccess:
                 self.sb.download_file(sb_url, file_name, local_folder_path)
                 success = True
             except OSError as err:
-                self._handle_error(err)
+                self._handle_error(err, sb_url)
                 retry_attempt += 1
+        if retry_attempt >= self.max_retries:
+            self._handle_too_many_retries('download file', sb_url, file_name,
+                                          local_folder_path)
         return success
 
     def upload_files_to_item(self, json_item, local_file_paths,
@@ -199,7 +291,9 @@ class SBAccess:
             except OSError as err:
                 self._handle_error(err)
                 retry_attempt += 1
-        #success_dict[local_file_path] = success
+        if retry_attempt >= self.max_retries:
+            self._handle_too_many_retries('upload files to item', json_item,
+                                          local_file_paths)
         return success
 
     def replace_file(self, local_file_path, json_item):
@@ -211,8 +305,11 @@ class SBAccess:
                 value = self.sb.replace_file(local_file_path, json_item)
                 success = True
             except OSError as err:
-                self._handle_error(err)
+                self._handle_error(err, local_file_path)
                 retry_attempt += 1
+        if retry_attempt >= self.max_retries:
+            self._handle_too_many_retries('replace file', local_file_path,
+                                          json_item)
         return success
 
     def create_item(self, json_item):
@@ -227,6 +324,8 @@ class SBAccess:
             except OSError as err:
                 self._handle_error(err)
                 retry_attempt += 1
+        if retry_attempt >= self.max_retries:
+            self._handle_too_many_retries('create item', json_item)
         return result
 
     def update_item(self, json_item):
@@ -240,6 +339,8 @@ class SBAccess:
             except OSError as err:
                 self._handle_error(err)
                 retry_attempt += 1
+        if retry_attempt >= self.max_retries:
+            self._handle_too_many_retries('update item', json_item)
         return success
 
     def _authenticate(self):
@@ -252,6 +353,10 @@ class SBAccess:
             self.authenticated = True
         except Exception as ex:
             self.authenticated = False
+            ErrorLog.instance().write_warning('Failed to authenticate for '
+                                              'username {}.  Exception: '
+                                              '{}'.format(self.username, ex))
+
         # Need to wait a bit after the login or errors can occur
         time.sleep(5)
 
@@ -261,12 +366,22 @@ class SBPermissions:
                  read_inherits_from_id=None, write_acl=None,
                  write_inherited=None, write_inherits_from_id=None):
         if json_txt is not None:
-            self.read_acl = json_txt['read']['acl']
-            self.read_inherited = json_txt['read']['inherited']
-            self.read_inherits_from_id = json_txt['read']['inheritsFromId']
-            self.write_acl = json_txt['write']['acl']
-            self.write_inherited = json_txt['write']['inherited']
-            self.write_inherits_from_id = json_txt['write']['inheritsFromId']
+            if 'read' in json_txt:
+                json_read = json_txt['read']
+                if 'acl' in json_read:
+                    self.read_acl = json_read['acl']
+                if 'inherited' in json_read:
+                    self.read_inherited = json_read['inherited']
+                if 'inheritsFromId' in json_read:
+                    self.read_inherits_from_id = json_read['inheritsFromId']
+            if 'write' in json_txt:
+                json_write = json_txt['write']
+                if 'acl' in json_write:
+                    self.write_acl = json_write['acl']
+                if 'inherited' in json_write:
+                    self.write_inherited = json_write['inherited']
+                if 'inheritsFromId' in json_write:
+                    self.write_inherits_from_id = json_write['inheritsFromId']
         else:
             self.read_acl = read_acl
             self.read_inherited = read_inherited
@@ -431,61 +546,72 @@ class SBFile:
         self.refresh(json_info)
 
     def refresh(self, json_info):
-        if json_info is not None:
-            if 'cuid' in json_info:
-                self.sb_cuid = json_info['cuid']
-            if 'key' in json_info:
-                self.sb_key = json_info['key']
-            if 'bucket' in json_info:
-                self.sb_bucket = json_info['bucket']
-            if 'published' in json_info:
-                self.sb_published = json_info['published']
-            if 'node' in json_info:
-                self.sb_node = json_info['node']
-            if 'name' in json_info:
-                self.sb_name = json_info['name']
-            if 'title' in json_info:
-                self.sb_title = json_info['title']
-            if 'contentType' in json_info:
-                self.sb_content_type = json_info['contentType']
-            if 'contentEncoding' in json_info:
-                self.sb_content_encoding = json_info['contentEncoding']
-            if 'pathOnDisk' in json_info:
-                self.sb_path_on_disk = json_info['pathOnDisk']
-            if 'processed' in json_info:
-                self.sb_processed = json_info['processed']
-            if 'processToken' in json_info:
-                self.sb_process_token = json_info['processToken']
-            if 'imageWidth' in json_info:
-                self.sb_image_width = json_info['imageWidth']
-            if 'imageHeight' in json_info:
-                self.sb_image_height = json_info['imageHeight']
-            if 'size' in json_info:
-                self.sb_size = json_info['size']
-            if 'dateUploaded' in json_info:
-                if json_info['dateUploaded'] is not None:
-                    self.sb_date_uploaded = self._to_python_datetime(json_info['dateUploaded'])
-                else:
-                    self.sb_date_uploaded = None
-            if 'uploadedBy' in json_info:
-                self.sb_uploaded_by = json_info['uploadedBy']
-            if 'originalMetadata' in json_info:
-                self.sb_original_metadata = json_info['originalMetadata']
-            if 'useForPreview' in json_info:
-                self.sb_use_for_preview = json_info['useForPreview']
-            if 's3Object' in json_info:
-                self.sb_s3_object = json_info['s3Object']
-            if 'checksum' in json_info and json_info['checksum'] is not None:
-                if 'value' in json_info['checksum']:
-                    self.sb_checksum = json_info['checksum']['value']
-                if 'type' in json_info['checksum']:
-                    self.sb_checksum_type = json_info['checksum']['type']
-            if 'url' in json_info:
-                self.sb_url = json_info['url']
-            if 'downloadUri' in json_info:
-                self.sb_download_uri = json_info['downloadUri']
-            if 'viewUri' in json_info:
-                self.sb_view_uri = json_info['viewUri']
+        try:
+            if json_info is not None:
+                if 'cuid' in json_info:
+                    self.sb_cuid = json_info['cuid']
+                if 'key' in json_info:
+                    self.sb_key = json_info['key']
+                if 'bucket' in json_info:
+                    self.sb_bucket = json_info['bucket']
+                if 'published' in json_info:
+                    self.sb_published = json_info['published']
+                if 'node' in json_info:
+                    self.sb_node = json_info['node']
+                if 'name' in json_info:
+                    self.sb_name = json_info['name']
+                if 'title' in json_info:
+                    self.sb_title = json_info['title']
+                if 'contentType' in json_info:
+                    self.sb_content_type = json_info['contentType']
+                if 'contentEncoding' in json_info:
+                    self.sb_content_encoding = json_info['contentEncoding']
+                if 'pathOnDisk' in json_info:
+                    self.sb_path_on_disk = json_info['pathOnDisk']
+                if 'processed' in json_info:
+                    self.sb_processed = json_info['processed']
+                if 'processToken' in json_info:
+                    self.sb_process_token = json_info['processToken']
+                if 'imageWidth' in json_info:
+                    self.sb_image_width = json_info['imageWidth']
+                if 'imageHeight' in json_info:
+                    self.sb_image_height = json_info['imageHeight']
+                if 'size' in json_info:
+                    self.sb_size = json_info['size']
+                if 'dateUploaded' in json_info:
+                    if json_info['dateUploaded'] is not None:
+                        self.sb_date_uploaded = \
+                            self._to_python_datetime(json_info['dateUploaded'])
+                    else:
+                        self.sb_date_uploaded = None
+                if 'uploadedBy' in json_info:
+                    self.sb_uploaded_by = json_info['uploadedBy']
+                if 'originalMetadata' in json_info:
+                    self.sb_original_metadata = json_info['originalMetadata']
+                if 'useForPreview' in json_info:
+                    self.sb_use_for_preview = json_info['useForPreview']
+                if 's3Object' in json_info:
+                    self.sb_s3_object = json_info['s3Object']
+                if 'checksum' in json_info and \
+                        json_info['checksum'] is not None:
+                    if 'value' in json_info['checksum']:
+                        self.sb_checksum = json_info['checksum']['value']
+                    if 'type' in json_info['checksum']:
+                        self.sb_checksum_type = json_info['checksum']['type']
+                if 'url' in json_info:
+                    self.sb_url = json_info['url']
+                if 'downloadUri' in json_info:
+                    self.sb_download_uri = json_info['downloadUri']
+                if 'viewUri' in json_info:
+                    self.sb_view_uri = json_info['viewUri']
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBFile',
+                                          'refresh',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     @staticmethod
     def _local_json(file_name):
@@ -509,6 +635,8 @@ class SBFile:
         ----------
         sb_access : SBAccess
             access to ScienceBase
+        parent_item : SBTreeNode
+            parent folder object
         local_file_path : string
             path to local file
 
@@ -562,27 +690,54 @@ class SBFile:
         return os.path.isfile(self.local_file_path)
 
     def _hash_binary_file(self, fd):
-        BLOCKSIZE = 65536
-        file_hash = hashlib.md5()
-        buf = fd.read(BLOCKSIZE)
-        while len(buf) > 0:
-            file_hash.update(buf)
+        try:
+            BLOCKSIZE = 65536
+            file_hash = hashlib.md5()
             buf = fd.read(BLOCKSIZE)
-        return file_hash.hexdigest()
+            while len(buf) > 0:
+                file_hash.update(buf)
+                buf = fd.read(BLOCKSIZE)
+            return file_hash.hexdigest()
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBFile',
+                                          '_hash_binary_file',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     @property
     def local_checksum(self):
-        fd = open(self.local_file_path, 'rb')
-        hash_text = self._hash_binary_file(fd)
-        fd.close()
-        return hash_text
+        try:
+            fd = open(self.local_file_path, 'rb')
+            hash_text = self._hash_binary_file(fd)
+            fd.close()
+            return hash_text
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBFile',
+                                          'local_checksum',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     @property
     def local_modify_time(self):
-        if os.path.isfile(self.local_file_path):
-            return datetime.fromtimestamp(os.path.getmtime(
-                self.local_file_path))
-        return None
+        try:
+            if os.path.isfile(self.local_file_path):
+                return datetime.fromtimestamp(os.path.getmtime(
+                    self.local_file_path))
+            return None
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBFile',
+                                          'local_modify_time',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     @property
     def sb_file_exists(self):
@@ -598,65 +753,94 @@ class SBFile:
 
     @property
     def file_status(self):
-        if not self.sb_file_exists:
-            if not self.local_file_exists:
-                return FileStatus.both_files_missing
-            else:
-                return FileStatus.sciencebase_file_missing
-        elif not self.local_file_exists:
-            return FileStatus.local_file_missing
-#        elif self.checksum_matches:
-#            return FileStatus.files_match
-        else:
-            orig_info = SyncLog.instance().get_file_info(self.local_file_path)
-            if orig_info is None:
-                return FileStatus.out_of_date_merge_status_unknown
-            local_file_modified = orig_info.local_modification_date < \
-                self.local_modify_time
-            server_file_modified = orig_info.sb_modification_date < \
-                self.sb_date_uploaded
-            if local_file_modified:
-                if server_file_modified:
-                    return FileStatus.merge_required
+        try:
+            if not self.sb_file_exists:
+                if not self.local_file_exists:
+                    return FileStatus.both_files_missing
                 else:
-                    return FileStatus.sciencebase_out_of_date
-            elif server_file_modified:
-                return FileStatus.local_out_of_date
+                    return FileStatus.sciencebase_file_missing
+            elif not self.local_file_exists:
+                return FileStatus.local_file_missing
             else:
-                return FileStatus.files_match
+                orig_info = \
+                    SyncLog.instance().get_file_info(self.local_file_path)
+                if orig_info is None:
+                    return FileStatus.out_of_date_merge_status_unknown
+                local_file_modified = orig_info.local_modification_date < \
+                    self.local_modify_time
+                server_file_modified = orig_info.sb_modification_date < \
+                    self.sb_date_uploaded
+                if local_file_modified:
+                    if server_file_modified:
+                        return FileStatus.merge_required
+                    else:
+                        return FileStatus.sciencebase_out_of_date
+                elif server_file_modified:
+                    return FileStatus.local_out_of_date
+                else:
+                    return FileStatus.files_match
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBFile',
+                                          'file_status',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     def upload_to_sciencebase(self, scrape_file=True):
-        if self.sb_file_exists:
-            # replace item
-            success = self._sb_access.replace_file(
-                self.local_file_path, self._parent_item.json_folder(True,
-                                                                    True))
-        else:
-            # create item
-            success = self._sb_access.upload_files_to_item(
-                self._parent_item.json_folder(), [self.local_file_path],
-                scrape_file=scrape_file)
-        if success:
-            # resync with server
-            self._parent_item.refresh()
-            SyncLog.instance().update_log(self.local_file_path,
-                                          self.local_modify_time,
-                                          self.sb_date_uploaded,
-                                          self.local_checksum)
+        try:
+            if self.sb_file_exists:
+                # replace item
+                success = self._sb_access.replace_file(
+                    self.local_file_path, self._parent_item.json_folder(True,
+                                                                        True))
+            else:
+                # make sure containing folder exists on ScienceBase
+                if not self._parent_item.sb_folder_exists:
+                    self._parent_item.upload_to_sciencebase()
+                # create item
+                success = self._sb_access.upload_files_to_item(
+                    self._parent_item.json_folder(), [self.local_file_path],
+                    scrape_file=scrape_file)
+            if success:
+                # resync with server
+                self._parent_item.refresh()
+                SyncLog.instance().update_log(self.local_file_path,
+                                              self.local_modify_time,
+                                              self.sb_date_uploaded,
+                                              self.local_checksum)
 
-        return success
+            return success
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBFile',
+                                          'upload_to_sciencebase',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     def download_file_from_sciencebase(self):
-        success = self._sb_access.download_file(self.sb_url, self.sb_name,
-                                                self.local_folder_path)
-        if success:
-            # resync with server
-            self._parent_item.refresh()
-            SyncLog.instance().update_log(self.local_file_path,
-                                          self.local_modify_time,
-                                          self.sb_date_uploaded,
-                                          self.local_checksum)
-        return success
+        try:
+            success = self._sb_access.download_file(self.sb_url, self.sb_name,
+                                                    self.local_folder_path)
+            if success:
+                # resync with server
+                self._parent_item.refresh()
+                SyncLog.instance().update_log(self.local_file_path,
+                                              self.local_modify_time,
+                                              self.sb_date_uploaded,
+                                              self.local_checksum)
+            return success
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBFile',
+                                          'download_file_from_sciencebase',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     @staticmethod
     def _to_sb_datetime(date_time):
@@ -785,6 +969,8 @@ class SBTreeNode:
 
 
     """
+    MAX_FOLDER_NAME_LENGTH = 50
+
     def __init__(self, parent_folder_path, sb_access, parent_item, sb_id,
                  title=None):
         self.sb_access = sb_access
@@ -793,6 +979,7 @@ class SBTreeNode:
         self.sb_title = title
         self.sb_id = sb_id
         self.sb_has_children = None
+        self.local_has_children = None
         self.sb_data_source = None
         self.sb_last_updated_by = None
         self.sb_last_updated_date = None
@@ -829,82 +1016,99 @@ class SBTreeNode:
         return None
 
     def refresh(self, item_json=None):
-        if item_json is None:
-            item_json = self.sb_access.get_item(self.sb_id)
-        if not isinstance(item_json, dict):
-            print("WARNING: No JSON information returned for item "
-                  "{}.".format(self.sb_id))
-            return
-        if 'id' in item_json:
-            self.sb_id = item_json['id']
-        if 'title' in item_json:
-            self.sb_title = item_json['title']
-        if 'hasChildren' in item_json:
-            self.sb_has_children = item_json['hasChildren']
-        if 'provenance' in item_json:
-            prov = item_json['provenance']
-            if 'dataSource' in prov:
-                self.sb_data_source = prov['dataSource']
-            if 'lastUpdatedBy' in prov:
-                self.sb_last_updated_by = prov['lastUpdatedBy']
-            if 'lastUpdated' in prov:
-                self.sb_last_updated_date = prov['lastUpdated']
-            if 'dateCreated' in prov:
-                self.sb_date_created = prov['dateCreated']
-            if 'createdBy' in prov:
-                self.sb_created_by = prov['createdBy']
-        if 'permissions' in item_json:
-            self.sb_permissions = SBPermissions(item_json['permissions'])
+        try:
+            if item_json is None:
+                item_json = self.sb_access.get_item(self.sb_id)
+            if not isinstance(item_json, dict):
+                print("WARNING: No JSON information returned for item "
+                      "{}.".format(str(self.sb_id)))
+                return
+            if 'id' in item_json:
+                self.sb_id = item_json['id']
+            if 'title' in item_json:
+                self.sb_title = item_json['title']
+            if 'hasChildren' in item_json:
+                self.sb_has_children = item_json['hasChildren']
+            if 'provenance' in item_json:
+                prov = item_json['provenance']
+                if 'dataSource' in prov:
+                    self.sb_data_source = prov['dataSource']
+                if 'lastUpdatedBy' in prov:
+                    self.sb_last_updated_by = prov['lastUpdatedBy']
+                if 'lastUpdated' in prov:
+                    self.sb_last_updated_date = prov['lastUpdated']
+                if 'dateCreated' in prov:
+                    self.sb_date_created = prov['dateCreated']
+                if 'createdBy' in prov:
+                    self.sb_created_by = prov['createdBy']
+            if 'permissions' in item_json:
+                self.sb_permissions = SBPermissions(item_json['permissions'])
+            if 'link' in item_json:
+                self.sb_link = item_json['link']
+            if 'relatedItems' in item_json:
+                self.sb_relatedItems = item_json['relatedItems']
+            if 'parentId' in item_json:
+                self.sb_parentId = item_json['parentId']
+            if 'systemTypes' in item_json:
+                self.sb_systemTypes = item_json['systemTypes']
+            else:
+                self.sb_systemTypes = None
+            if 'distributionLinks' in item_json:
+                self.sb_distributionLinks = item_json['distributionLinks']
+            if 'locked' in item_json:
+                self.sb_locked = item_json['locked']
+            self._json_txt = item_json
 
-        if 'link' in item_json:
-            self.sb_link = item_json['link']
-        if 'relatedItems' in item_json:
-            self.sb_relatedItems = item_json['relatedItems']
-        if 'parentId' in item_json:
-            self.sb_parentId = item_json['parentId']
-        if 'systemTypes' in item_json:
-            self.sb_systemTypes = item_json['systemTypes']
-        else:
-            self.sb_systemTypes = None
-        if 'distributionLinks' in item_json:
-            self.sb_distributionLinks = item_json['distributionLinks']
-        if 'locked' in item_json:
-            self.sb_locked = item_json['locked']
-        self._json_txt = item_json
-
-        if 'files' in item_json:
-            for file_json in item_json['files']:
-                new_file = SBFile(self.sb_access, self,
-                                  file_json)
-                if new_file.sb_name in self.files:
-                    self.files[new_file.sb_name].refresh(file_json)
-                else:
-                    self.files[new_file.sb_name] = new_file
+            if 'files' in item_json:
+                for file_json in item_json['files']:
+                    new_file = SBFile(self.sb_access, self,
+                                      file_json)
+                    if new_file.sb_name in self.files:
+                        self.files[new_file.sb_name].refresh(file_json)
+                    else:
+                        self.files[new_file.sb_name] = new_file
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBTreeNode',
+                                          'refresh',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     @property
     def sb_folder_exists(self):
         return self.sb_id is not None
 
     def copy_item_files_local(self):
-        if self.local_folder_path is None:
-            raise Exception('Error: you must first call "mirror_local" to '
-                            'mirror the folder structure locally')
-        if len(self.files) > 0:
-            # download files from ScienceBase
-            if not self.sb_access.get_item_files(self._json_txt,
-                                                 self.local_folder_path):
-                raise Exception('Error: failed to get files from '
-                                '{}'.format(self.sb_title))
-            for file in self.files.values():
-                # sync local modification dates with ScienceBase
-                # record in sync log
-                SyncLog.instance().update_log(file.local_file_path,
-                                              file.local_modify_time,
-                                              file.sb_date_uploaded,
-                                              file.local_checksum)
-            # with zipfile.ZipFile(self.local_path, 'r') as zip_file:
-            #     zip_file.extractall(self.local_path)
-            # os.remove(self.local_path)
+        try:
+            if self.local_folder_path is None:
+                raise Exception('Error: you must first call "mirror_local" to '
+                                'mirror the folder structure locally')
+            if len(self.files) > 0:
+                # download files from ScienceBase
+                if not self.sb_access.get_item_files(self._json_txt,
+                                                     self.local_folder_path):
+                    raise Exception('Error: failed to get files from '
+                                    '{}'.format(self.sb_title))
+                for file in self.files.values():
+                    # sync local modification dates with ScienceBase
+                    # record in sync log
+                    SyncLog.instance().update_log(file.local_file_path,
+                                                  file.local_modify_time,
+                                                  file.sb_date_uploaded,
+                                                  file.local_checksum)
+                # with zipfile.ZipFile(self.local_path, 'r') as zip_file:
+                #     zip_file.extractall(self.local_path)
+                # os.remove(self.local_path)
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBTreeNode',
+                                          'copy_item_files_local',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     @property
     def json_provenace(self):
@@ -922,74 +1126,119 @@ class SBTreeNode:
         return jsprov
 
     def json_folder(self, include_files=False, basics_only=False):
-        if basics_only:
-            jsnf = {'id': self.sb_id, 'title': self.sb_title}
-        else:
-            if self.sb_permissions is None:
-                json_permissions = None
+        try:
+            if basics_only:
+                jsnf = {'id': self.sb_id, 'title': self.sb_title}
             else:
-                json_permissions = self.sb_permissions.json_permissions
-            jsnf = {'link': self.sb_link, 'relatedItems': self.sb_relatedItems,
-                    'id': self.sb_id, 'title': self.sb_title,
-                    'provenance': self.json_provenace,
-                    'hasChildren': self.sb_has_children,
-                    'parentId': self.sb_parentId,
-                    'systemTypes': self.sb_systemTypes,
-                    'permissions': json_permissions,
-                    'distributionLinks': self.sb_distributionLinks,
-                    'locked': self.sb_locked}
-        if include_files:
-            files = []
-            for file in self.files.values():
-                files.append(file.json_file(basics_only))
-            jsnf['files'] = files
-        return jsnf
+                if self.sb_permissions is None:
+                    json_permissions = None
+                else:
+                    json_permissions = self.sb_permissions.json_permissions
+                jsnf = {'link': self.sb_link, 'relatedItems': self.sb_relatedItems,
+                        'id': self.sb_id, 'title': self.sb_title,
+                        'provenance': self.json_provenace,
+                        'hasChildren': self.sb_has_children,
+                        'parentId': self.sb_parentId,
+                        'systemTypes': self.sb_systemTypes,
+                        'permissions': json_permissions,
+                        'distributionLinks': self.sb_distributionLinks,
+                        'locked': self.sb_locked}
+            if include_files:
+                files = []
+                for file in self.files.values():
+                    files.append(file.json_file(basics_only))
+                jsnf['files'] = files
+            return jsnf
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBTreeNode',
+                                          'json_folder',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
-    def upload_to_sciencebase(self, upload_subtree=False):
-        if self.sb_folder_exists:
-            result = self.sb_access.update_item(self.json_folder())
-            self.refresh()
-        else:
-            result = self.sb_access.create_item(self.json_folder())
-            self.refresh(result)
-        return result
+    def upload_to_sciencebase(self):
+        try:
+            if self.sb_folder_exists:
+                result = self.sb_access.update_item(self.json_folder())
+                self.refresh()
+            else:
+                # make sure parent folder exists on sciencebase
+                if self.parent_item and not self.parent_item.sb_folder_exists:
+                    self.parent_item.upload_to_sciencebase()
+                    self.sb_parentId = self.parent_item.sb_id
+                # upload folder to sciencebase
+                result = self.sb_access.create_item(self.json_folder())
+                self.refresh(result)
+            return result
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBTreeNode',
+                                          'upload_to_sciencebase',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     def populate_local_folder_structure(self, recursive_populate=True):
-        # get folder contents of next folder
-        child_items = os.listdir(self.local_folder_path)
-        for child_item in child_items:
-            child_path = os.path.join(self.local_folder_path,
-                                      child_item)
-            if os.path.isfile(child_path):
-                if child_item not in self.files:
-                    # add file to structure
-                    self.files[child_item] = \
-                        SBFile.local_file(self.sb_access, self, child_path)
-            else:
-                if child_item not in self.folder_child_items:
-                    # TODO: make sure sync log gets updated when
-                    # folder added to structure
-                    self.folder_child_items[child_item] = \
-                        SBTreeNode(self.local_folder_path, self.sb_access,
-                                   self, None, child_item)
-        if recursive_populate:
-            for child_items in self.folder_child_items.values():
-                child_items.populate_local_folder_structure()
+        try:
+            # get folder contents of next folder
+            child_items = os.listdir(self.local_folder_path)
+            for child_item in child_items:
+                child_path = os.path.join(self.local_folder_path,
+                                          child_item)
+                if os.path.isfile(child_path):
+                    if child_item not in self.files:
+                        # add file to structure
+                        self.files[child_item] = \
+                            SBFile.local_file(self.sb_access, self, child_path)
+                else:
+                    if child_item not in self.folder_child_items:
+                        self.folder_child_items[child_item] = \
+                            SBTreeNode(self.local_folder_path, self.sb_access,
+                                       self, None, child_item)
+                        self.local_has_children = True
+            if recursive_populate:
+                for child_item in self.folder_child_items.values():
+                    child_item.populate_local_folder_structure()
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBTreeNode',
+                                          'populate_local_folder_structure',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     def mirror_sciencebase_locally(self, copy_files=False):
-        if not os.path.exists(self.local_folder_path):
-            os.mkdir(self.local_folder_path)
-        if copy_files:
-            self.copy_item_files_local()
-        for child_item in self.folder_child_items.values():
-            child_item.mirror_sciencebase_locally(copy_files)
+        try:
+            if not os.path.exists(self.local_folder_path):
+                os.mkdir(self.local_folder_path)
+            if copy_files:
+                self.copy_item_files_local()
+            for child_item in self.folder_child_items.values():
+                child_item.mirror_sciencebase_locally(copy_files)
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBTreeNode',
+                                          'mirror_sciencebase_locally',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     @property
     def local_folder_path(self):
         if self.sb_title is None:
             return self.local_parent_folder_path
         else:
-            return os.path.join(self.local_parent_folder_path, self.sb_title)
+            if len(self.sb_title) > SBTreeNode.MAX_FOLDER_NAME_LENGTH:
+                sb_title = '{}...{}'.format(self.sb_title[:37],
+                                            self.sb_title[-10:])
+            else:
+                sb_title = self.sb_title
+            return os.path.join(self.local_parent_folder_path, sb_title)
 
     def create_item(self):
         return
@@ -1055,43 +1304,69 @@ class SBTreeRoot(SBTreeNode):
     def __init__(self, folder_path, username=None, password=None,
                  sb_root_folder_id="5ed6379982ce7e579c6494b6",
                  log_name='_sync_log.csv'):
-        self.root_folder_id = sb_root_folder_id
-        sb_access = SBAccess(username, password)
-        self.authenticated = sb_access.authenticated
-        if sb_access.authenticated:
-            super(SBTreeRoot, self).__init__(folder_path,
-                                             sb_access,
-                                             None, sb_root_folder_id)
-            sync_log = SyncLog.instance()
-            sync_log.set_log_path(folder_path, log_name)
-            self.read_sb_folder_structure()
+        try:
+            self.root_folder_id = sb_root_folder_id
+            sb_access = SBAccess(username, password)
+            self.authenticated = sb_access.authenticated
+            if sb_access.authenticated:
+                super(SBTreeRoot, self).__init__(folder_path,
+                                                 sb_access,
+                                                 None, sb_root_folder_id)
+                sync_log = SyncLog.instance()
+                sync_log.set_log_path(folder_path, log_name)
+                self.read_sb_folder_structure()
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBTreeRoot', '__init__', full_stack,
+                                          str(type_), str(value_))
+            raise ex
 
     def read_sb_folder_structure(self):
-        folders_to_process = [self]
+        try:
+            folders_to_process = [self]
 
-        while len(folders_to_process) > 0:
-            # get folder contents of next folder
-            next_folder = folders_to_process.pop()
-            child_ids = self.sb_access.get_child_ids(next_folder.sb_id)
-            for child_id in child_ids:
-                # build child item and populate it
-                child_item = SBTreeNode(next_folder.local_folder_path,
-                                        self.sb_access, next_folder,
-                                        child_id)
-                # add child to folder/file tree
-                next_folder.folder_child_items[child_item.sb_title] = \
-                    child_item
-                # add child to list of possible folders to process
-                folders_to_process.append(child_item)
+            while len(folders_to_process) > 0:
+                # get folder contents of next folder
+                next_folder = folders_to_process.pop()
+                child_ids = self.sb_access.get_child_ids(next_folder.sb_id)
+                for child_id in child_ids:
+                    # build child item and populate it
+                    child_item = SBTreeNode(next_folder.local_folder_path,
+                                            self.sb_access, next_folder,
+                                            child_id)
+                    # add child to folder/file tree
+                    next_folder.folder_child_items[child_item.sb_title] = \
+                        child_item
+                    # add child to list of possible folders to process
+                    folders_to_process.append(child_item)
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBTreeRoot',
+                                          'read_sb_folder_structure',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
     def mirror_sciencebase_locally(self, copy_files=False,
                                    replace_local_copy=False):
-        if replace_local_copy and os.path.exists(path):
-            # clean up existing copy
-            shutil.rmtree(path)
-        # mirror science base folders locally
-        os.makedirs(self.local_folder_path, exist_ok=True)
-        super().mirror_sciencebase_locally(copy_files)
+        try:
+            if replace_local_copy and os.path.exists(path):
+                # clean up existing copy
+                shutil.rmtree(path)
+            # mirror science base folders locally
+            os.makedirs(self.local_folder_path, exist_ok=True)
+            super().mirror_sciencebase_locally(copy_files)
+        except Exception as ex:
+            # write uncaught exception to log and then raise it again
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBTreeRoot',
+                                          'mirror_sciencebase_locally',
+                                          full_stack, str(type_), str(value_))
+            raise ex
 
 
 if __name__ == "__main__":
