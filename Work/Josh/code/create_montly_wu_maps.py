@@ -98,7 +98,7 @@ for ix, month in enumerate(months):
         t[~mask] = np.nan
         print("Finished raster intersections")
 
-        utl.array_to_shapefile(interp_shp, {"m_wu_gpd": t}, xx, yy)
+        utl.array_to_shapefile(interp_shp, {month: t}, xx, yy)
         utl.points_to_shapefile(point_shp, df1)
 
         _, ax = plt.subplots(figsize=(16, 9))

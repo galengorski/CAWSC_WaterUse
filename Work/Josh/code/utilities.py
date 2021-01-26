@@ -36,7 +36,7 @@ MONTHLY = (
 )
 
 
-def get_input_data(f, dataframe=None, monthly=False):
+def get_input_data(f, dataframe=None, monthly=False, normalized=False):
     """
     Method to read and clean input data for processing in outlier detection
     work
@@ -47,6 +47,10 @@ def get_input_data(f, dataframe=None, monthly=False):
         csv file name to be imported by pandas
     dataframe : None or pd.Dataframe
         if not none we can join by wsa
+    monthly : bool
+        flag to read in montly water use data
+    normalized : bool
+        flag to normalize monthly water use data
 
     Returns
     -------
@@ -80,13 +84,25 @@ def get_input_data(f, dataframe=None, monthly=False):
                 df["wu_pp_gd"] = (df.tot_wd_mgd / df.sum_gu_pop) * 10e+6
                 df = df.replace([np.inf, -np.inf], 0)
                 df = df[df.wu_pp_gd != 0]
-            elif "jan_mgd" in list(df):
+            elif "jan_mgd" in list(df) and not normalized:
                 for field in MONTHLY:
                     new = field.split("_")[0] + "_pp_gd"
                     df[new] = (df[field] / df.sum_gu_pop) * 10e+6
 
                 df = df.replace([np.inf, -np.inf], 0)
                 df = df.replace([np.nan,], 0)
+
+            elif "jan_mgd" in list(df) and normalized:
+                df["tot_wu_mgd"] = np.zeros((len(df),))
+                for field in MONTHLY:
+                    df['tot_wu_mgd'] += df[field]
+
+                for field in MONTHLY:
+                    new = field.split("_")[0] + "_norm"
+                    df[new] = df[field] / df['tot_wu_mgd']
+
+                df = df.drop(columns=list(MONTHLY))
+                df = df[df['tot_wu_mgd'].notna()]
 
         if "year" in list(df):
             df = df.loc[df.year == 2010]
