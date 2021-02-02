@@ -37,6 +37,9 @@ for miles in miles_list:
                             "wu_mean_spatial_2010_{}m.csv".format(miles)),
                index=False)
 
+    # filter the few sites with large water use numbers (most likely unit issue)
+    df1 = df1[df1["mean_1"] < 1e4]
+
     xshape, yshape = 1000, 1000  # 5000, 8000
     xv = df1.x_centroid.values
     yv = df1.y_centroid.values

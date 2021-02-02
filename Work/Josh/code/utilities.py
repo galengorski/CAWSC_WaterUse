@@ -18,6 +18,7 @@ COMMON = (
 
 YEARLY = (
     "tot_wd_mgd",
+    "pop_srv"
 )
 
 MONTHLY = (
@@ -34,6 +35,20 @@ MONTHLY = (
     "nov_mgd",
     "dec_mgd"
 )
+
+ndays = {
+    "jan_mgd": 31,
+    "feb_mgd": 28,
+    "mar_mgd": 31,
+    "apr_mgd": 30,
+    "may_mgd": 31,
+    "jun_mgd": 30,
+    "jul_mgd": 31,
+    "aug_mgd": 31,
+    "sep_mgd": 30,
+    "oct_mgd": 31,
+    "nov_mgd": 30,
+    "dec_mgd": 31}
 
 
 def get_input_data(f, dataframe=None, monthly=False, normalized=False):
@@ -78,16 +93,17 @@ def get_input_data(f, dataframe=None, monthly=False, normalized=False):
             left_on='wsa_agidf',
             right_on='wsa_agidf'
         )
-
-        if "sum_gu_pop" in list(df):
+        pop_field = "sum_gu_pop" # "pop_srv"
+        if "pop_srv" in list(df):
             if "tot_wd_mgd" in list(df):
-                df["wu_pp_gd"] = (df.tot_wd_mgd / df.sum_gu_pop) * 10e+6
+                df["wu_pp_gd"] = (df.tot_wd_mgd / df[pop_field]) * 1e+6
                 df = df.replace([np.inf, -np.inf], 0)
                 df = df[df.wu_pp_gd != 0]
+
             elif "jan_mgd" in list(df) and not normalized:
                 for field in MONTHLY:
                     new = field.split("_")[0] + "_pp_gd"
-                    df[new] = (df[field] / df.sum_gu_pop) * 10e+6
+                    df[new] = (df[field] / df[pop_field]) * 1e+6
 
                 df = df.replace([np.inf, -np.inf], 0)
                 df = df.replace([np.nan,], 0)
@@ -95,11 +111,11 @@ def get_input_data(f, dataframe=None, monthly=False, normalized=False):
             elif "jan_mgd" in list(df) and normalized:
                 df["tot_wu_mgd"] = np.zeros((len(df),))
                 for field in MONTHLY:
-                    df['tot_wu_mgd'] += df[field]
+                    df['tot_wu_mgd'] += (df[field] * ndays[field])
 
                 for field in MONTHLY:
                     new = field.split("_")[0] + "_norm"
-                    df[new] = df[field] / df['tot_wu_mgd']
+                    df[new] = (df[field] * ndays[field]) / df['tot_wu_mgd']
 
                 df = df.drop(columns=list(MONTHLY))
                 df = df[df['tot_wu_mgd'].notna()]
