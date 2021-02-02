@@ -4,6 +4,7 @@ import os
 import inspect
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTreeView, QWidget
 from PyQt5.QtWidgets import QFrame, QLineEdit, QPushButton, QTableView, QLabel
+from PyQt5.QtWidgets import QCheckBox
 from PyQt5.QtWidgets import QHeaderView, QInputDialog, QMessageBox
 from PyQt5.Qt import QStandardItemModel, QStandardItem, QGridLayout
 from PyQt5.QtGui import QFont, QColor, QBrush
@@ -162,6 +163,7 @@ class SBMainWindow(QMainWindow):
             self.password = ''
             self.file_item_list = []
             self.current_button_list = []
+            self.checkbox = None
             self.bottom_display_text = None
             self.bottom_display_text_2 = None
             self.current_file = None
@@ -354,10 +356,10 @@ class SBMainWindow(QMainWindow):
                                           str(type_), str(value_))
             self._clear_labels_buttons()
             self.bottom_display_text = \
-                QLabel('{}WARNING: An error occurred while handling the TreeView '
-                       'click event.'
+                QLabel('{}WARNING: An error occurred while handling the '
+                       'TreeView click event. '
                        'See error log for more information. <\\span'
-                       '>.format(self.error_heading_style)')
+                       '>'.format(self.error_heading_style))
             self.button_layout.addWidget(self.bottom_display_text, 1, 1)
 
     def _populate_list_view(self):
@@ -542,7 +544,11 @@ class SBMainWindow(QMainWindow):
     def upload_event(self, val):
         try:
             if self.current_file is not None:
-                if self.current_file.upload_to_sciencebase():
+                convert_zip = self.checkbox is not None and \
+                              self.checkbox.isChecked()
+                if self.current_file.upload_to_sciencebase(
+                    convert_to_zip=convert_zip
+                ):
                     self._clear_labels_buttons()
                     self._add_labels_buttons()
                     # update file modification date in list view
@@ -699,6 +705,8 @@ class SBMainWindow(QMainWindow):
                 upload.clicked.connect(self.upload_event)
                 self.button_layout.addWidget(upload, 2, 1)
                 self.current_button_list.append(upload)
+                self.checkbox = QCheckBox(text="Create zip file")
+                self.button_layout.addWidget(self.checkbox, 3, 1)
             elif self.current_file.file_status == FileStatus.local_out_of_date:
                 self.bottom_display_text = \
                     QLabel('{}Local file is out of date <\\span'
@@ -774,6 +782,9 @@ class SBMainWindow(QMainWindow):
                 self.bottom_display_text.setParent(None)
             if self.bottom_display_text_2 is not None:
                 self.bottom_display_text_2.setParent(None)
+            if self.checkbox is not None:
+                self.checkbox.setParent(None)
+                self.checkbox = None
             self.current_button_list = []
         except Exception as ex:
             type_, value_, traceback_ = sys.exc_info()

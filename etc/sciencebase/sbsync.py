@@ -8,6 +8,8 @@ import csv
 import hashlib
 import ntpath
 import enum
+from collections import OrderedDict
+from zipfile import ZipFile
 from getpass import getpass
 
 
@@ -39,7 +41,8 @@ class ErrorLog:
 
         return cls._instance
 
-    def write_log(self, err_class, err_method, stack, err_type, value):
+    def write_log(self, err_class, err_method, stack, err_type, value,
+                  message=None):
         self._fd_log_file.write('---------------------------------------------')
         self._fd_log_file.write('---------------------------------------------')
         self._fd_log_file.write('\nAn error was caught in class "{}" method '
@@ -50,6 +53,9 @@ class ErrorLog:
         self._fd_log_file.write('\nADDITIONAL INFORMATION: ')
         self._fd_log_file.write(value)
         self._fd_log_file.write('\n')
+        if message is not None:
+            self._fd_log_file.write(message)
+            self._fd_log_file.write('\n')
         self._fd_log_file.write('\nCALL STACK\n---------------------\n')
         for entry in reversed(stack):
             self._fd_log_file.write('{} (line {}): '
@@ -77,11 +83,13 @@ class SyncLog:
     #       file_path, original_modification_date, SHA1 hash
     # SyncLog is a singleton class, only one instance of it can exist
     class LogFileInfo:
-        def __init__(self, local_modification_date,
-                     sb_modification_date, checksum):
+        def __init__(self, local_file_path, local_modification_date,
+                     sb_modification_date, checksum, zip_file_path):
+            self.local_file_path = local_file_path
             self.local_modification_date = local_modification_date
             self.sb_modification_date = sb_modification_date
             self.checksum = checksum
+            self.zip_file_path = zip_file_path
 
     _instance = None
 
@@ -92,7 +100,8 @@ class SyncLog:
     def instance(cls):
         if cls._instance is None:
             cls._instance = cls.__new__(cls)
-            cls._instance._log_dict = None
+            cls._instance._log_dict = {}
+            cls._instance._zip_dict = {}
             cls._instance._log_file_path = None
         return cls._instance
 
@@ -103,15 +112,26 @@ class SyncLog:
     def _load_log(self):
         try:
             self._log_dict = {}
+            self._zip_dict = {}
             if os.path.isfile(self._log_file_path):
                 with open(self._log_file_path, 'r') as fd_read:
                     csv_rd = csv.reader(fd_read, delimiter=',', quotechar='\"')
                     for line_lst in csv_rd:
                         local_mod_time = datetime.fromisoformat(line_lst[1])
                         sb_mod_time = datetime.fromisoformat(line_lst[2])
-                        self._log_dict[line_lst[0]] = \
-                            SyncLog.LogFileInfo(local_mod_time, sb_mod_time,
-                                                line_lst[3])
+                        if len(line_lst) > 4:
+                            zip_file_path = line_lst[4]
+                        else:
+                            zip_file_path = None
+                        new_file_info = SyncLog.LogFileInfo(
+                            line_lst[0], local_mod_time, sb_mod_time,
+                            line_lst[3], zip_file_path)
+                        self._log_dict[line_lst[0]] = new_file_info
+                        if zip_file_path in self._zip_dict:
+                            self._zip_dict[zip_file_path].append(new_file_info)
+                        else:
+                            self._zip_dict[zip_file_path] = [new_file_info]
+
         except Exception as ex:
             type_, value_, traceback_ = sys.exc_info()
             stack = inspect.stack()
@@ -119,16 +139,25 @@ class SyncLog:
                                           str(type_),
                                           str(value_))
             self._log_dict = {}
+            self._zip_dict = {}
 
     def clear_log(self):
         if os.path.isfile(self._log_file_path):
             os.remove(self._log_file_path)
         self._log_dict = {}
+        self._zip_dict = {}
 
     def update_log(self, file_path, local_modification_date,
-                   sb_modification_date, checksum):
-        self._log_dict[file_path] = SyncLog.LogFileInfo(
-            local_modification_date, sb_modification_date, checksum)
+                   sb_modification_date, checksum, zip_file_path=None):
+        new_info = SyncLog.LogFileInfo(file_path, local_modification_date,
+                                       sb_modification_date, checksum,
+                                       zip_file_path)
+        self._log_dict[file_path] = new_info
+        if zip_file_path is not None:
+            if zip_file_path in self._zip_dict:
+                self._zip_dict[zip_file_path].append(new_info)
+            else:
+                self._zip_dict[zip_file_path] = [new_info]
         # update log file - for large folder structures this might be
         # costly to do every time
         self.write_log()
@@ -137,10 +166,14 @@ class SyncLog:
         try:
             with open(self._log_file_path, 'w') as fd_write:
                 for file_path, file_info in self._log_dict.items():
-                    fd_write.write('{},{},{},{}\n'.format(
+                    fd_write.write('{},{},{},{}'.format(
                         file_path, file_info.local_modification_date,
                         file_info.sb_modification_date,
                         file_info.checksum))
+                    if file_info.zip_file_path is None:
+                        fd_write.write('\n')
+                    else:
+                        fd_write.write(',{}\n'.format(file_info.zip_file_path))
         except Exception as ex:
             type_, value_, traceback_ = sys.exc_info()
             stack = inspect.stack()
@@ -148,6 +181,11 @@ class SyncLog:
             ErrorLog.instance().write_log('SyncLog', '_load_log', stack,
                                           str(type_),
                                           str(value_))
+
+    def get_zip_file_info(self, file_path):
+        if file_path in self._zip_dict:
+            return self._zip_dict[file_path]
+        return None
 
     def get_file_info(self, file_path):
         if file_path in self._log_dict:
@@ -517,6 +555,7 @@ class SBFile:
     def __init__(self, sb_access, parent_item, json_info):
         self._sb_access = sb_access
         self._parent_item = parent_item
+        self.zip_files = None
         self.local_folder_path = parent_item.local_folder_path
         self.sb_cuid = None
         self.sb_key = None
@@ -604,13 +643,19 @@ class SBFile:
                     self.sb_download_uri = json_info['downloadUri']
                 if 'viewUri' in json_info:
                     self.sb_view_uri = json_info['viewUri']
+            self._load_zip_dict()
         except Exception as ex:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if self.sb_name is not None:
+                message = 'Error occurred in SBFile with name: ' \
+                          '{}'.format(self.sb_name)
             ErrorLog.instance().write_log('SBFile',
                                           'refresh',
-                                          full_stack, str(type_), str(value_))
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
 
     @staticmethod
@@ -689,6 +734,13 @@ class SBFile:
     def local_file_exists(self):
         return os.path.isfile(self.local_file_path)
 
+    @property
+    def is_zip_file(self):
+        name_parts = self.sb_name.split('.')
+        if len(name_parts) > 1 and name_parts[-1].lower() == 'zip':
+            return True
+        return False
+
     def _hash_binary_file(self, fd):
         try:
             BLOCKSIZE = 65536
@@ -702,9 +754,14 @@ class SBFile:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if self.sb_name is not None:
+                message = 'Error occurred in SBFile with name: ' \
+                          '{}'.format(self.sb_name)
             ErrorLog.instance().write_log('SBFile',
                                           '_hash_binary_file',
-                                          full_stack, str(type_), str(value_))
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
 
     @property
@@ -718,25 +775,39 @@ class SBFile:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if self.sb_name is not None:
+                message = 'Error occurred in SBFile with name: ' \
+                          '{}'.format(self.sb_name)
             ErrorLog.instance().write_log('SBFile',
                                           'local_checksum',
-                                          full_stack, str(type_), str(value_))
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
 
     @property
     def local_modify_time(self):
+        return self._get_modify_time(self.local_file_path)
+
+    @staticmethod
+    def _get_modify_time(local_file_path):
         try:
-            if os.path.isfile(self.local_file_path):
+            if os.path.isfile(local_file_path):
                 return datetime.fromtimestamp(os.path.getmtime(
-                    self.local_file_path))
+                    local_file_path))
             return None
         except Exception as ex:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if local_file_path is not None:
+                message = 'Error occurred in SBFile with path: ' \
+                          '{}'.format(local_file_path)
             ErrorLog.instance().write_log('SBFile',
-                                          'local_modify_time',
-                                          full_stack, str(type_), str(value_))
+                                          '_get_modify_time',
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
 
     @property
@@ -762,40 +833,107 @@ class SBFile:
             elif not self.local_file_exists:
                 return FileStatus.local_file_missing
             else:
-                orig_info = \
-                    SyncLog.instance().get_file_info(self.local_file_path)
-                if orig_info is None:
-                    return FileStatus.out_of_date_merge_status_unknown
-                local_file_modified = orig_info.local_modification_date < \
-                    self.local_modify_time
-                server_file_modified = orig_info.sb_modification_date < \
-                    self.sb_date_uploaded
-                if local_file_modified:
-                    if server_file_modified:
-                        return FileStatus.merge_required
-                    else:
-                        return FileStatus.sciencebase_out_of_date
-                elif server_file_modified:
-                    return FileStatus.local_out_of_date
+                if self.is_zip_file:
+                    if self.zip_files is None:
+                        self._load_zip_dict()
+                    last_status = None
+                    for file in self.zip_files.keys():
+                        status = self._sync_log_file_status(
+                            file, self._get_modify_time(file))
+                        if last_status is None:
+                            last_status = status
+                        elif status == \
+                                FileStatus.out_of_date_merge_status_unknown \
+                                or status == FileStatus.merge_required or \
+                                status == FileStatus.local_out_of_date:
+                            last_status == status
+                        elif status == FileStatus.sciencebase_out_of_date:
+                            if last_status == FileStatus.files_match:
+                                last_status = status
+                            elif last_status == FileStatus.local_out_of_date:
+                                last_status = FileStatus.merge_required
+                    return last_status
                 else:
-                    return FileStatus.files_match
+                    return self._sync_log_file_status(self.local_file_path,
+                                                      self.local_modify_time)
         except Exception as ex:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if self.sb_name is not None:
+                message = 'Error occurred in SBFile with name: ' \
+                          '{}'.format(self.sb_name)
             ErrorLog.instance().write_log('SBFile',
                                           'file_status',
-                                          full_stack, str(type_), str(value_))
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
 
-    def upload_to_sciencebase(self, scrape_file=True):
+    def _load_zip_dict(self):
+        self.zip_files = {}
+        zip_file_info = SyncLog.instance().get_zip_file_info(
+                self.local_file_path)
+        if zip_file_info is not None:
+            for item in zip_file_info:
+                self.zip_files[item.local_file_path] = True
+
+    def _sync_log_file_status(self, file_path, modify_time):
+        orig_info = \
+            SyncLog.instance().get_file_info(file_path)
+        if orig_info is None:
+            return FileStatus.out_of_date_merge_status_unknown
+        local_file_modified = orig_info.local_modification_date < modify_time
+
+        server_file_modified = orig_info.sb_modification_date < \
+            self.sb_date_uploaded
+        if local_file_modified:
+            if server_file_modified:
+                return FileStatus.merge_required
+            else:
+                return FileStatus.sciencebase_out_of_date
+        elif server_file_modified:
+            return FileStatus.local_out_of_date
+        else:
+            return FileStatus.files_match
+
+    def upload_to_sciencebase(self, scrape_file=True, convert_to_zip=False):
         try:
+            local_file_path = [self.local_file_path]
+            zip_file_path = None
             if self.sb_file_exists:
+                assert not convert_to_zip
+                if self.is_zip_file:
+                    # remove old zip file
+                    if os.path.exists(self.local_file_path):
+                        os.remove(self.local_file_path)
+                    # create updated zip file
+                    local_file_path = []
+                    with ZipFile(self.local_file_path, 'w') as zip_archive:
+                        for file in self.zip_files.keys():
+                            zip_archive.write(file, os.path.basename(file))
+                            local_file_path.append(file)
+                    zip_file_path = self.local_file_path
                 # replace item
                 success = self._sb_access.replace_file(
                     self.local_file_path, self._parent_item.json_folder(True,
                                                                         True))
             else:
+                if convert_to_zip:
+                    self.zip_files = {self.local_file_path: True}
+                    # update path to zip file
+                    sb_old_name = self.sb_name
+                    file_base = os.path.splitext(self.sb_name)[0]
+                    self.sb_name = '{}.zip'.format(file_base)
+                    # create zip file
+                    with ZipFile(self.local_file_path, 'w') as zip_archive:
+                        for file in self.zip_files.keys():
+                            zip_archive.write(file, os.path.basename(file))
+                    # update parent with zip file name
+                    if sb_old_name in self._parent_item.files:
+                        del self._parent_item.files[sb_old_name]
+                    self._parent_item.files[self.sb_name] = self
+                    zip_file_path = self.local_file_path
                 # make sure containing folder exists on ScienceBase
                 if not self._parent_item.sb_folder_exists:
                     self._parent_item.upload_to_sciencebase()
@@ -806,40 +944,74 @@ class SBFile:
             if success:
                 # resync with server
                 self._parent_item.refresh()
-                SyncLog.instance().update_log(self.local_file_path,
-                                              self.local_modify_time,
-                                              self.sb_date_uploaded,
-                                              self.local_checksum)
+                for path in local_file_path:
+                    SyncLog.instance().update_log(path,
+                                                  self.local_modify_time,
+                                                  self.sb_date_uploaded,
+                                                  self.local_checksum,
+                                                  zip_file_path
+                                                  )
 
             return success
         except Exception as ex:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if self.sb_name is not None:
+                message = 'Error occurred in SBFile with name: ' \
+                          '{}'.format(self.sb_name)
             ErrorLog.instance().write_log('SBFile',
                                           'upload_to_sciencebase',
-                                          full_stack, str(type_), str(value_))
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
+
+    def extract_zip(self):
+        # unzip file
+        with ZipFile(self.local_file_path, 'r') as zip_file:
+            zip_file.extractall(self.local_folder_path)
+            zipped_files = zip_file.namelist()
+        # store names of all unziped files and update file log
+        self.zip_files = {}
+        sync_log = SyncLog.instance()
+        for zipped_file in zipped_files:
+            zf_full_path = os.path.join(self.local_folder_path, zipped_file)
+            self.zip_files[zf_full_path] = True
+            sync_log.update_log(zf_full_path,
+                                self._get_modify_time(zf_full_path),
+                                self.sb_date_uploaded,
+                                self.local_checksum,
+                                self.local_file_path)
 
     def download_file_from_sciencebase(self):
         try:
             success = self._sb_access.download_file(self.sb_url, self.sb_name,
                                                     self.local_folder_path)
             if success:
-                # resync with server
-                self._parent_item.refresh()
-                SyncLog.instance().update_log(self.local_file_path,
-                                              self.local_modify_time,
-                                              self.sb_date_uploaded,
-                                              self.local_checksum)
+                if self.is_zip_file:
+                    self.extract_zip()
+                else:
+                    self.zip_files = None
+                    # resync with server
+                    SyncLog.instance().update_log(self.local_file_path,
+                                                  self.local_modify_time,
+                                                  self.sb_date_uploaded,
+                                                  self.local_checksum)
+            self._parent_item.refresh()
             return success
         except Exception as ex:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if self.sb_name is not None:
+                message = 'Error occurred in SBFile with name: ' \
+                          '{}'.format(self.sb_name)
             ErrorLog.instance().write_log('SBFile',
                                           'download_file_from_sciencebase',
-                                          full_stack, str(type_), str(value_))
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
 
     @staticmethod
@@ -975,7 +1147,7 @@ class SBTreeNode:
                  title=None):
         self.sb_access = sb_access
         self.parent_item = parent_item
-        self.folder_child_items = {}
+        self.folder_child_items = OrderedDict()
         self.sb_title = title
         self.sb_id = sb_id
         self.sb_has_children = None
@@ -986,7 +1158,7 @@ class SBTreeNode:
         self.sb_date_created = None
         self.sb_created_by = None
         self.sb_permissions = None
-        self.files = {}
+        self.files = OrderedDict()
         self.sb_is_child = None
         self._json_txt = None
 
@@ -1067,13 +1239,20 @@ class SBTreeNode:
                         self.files[new_file.sb_name].refresh(file_json)
                     else:
                         self.files[new_file.sb_name] = new_file
+            # sort
+            self._sort_items()
         except Exception as ex:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if self.local_folder_path is not None:
+                message = 'Error occurred in SBTreeNode with path: ' \
+                          '{}'.format(self.local_folder_path)
             ErrorLog.instance().write_log('SBTreeNode',
                                           'refresh',
-                                          full_stack, str(type_), str(value_))
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
 
     @property
@@ -1094,20 +1273,25 @@ class SBTreeNode:
                 for file in self.files.values():
                     # sync local modification dates with ScienceBase
                     # record in sync log
-                    SyncLog.instance().update_log(file.local_file_path,
-                                                  file.local_modify_time,
-                                                  file.sb_date_uploaded,
-                                                  file.local_checksum)
-                # with zipfile.ZipFile(self.local_path, 'r') as zip_file:
-                #     zip_file.extractall(self.local_path)
-                # os.remove(self.local_path)
+                    if file.is_zip_file:
+                        file.extract_zip()
+                    else:
+                        SyncLog.instance().update_log(file.local_file_path,
+                                                      file.local_modify_time,
+                                                      file.sb_date_uploaded,
+                                                      file.local_checksum)
         except Exception as ex:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if self.local_folder_path is not None:
+                message = 'Error occurred in SBTreeNode with path: ' \
+                          '{}'.format(self.local_folder_path)
             ErrorLog.instance().write_log('SBTreeNode',
                                           'copy_item_files_local',
-                                          full_stack, str(type_), str(value_))
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
 
     @property
@@ -1134,7 +1318,8 @@ class SBTreeNode:
                     json_permissions = None
                 else:
                     json_permissions = self.sb_permissions.json_permissions
-                jsnf = {'link': self.sb_link, 'relatedItems': self.sb_relatedItems,
+                jsnf = {'link': self.sb_link,
+                        'relatedItems': self.sb_relatedItems,
                         'id': self.sb_id, 'title': self.sb_title,
                         'provenance': self.json_provenace,
                         'hasChildren': self.sb_has_children,
@@ -1146,16 +1331,22 @@ class SBTreeNode:
             if include_files:
                 files = []
                 for file in self.files.values():
-                    files.append(file.json_file(basics_only))
+                    if file.sb_path_on_disk is not None:
+                        files.append(file.json_file(basics_only))
                 jsnf['files'] = files
             return jsnf
         except Exception as ex:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if self.local_folder_path is not None:
+                message = 'Error occurred in SBTreeNode with path: ' \
+                          '{}'.format(self.local_folder_path)
             ErrorLog.instance().write_log('SBTreeNode',
                                           'json_folder',
-                                          full_stack, str(type_), str(value_))
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
 
     def upload_to_sciencebase(self):
@@ -1176,20 +1367,32 @@ class SBTreeNode:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if self.local_folder_path is not None:
+                message = 'Error occurred in SBTreeNode with path: ' \
+                          '{}'.format(self.local_folder_path)
             ErrorLog.instance().write_log('SBTreeNode',
                                           'upload_to_sciencebase',
-                                          full_stack, str(type_), str(value_))
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
 
     def populate_local_folder_structure(self, recursive_populate=True):
         try:
+            # build dictionary of files belonging to a zip archive
+            zip_archive_files = {}
+            for file in self.files.values():
+                if file.is_zip_file and file.zip_files is not None:
+                    zip_archive_files.update(file.zip_files)
+
             # get folder contents of next folder
             child_items = os.listdir(self.local_folder_path)
             for child_item in child_items:
                 child_path = os.path.join(self.local_folder_path,
                                           child_item)
                 if os.path.isfile(child_path):
-                    if child_item not in self.files:
+                    if child_item not in self.files and \
+                            child_path not in zip_archive_files:
                         # add file to structure
                         self.files[child_item] = \
                             SBFile.local_file(self.sb_access, self, child_path)
@@ -1202,14 +1405,27 @@ class SBTreeNode:
             if recursive_populate:
                 for child_item in self.folder_child_items.values():
                     child_item.populate_local_folder_structure()
+            # sort
+            self._sort_items()
         except Exception as ex:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if self.local_folder_path is not None:
+                message = 'Error occurred in SBTreeNode with path: ' \
+                          '{}'.format(self.local_folder_path)
             ErrorLog.instance().write_log('SBTreeNode',
                                           'populate_local_folder_structure',
-                                          full_stack, str(type_), str(value_))
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
+
+    def _sort_items(self):
+        self.folder_child_items = OrderedDict(
+            sorted(self.folder_child_items.items(), key=lambda t: t[0]))
+        self.files = OrderedDict(
+            sorted(self.files.items(), key=lambda t: t[0]))
 
     def mirror_sciencebase_locally(self, copy_files=False):
         try:
@@ -1223,9 +1439,14 @@ class SBTreeNode:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
             full_stack = inspect.stack()
+            message = None
+            if self.local_folder_path is not None:
+                message = 'Error occurred in SBTreeNode with path: ' \
+                          '{}'.format(self.local_folder_path)
             ErrorLog.instance().write_log('SBTreeNode',
                                           'mirror_sciencebase_locally',
-                                          full_stack, str(type_), str(value_))
+                                          full_stack, str(type_), str(value_),
+                                          message)
             raise ex
 
     @property
@@ -1341,6 +1562,8 @@ class SBTreeRoot(SBTreeNode):
                         child_item
                     # add child to list of possible folders to process
                     folders_to_process.append(child_item)
+            # sort
+            self._sort_items()
         except Exception as ex:
             # write uncaught exception to log and then raise it again
             type_, value_, traceback_ = sys.exc_info()
@@ -1353,9 +1576,9 @@ class SBTreeRoot(SBTreeNode):
     def mirror_sciencebase_locally(self, copy_files=False,
                                    replace_local_copy=False):
         try:
-            if replace_local_copy and os.path.exists(path):
+            if replace_local_copy and os.path.exists(self.local_folder_path):
                 # clean up existing copy
-                shutil.rmtree(path)
+                shutil.rmtree(self.local_folder_path)
             # mirror science base folders locally
             os.makedirs(self.local_folder_path, exist_ok=True)
             super().mirror_sciencebase_locally(copy_files)
@@ -1422,8 +1645,8 @@ if __name__ == "__main__":
     # download sciencebase to new tree to and test changes
     new_tree = SBTreeRoot('temp_test_folder', 'spaulinski@usgs.gov',
                           sb_root_folder_id='5fbe75fad34e4b9faad7e8a1')
-    tree.mirror_sciencebase_locally(True)
-    added_data = tree['data']['added_data']
+    new_tree.mirror_sciencebase_locally(True)
+    added_data = new_tree['data']['added_data']
     new_data = added_data['new_data.txt']
     with open(new_data.local_file_path, 'r') as fd:
         assert fd.readline() == 'new file data'
@@ -1435,6 +1658,6 @@ if __name__ == "__main__":
 
     # restore sciencebase structure
     # test #1 restore
-    shutil.copyfile(os.path.join(json_output.local_folder_path,
-                                 'json_temp.txt'), json_output.local_file_path)
-    json_output.upload_to_sciencebase()
+    #shutil.copyfile(os.path.join(json_output.local_folder_path,
+    #                             'json_temp.txt'), json_output.local_file_path)
+    #json_output.upload_to_sciencebase()
