@@ -365,7 +365,7 @@ def points_to_shapefile(shp_name, df):
 
     with shapefile.Writer(shp_name, shapeType=shapefile.POINT) as w:
         for col in cols:
-            if col == "wsa_agidf":
+            if col in ("wsa_agidf", "ecode"):
                 w.field(col, "C")
             else:
                 w.field(col, 'N', decimal=1)
