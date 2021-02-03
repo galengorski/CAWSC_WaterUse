@@ -1,5 +1,16 @@
 # ScienceBase Synchronization Code
+Version 0.1.1 (Alpha)
+
+## Introduction
 The python code in this folder is for synchronizing local files and folders with ScienceBase.
+
+## Documentation
+Current documentation includes
+
+* This file
+* SbSync_Demo.pptx
+* Documentation within code
+* More documentation coming soon!
 
 ## Dependencies
 
@@ -49,3 +60,5 @@ Whether a file is out of sync with ScienceBase is determined based on modificati
 
 ## sbtreeview.py
 sbtreeview.py is a simple graphical user interface that uses the sbsync.py and pyqt5 python libraries.  This user interface can be used to help synchronize a ScienceBase archive with files and folders on your local computer.
+
+The Powerpoint file "SBSync_Demo.pptx" included in this github repository describes how to use this application.
