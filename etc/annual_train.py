@@ -9,6 +9,7 @@ import dask_ml
 from dask_ml.model_selection import train_test_split
 import dask_xgboost
 import matplotlib.pyplot as plt
+from xgboost import plot_importance
 # ===============================================
 #
 # ===============================================
@@ -17,7 +18,7 @@ if __name__ == '__main__':
     db_root = r"C:\work\water_use\mldataset\ml\training\features"
     huc2_folders = os.listdir(db_root)
     wu = []
-    read_file = False
+    read_file = True
     if read_file:
         wu = pdd.read_csv(r"C:\work\water_use\mldataset\ml\training\train_datasets\Annual\wu_annual_training.csv")
     else:
@@ -34,21 +35,30 @@ if __name__ == '__main__':
         del(wu_df)
 
     wu = wu.dropna()
-    wu['wu_per_capita'] = wu['wu_rate']/(365*wu['population'])
+    wu['wu_per_capita'] = wu['wu_rate']/(wu['population3'])
     #wu = wu[ wu['wu_per_capita']<200]
     wu = wu[wu['wu_rate'] >0]
     wu['wu_rate'] = np.log10(wu['wu_rate'])
     wu['wu_per_capita'] = np.log10(wu['wu_per_capita'])
 
+    wu = wu[wu['wu_per_capita']> wu['wu_per_capita'].quantile(0.01)]
+    wu = wu[wu['wu_per_capita']< wu['wu_per_capita'].quantile(0.99)]
     use_normal_xgb = True
     if use_normal_xgb:
         wu = wu.compute()
-    #wu = wu[wu['wu_per_capita'] > 20]
+    #wu = wu[wu['wu_per_capita'] > 20]☺
     #y = wu['wu_rate']
     y = wu['wu_per_capita']
+    feats = [ 'HUC2', 'households2', 'median_income', 'tot_h_age', 'h_age_newer_2005',
+       'h_age_2000_2004', 'h_age_1990_1999', 'h_age_1980_1989',
+       'h_age_1970_1979', 'h_age_1960_1969', 'h_age_1950_1959',
+       'h_age_1940_1949', 'h_age_older_1939', 'pop_density',
+       'etr', 'pr', 'tmmn', 'tmmx',  'LAT', 'LONG', 'Year', 'population3'
+      ]
     X = wu[['households2', 'median_income',
        'pop_density', 'etr', 'pr',
        'tmmn', 'tmmx', 'LAT', 'LONG', 'swud_pop']]#, 'swud_pop', population
+    X = wu[feats]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state = 123)
     # *****************************************************
     if use_normal_xgb:
@@ -65,7 +75,15 @@ if __name__ == '__main__':
         c = [min(y_test), max(y_test)]
         plt.plot(c, c,'r')
         plt.title(str(roh))
+        plt.figure()
+        plot_importance(gb)
+
+        plt.figure()
+        gain_imp = gb.get_booster().get_score(importance_type='gain')
+        fig = plt.bar(*zip(*gain_imp.items()))
+        plt.xticks(rotation=45, ha='right')
         plt.show()
+        x =1
 # ************************************************************************************************
     else:
         params = {'objective': 'reg:squarederror', 'eval_metric':["error", "rmse"]} #, 'booster':'gbtree'

@@ -21,7 +21,7 @@ class Logger():
         nrows = len(df)
         #self.logger.info("**********************")
         cols = ", ".join(columns)
-        self.logger.info("Rows {}, No. Features {}, Features names : {}".format(nrows, len(columns), cols))
+        self.logger.info("Rows {}, \nNo. Features {}, \nFeatures names : {}".format(nrows, len(columns), cols))
         #self.logger.info("***********************")
 
 

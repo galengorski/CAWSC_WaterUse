@@ -39,15 +39,16 @@ def get_features(huc2s=[], database_root=""):
     # reduce to annual
     # reduce to monthly
 
-    pass
-
 
 def get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=False, wu_field = '',
                       sys_id_field=''):
-    cs_features = ['population', 'households2', 'median_income', 'pop_density']
-    cs_features = cs_features + ['h_age_newer_2005', 'h_age_2000_2004', 'h_age_1990_1999', 'h_age_1980_1989',
-                                 'h_age_1970_1979', 'h_age_1960_1969', 'h_age_1950_1959',
-                                 'h_age_1940_1949', 'h_age_older_1939']
+
+    cs_features = ['population',  'households2',  'income_lt_10k', 'income_10K_15k', 'income_15k_20k', 'income_20k_25k',
+    'income_25k_30k', 'income_30k_35k', 'income_35k_40k', 'income_40k_45k', 'income_45k_50k',  'income_50k_60k',
+    'income_60k_75k',  'income_75k_100k', 'income_100k_125k',  'income_125k_150k',  'income_150k_200k', 'income_gt_200k',
+    'median_income', 'tot_h_age', 'h_age_newer_2005',  'h_age_2000_2004', 'h_age_1990_1999', 'h_age_1980_1989',
+    'h_age_1970_1979', 'h_age_1960_1969', 'h_age_1950_1959', 'h_age_1940_1949',  'h_age_older_1939',  'pop_density']
+
 
     huc2s = range(1, 23)
     huc2_folders = os.listdir(database_root)
@@ -85,6 +86,54 @@ def get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=False,
         if len(df_annual) > 0:
             df_annual['HUC2'] = huc2
             df_annual.to_csv(os.path.join(assemble_folder, "train_db_{}.csv".format(huc2)))
+
+    # now loop over assemble folders to assemble the final file
+
+
+def get_all_monthly_db(database_root, wu_file, wsa_file, update_train_file=False, wu_field = '',
+                      sys_id_field=''):
+
+    cs_features = ['population',  'households2',  'income_lt_10k', 'income_10K_15k', 'income_15k_20k', 'income_20k_25k',
+    'income_25k_30k', 'income_30k_35k', 'income_35k_40k', 'income_40k_45k', 'income_45k_50k',  'income_50k_60k',
+    'income_60k_75k',  'income_75k_100k', 'income_100k_125k',  'income_125k_150k',  'income_150k_200k', 'income_gt_200k',
+    'median_income', 'tot_h_age', 'h_age_newer_2005',  'h_age_2000_2004', 'h_age_1990_1999', 'h_age_1980_1989',
+    'h_age_1970_1979', 'h_age_1960_1969', 'h_age_1950_1959', 'h_age_1940_1949',  'h_age_older_1939',  'pop_density']
+
+
+    huc2s = range(1, 23)
+    huc2_folders = os.listdir(database_root)
+    for huc2 in huc2s:
+        # loop over all huc2s
+        if not (str(huc2) in huc2_folders):
+            print("There is no HUC2 = {} in {} folder".format(huc2, database_root))
+            continue
+
+        feature_folder = os.path.join(database_root,
+                                      os.path.join(str(huc2)))
+        assemble_folder = os.path.join(feature_folder, "assemble")
+        if not ("assemble" in os.listdir(feature_folder)):
+            os.mkdir(assemble_folder)
+        else:
+            fn_train = os.path.join(assemble_folder, "train_db_monthly_{}.csv".format(huc2))
+            if not (update_train_file):
+                continue
+
+        # extract census
+        census_folder = os.path.join(database_root,
+                                     os.path.join(str(huc2), "census"))
+        # extract climate
+        climate_folder = os.path.join(database_root,
+                                      os.path.join(str(huc2), "climate"))
+        # ****
+        df_monthly = assemble_monthly_training_dataset(wu_file=wu_file, wsa_file= wsa_file, year_field='YEAR',
+                                        wu_field=wu_field, sys_id_field=sys_id_field, shp_sys_id_field='WSA_AGIDF',
+                                        output_file='', census_folder=census_folder, climate_folder=climate_folder,
+                                        func_to_process_sys_name=None, to_galon=1e6,
+                                        census_file_prefex="cs_wsa_", climate_file_prefix="",
+                                        cs_features=cs_features, maxYear=2020, minYear=2000)
+        if len(df_monthly) > 0:
+            df_monthly['HUC2'] = huc2
+            df_monthly.to_csv(os.path.join(assemble_folder, "train_db_monthly_{}.csv".format(huc2)))
 
     # now loop over assemble folders to assemble the final file
 
@@ -253,7 +302,7 @@ def assemble_annual_training_dataset(wu_file, wsa_file='', year_field='year', wu
     :return:
     """
     wsa_shp = gpd.read_file(wsa_file)
-    wu_df = pd.read_csv(wu_file)[[year_field, sys_id_field, wu_field, 'T_LAT', 'T_LONG']]
+    wu_df = pd.read_csv(wu_file)[[year_field, sys_id_field, wu_field, 'T_LAT', 'T_LONG', 'is_swud']]
 
     sys_ids = set(wsa_shp[shp_sys_id_field]).intersection(set(wu_df[sys_id_field]))
     wu_df = wu_df[wu_df[sys_id_field].isin(sys_ids)]
@@ -280,7 +329,17 @@ def assemble_annual_training_dataset(wu_file, wsa_file='', year_field='year', wu
         else:
             LAT = curr_wu['T_LAT'].values[0]
             LONG = curr_wu['T_LONG'].values[0]
+
+        # remove nonswud
+        curr_non_swud = curr_wu[curr_wu['is_swud']==0]
+        curr_wu = curr_wu[curr_wu['is_swud']==1]
         curr_wu = curr_wu.groupby(by=year_field).sum()
+
+        if len(curr_non_swud)>0:
+            curr_wu = curr_wu.reset_index()
+            curr_wu = pd.concat([curr_wu, curr_non_swud])
+            curr_wu = curr_wu.groupby(by=year_field).mean() ## in case flow exist in both swud and nonswud
+
         wu_ = pd.DataFrame(columns=curr_wu.columns, index=np.arange(minYear, maxYear + 1))
         for cc in curr_wu.columns:
             wu_[cc] = curr_wu[cc]
@@ -318,6 +377,19 @@ def assemble_annual_training_dataset(wu_file, wsa_file='', year_field='year', wu
                 cc_df['sys_id'] = sys_id
                 cc_df['year'] = cc_df['day'].dt.year
 
+                if 1:
+                    cc_df2 = cc_df.copy()
+                    cc_df2['month'] = cc_df2['day'].dt.month
+                    cc_df_worm = cc_df2[cc_df2['month'].isin([4,5,6,7,8,9])]
+                    del(cc_df_worm['month'])
+                    cc_df_worm = cc_df_worm.groupby(by=['year']).mean()
+                    wu_[var+'_warm'] = cc_df_worm
+
+                    cc_df_coo = cc_df2[cc_df2['month'].isin([10, 11, 12, 1, 2, 3])]
+                    del (cc_df_coo['month'])
+                    cc_df_coo = cc_df_coo.groupby(by=['year']).mean()
+                    wu_[var + '_cool'] = cc_df_coo
+
                 cc_df = cc_df.groupby(by=['year']).mean()
 
                 wu_[var] = cc_df
@@ -348,7 +420,7 @@ def assemble_monthly_training_dataset(wu_file, wsa_file='', year_field='year', w
 
     mon = {1: 'JAN_MGD', 2: 'FEB_MGD', 3: 'MAR_MGD', 4: 'APR_MGD', 5: 'MAY_MGD', 6: 'JUN_MGD',
            7: 'JUL_MGD', 8: 'AUG_MGD', 9: 'SEP_MGD', 10: 'OCT_MGD', 11: 'NOV_MGD', 12: 'DEC_MGD'}
-    cols_to_load = [year_field, sys_id_field] + list(mon.values())
+    cols_to_load = [year_field, sys_id_field] + list(mon.values()) + ['is_swud']
     wsa_shp = gpd.read_file(wsa_file)
     wu_df = pd.read_csv(wu_file)[cols_to_load]
 
@@ -364,30 +436,53 @@ def assemble_monthly_training_dataset(wu_file, wsa_file='', year_field='year', w
     for mi in range(1, 13):
         wu_df[mi] = wu_df[mi] * to_galon
 
+    wu_df_non_swud = wu_df[wu_df['is_swud'] == 0]
+    wu_df = wu_df[wu_df['is_swud'] == 1]
+    del(wu_df['is_swud'])
+    del(wu_df_non_swud['is_swud'])
+
     wu_df = wu_df.groupby(['YEAR', 'WSA_AGIDF']).sum()
+
+    if len(wu_df_non_swud) > 0:
+        wu_df_non_swud = wu_df_non_swud.groupby(['YEAR', 'WSA_AGIDF']).sum()
+        wu_df.reset_index(inplace=True)
+        wu_df_non_swud.reset_index(inplace=True)
+
+        wu_df = pd.concat([wu_df, wu_df_non_swud])
+        wu_df = wu_df.groupby(['YEAR', 'WSA_AGIDF']).mean()
+
     wu_df = wu_df.stack()
     wu_df = pd.DataFrame(wu_df, columns=['wu_rate'])
     wu_df.reset_index(inplace=True)
     wu_df['month'] = wu_df['level_2']
     del (wu_df['level_2'])
 
-    sys_in_census = get_water_system_ids_from_folder(census_folder, prefix='cs_wsa_')
+    sys_in_census = get_water_system_ids_from_folder(census_folder, prefix=['cs_wsa_'], skip_prfix = "_yearly")
     # wu_df = wu_df.set_index(keys=[date_field])
     index = 0
     all_wu = []
     for sys_id in sys_in_census:
 
-        if not (sys_id in sys_ids):
-            continue
+        #if not (sys_id in sys_ids):
+        #    continue
 
         index = index + 1
         # get current wu
         sa_mask = wu_df[sys_id_field] == sys_id
         curr_wu = wu_df[sa_mask]
         curr_wu = curr_wu.groupby(by=[year_field, 'month']).sum()
+        continueEmpty = False
 
-        if len(curr_wu) == 0:
-            continue
+        yr_xv, mo_yv = np.meshgrid(np.arange(minYear, maxYear + 1), np.arange(1,13))
+        yr = yr_xv.flatten()
+        mo = mo_yv.flatten()
+        wu_ = pd.DataFrame(columns=curr_wu.columns)
+        wu_['YEAR'] = yr
+        wu_['month'] = mo
+        wu_ = wu_.set_index(['YEAR', 'month'])
+
+        for cc in curr_wu.columns:
+            wu_[cc] = curr_wu[cc]
 
         print(sys_id)
 
@@ -408,8 +503,11 @@ def assemble_monthly_training_dataset(wu_file, wsa_file='', year_field='year', w
             cs_df = extrapolate_census_data(cs_df,
                                             fields_to_interpolate=cs_features, index_type='year_month')
 
-            cs_df['wu_rate'] = curr_wu['wu_rate']
-            curr_wu = cs_df
+            for cs_var in cs_features:
+                wu_[cs_var] = cs_df[cs_var]
+
+            #cs_df['wu_rate'] = curr_wu['wu_rate']
+            #curr_wu = cs_df
         # climate
         for var in ["etr", "pr", "tmmn", "tmmx"]:
             clim_fn = "{}_{}.csv".format(var, sys_id)
@@ -423,12 +521,14 @@ def assemble_monthly_training_dataset(wu_file, wsa_file='', year_field='year', w
                 cc_df['month'] = cc_df['day'].dt.month
                 cc_df = cc_df.groupby(by=['year', 'month']).mean()
 
-                curr_wu[var] = cc_df
+                wu_[var] = cc_df
         # wu_.reset_index(inplace=True)
         curr_wu['sys_id'] = sys_id
-        all_wu.append(curr_wu.copy())
-    all_wu = pd.concat(all_wu)
-    all_wu.reset_index(inplace=True)
+        all_wu.append(wu_.copy())
+
+    if len(all_wu) > 0:
+        all_wu = pd.concat(all_wu)
+        all_wu.reset_index(inplace=True)
     return all_wu
 
 
