@@ -13,6 +13,7 @@ COMMON = (
     "x_centroid",
     "y_centroid",
     "year",
+    "ecode"
 )
 
 
@@ -86,6 +87,7 @@ def get_input_data(f, dataframe=None, monthly=False, normalized=False):
     lowered = {i: i.lower() for i in list(df)}
     df = df.drop(columns=drop)
     df = df.rename(columns=lowered)
+    df['wsa_agidf'] = df['wsa_agidf'].str.lower()
     if dataframe is not None:
         df = pd.merge(
             left=dataframe,

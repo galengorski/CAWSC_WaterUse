@@ -15,30 +15,36 @@ for miles in miles_list:
     us_shapefile = os.path.join(ws, "..", "data", "US_nation_2010_alb83.shp")
     wsa_locations = os.path.join(ws, "..", "data", "WSA_v2_1_alb83_attrib.txt")
     wsa_data = os.path.join(ws, "..", "data", "Join_swud_nswud.csv")
+    buy_sell_data = os.path.join(ws, "..", "data", "water_exchange_info.csv")
+    csv_out = os.path.join(ws, "..", "output",
+                           "2010_neutrals_{}m.csv".format(miles))
     interp_shp = os.path.join(ws, "..", "output",
-                              "2010_interp_{}_mi.shp".format(miles))
+                              "2010_neutrals_interp_{}_mi.shp".format(miles))
     point_shp = os.path.join(ws, "..", "output",
-                             "2010_point_{}_mi.shp".format(miles))
+                             "2010_neutrals_point_{}_mi.shp".format(miles))
     interp_fig = os.path.join(ws, "..", "output",
-                              "2010_{}m_interp.png".format(miles))
+                              "2010_neutrals_interp_{}_mi.png".format(miles))
     point_fig = os.path.join(ws, "..", "output",
-                             "2010_{}m_1to1.png".format(miles))
+                             "2010_neutrals_1to1_{}mi.png".format(miles))
 
     boundary = utl.load_national_polygons(us_shapefile)
 
     df = utl.get_input_data(wsa_locations)
     df.drop(columns=["tot_wd_mgd"], inplace=True)
     df = utl.get_input_data(wsa_data, df)
+    df = utl.get_input_data(buy_sell_data, df)
+    print(len(df))
+
+    df = df[df['ecode'] == "N"]
+    print(len(df))
 
     df1 = sod.spatial_detect(df, radius, sod.mean_stdev)
     print(df1.std_flg_1.unique())
     print(df1.mean_1.min(), df1.mean_1.max())
-    df1.to_csv(os.path.join(ws, "..", "output",
-                            "wu_mean_spatial_2010_{}m.csv".format(miles)),
-               index=False)
+    df1.to_csv(csv_out, index=False)
 
     # filter the few sites with large water use numbers (most likely unit issue)
-    df1 = df1[df1["mean_1"] < 1e4]
+    df1 = df1[df1["mean_1"] < 1e3]
 
     xshape, yshape = 1000, 1000  # 5000, 8000
     xv = df1.x_centroid.values
