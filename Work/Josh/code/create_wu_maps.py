@@ -38,7 +38,7 @@ for miles in miles_list:
     df = df[df['ecode'] == "N"]
     print(len(df))
 
-    df1 = sod.spatial_detect(df, radius, sod.mean_stdev)
+    df1 = sod.spatial_detect(df, radius, [sod.mean_stdev, sod.mean_stdev])
     print(df1.std_flg_1.unique())
     print(df1.mean_1.min(), df1.mean_1.max())
     df1.to_csv(csv_out, index=False)
@@ -48,7 +48,10 @@ for miles in miles_list:
 
     for field in ('tot_wd_mgd', "wu_pp_gd", "mean_1", "pop_srv"):
         ax_lst = utl.scatter_plot_with_histograms(df1, (field, "std_flg_1"),
-                                                  xbins=100, ybins=7)
+                                                  xbins=100, ybins=7,
+                                                  c=df1['std_flg_1'].values,
+                                                  cmap='viridis'
+                                                  )
         ax_lst[0].set_xlabel(field)
         ax_lst[0].set_ylabel("std_flg_1")
         plt.show()
@@ -58,7 +61,7 @@ for miles in miles_list:
                                                    ("pop_srv", field),
                                                    xbins=100,
                                                    ybins=100,
-                                                   c=df1['pop_srv'].values,
+                                                   c=df1['std_flg_1'].values,
                                                    cmap='viridis')
         ax_list[0].set_xlabel("pop_srv")
         ax_list[0].set_ylabel(field)
@@ -68,7 +71,7 @@ for miles in miles_list:
                                                ("wu_pp_gd", "mean_1"),
                                                xbins=100,
                                                ybins=100,
-                                               c=df1['pop_srv'].values,
+                                               c=df1['std_flg_1'].values,
                                                cmap='viridis')
     ax_list[0].set_xlabel("wu_pp_gd")
     ax_list[0].set_ylabel("mean_1")
