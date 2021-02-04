@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 
 miles_to_m = 1.60934 * 1000
-miles_list = [25, 50, 100]
+miles_list = [310.686, ]  # [25, 50, 100]
 for miles in miles_list:
     # miles = 100
     radius = miles * miles_to_m
@@ -44,7 +44,35 @@ for miles in miles_list:
     df1.to_csv(csv_out, index=False)
 
     # filter the few sites with large water use numbers (most likely unit issue)
-    df1 = df1[df1["mean_1"] < 1e3]
+    # df1 = df1[df1["wu_pp_gd"] < 1e3]
+
+    for field in ('tot_wd_mgd', "wu_pp_gd", "mean_1", "pop_srv"):
+        ax_lst = utl.scatter_plot_with_histograms(df1, (field, "std_flg_1"),
+                                                  xbins=100, ybins=7)
+        ax_lst[0].set_xlabel(field)
+        ax_lst[0].set_ylabel("std_flg_1")
+        plt.show()
+
+    for field in ('tot_wd_mgd', 'wu_pp_gd', "mean_1"):
+        ax_list = utl.scatter_plot_with_histograms(df1,
+                                                   ("pop_srv", field),
+                                                   xbins=100,
+                                                   ybins=100,
+                                                   c=df1['pop_srv'].values,
+                                                   cmap='viridis')
+        ax_list[0].set_xlabel("pop_srv")
+        ax_list[0].set_ylabel(field)
+        plt.show()
+
+    ax_list = utl.scatter_plot_with_histograms(df1,
+                                               ("wu_pp_gd", "mean_1"),
+                                               xbins=100,
+                                               ybins=100,
+                                               c=df1['pop_srv'].values,
+                                               cmap='viridis')
+    ax_list[0].set_xlabel("wu_pp_gd")
+    ax_list[0].set_ylabel("mean_1")
+    plt.show()
 
     xshape, yshape = 1000, 1000  # 5000, 8000
     xv = df1.x_centroid.values

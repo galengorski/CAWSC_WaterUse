@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def spatial_detect(df, radius, funcs, field="wu_pp_gd"):
+def spatial_detect(df, radius, funcs,  field="wu_pp_gd"):
     """
     Driver method for spatial outlier detection. Method
     uses distance formula to determine if records are within a
@@ -33,6 +33,15 @@ def spatial_detect(df, radius, funcs, field="wu_pp_gd"):
         dist = np.sqrt(a2 + b2)
         idx = np.where(dist <= radius)[0]
         neighbors = agidfs[idx]
+        dist = dist[idx]
+        dix = []
+        t = sorted(dist)
+        for d in t:
+            if len(dix) < 50:
+                dix.append(list(dist).index(d))
+
+        neighbors = neighbors[dix]
+
         for fun in funcs:
             df = fun(df, agidf, neighbors, field, 1)
 

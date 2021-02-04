@@ -95,7 +95,7 @@ def get_input_data(f, dataframe=None, monthly=False, normalized=False):
             left_on='wsa_agidf',
             right_on='wsa_agidf'
         )
-        pop_field = "sum_gu_pop" # "pop_srv"
+        pop_field = "pop_srv" # "sum_gu_pop" # "pop_srv"
         if "pop_srv" in list(df):
             if "tot_wd_mgd" in list(df):
                 df["wu_pp_gd"] = (df.tot_wd_mgd / df[pop_field]) * 1e+6
@@ -463,3 +463,75 @@ def plot_1_to_1(df, fields, ax=None, **kwargs):
 
     ax.scatter(obs, sim, **kwargs)
     return ax
+
+
+def scatter_plot_with_histograms(df, fields, xbins=20, ybins=20, **kwargs):
+    """
+    Method to create a scatter plot with accompanying histograms
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+    fields : tuple (x, y) field strings
+        field names for x and y
+    xbins : int
+        number of histogram bins for x-variable
+    ybins : int
+        number of histogram bins for y-variable
+    kwargs :
+        matplotlib keyword arguments
+
+    Returns
+    -------
+        tuple (matplotlib axes objects)
+    """
+    xlog = kwargs.pop("xlog", False)
+    ylog = kwargs.pop("ylog", False)
+
+    xf = fields[0]
+    yf = fields[1]
+
+    x = df[xf].values
+    y = df[yf].values
+
+    # definitions for the axes
+    left, width = 0.1, 0.65
+    bottom, height = 0.1, 0.65
+    spacing = 0.005
+
+    rect_scatter = [left, bottom, width, height]
+    rect_histx = [left, bottom + height + spacing, width, 0.2]
+    rect_histy = [left + width + spacing, bottom, 0.2, height]
+
+    plt.figure(figsize=(8, 8))
+
+    ax_scatter = plt.axes(rect_scatter)
+    ax_scatter.tick_params(direction='in', top=True, right=True)
+    ax_histx = plt.axes(rect_histx)
+    ax_histx.tick_params(direction='in', labelbottom=False)
+    ax_histy = plt.axes(rect_histy)
+    ax_histy.tick_params(direction='in', labelleft=False)
+
+    ax_scatter.scatter(x, y, **kwargs)
+    ylim = [np.floor(np.nanmin(y)), np.ceil(np.nanmax(y))]
+    xlim = [np.floor(np.nanmin(x)), np.ceil(np.nanmax(x))]
+    ax_scatter.set_xlim(xlim)
+    ax_scatter.set_ylim(ylim)
+
+    ax_histx.hist(x, bins=xbins)
+    ax_histy.hist(y, bins=ybins, orientation='horizontal')
+
+    ax_histx.set_xlim(ax_scatter.get_xlim())
+    ax_histy.set_ylim(ax_scatter.get_ylim())
+
+    ax_histy.set_xscale('log')
+    ax_histx.set_yscale('log')
+
+    if xlog:
+        ax_scatter.set_xscale('log')
+        ax_histx.set_xscale('log')
+    if ylog:
+        ax_scatter.set_yscale('log')
+        ax_histy.set_yscale('log')
+
+    return ax_scatter, ax_histx, ax_histy
