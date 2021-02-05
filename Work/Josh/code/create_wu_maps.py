@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 
 miles_to_m = 1.60934 * 1000
-miles_list = [310.686, ]  # [25, 50, 100]
+miles_list = [25, 50, 100, 310.686, ]  # [25, 50, 100]
 for miles in miles_list:
     # miles = 100
     radius = miles * miles_to_m
@@ -17,15 +17,15 @@ for miles in miles_list:
     wsa_data = os.path.join(ws, "..", "data", "Join_swud_nswud.csv")
     buy_sell_data = os.path.join(ws, "..", "data", "water_exchange_info.csv")
     csv_out = os.path.join(ws, "..", "output",
-                           "2010_neutrals_{}m.csv".format(miles))
+                           "2010_95p_neutrals_{}m.csv".format(miles))
     interp_shp = os.path.join(ws, "..", "output",
-                              "2010_neutrals_interp_{}_mi.shp".format(miles))
+                              "2010_95p_neutrals_interp_{}_mi.shp".format(miles))
     point_shp = os.path.join(ws, "..", "output",
-                             "2010_neutrals_point_{}_mi.shp".format(miles))
+                             "2010_95p_neutrals_point_{}_mi.shp".format(miles))
     interp_fig = os.path.join(ws, "..", "output",
-                              "2010_neutrals_interp_{}_mi.png".format(miles))
+                              "2010_95p_neutrals_interp_{}_mi.png".format(miles))
     point_fig = os.path.join(ws, "..", "output",
-                             "2010_neutrals_1to1_{}mi.png".format(miles))
+                             "2010_95p_neutrals_1to1_{}mi.png".format(miles))
 
     boundary = utl.load_national_polygons(us_shapefile)
 

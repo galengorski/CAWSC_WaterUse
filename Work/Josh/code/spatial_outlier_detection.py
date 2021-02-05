@@ -83,7 +83,7 @@ def mean_stdev(df, agidf, neighbors, field="wu_pp_gd", iteration=1):
 
     tdf = df[df.wsa_agidf.isin(neighbors)]
     tdf = tdf[tdf.wsa_agidf != agidf]
-    tdf = tdf[tdf[olbase] < 3]
+    tdf = tdf[tdf[olbase] < 2]
     val = df.loc[df["wsa_agidf"] == agidf, key].values[0]
 
     if len(tdf) >= 1:
