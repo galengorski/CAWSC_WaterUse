@@ -95,20 +95,12 @@ def get_input_data(f, dataframe=None, monthly=False, normalized=False):
             left_on='wsa_agidf',
             right_on='wsa_agidf'
         )
-        pop_field = "pop_srv" # "sum_gu_pop" # "pop_srv"
-        if "pop_srv" in list(df):
+        pop_field = "sum_gu_pop"  # "pop_srv"
+        if pop_field in list(df):
             if "tot_wd_mgd" in list(df):
                 df["wu_pp_gd"] = (df.tot_wd_mgd / df[pop_field]) * 1e+6
                 df = df.replace([np.inf, -np.inf], 0)
                 df = df[df.wu_pp_gd != 0]
-
-            elif "jan_mgd" in list(df) and not normalized:
-                for field in MONTHLY:
-                    new = field.split("_")[0] + "_pp_gd"
-                    df[new] = (df[field] / df[pop_field]) * 1e+6
-
-                df = df.replace([np.inf, -np.inf], 0)
-                df = df.replace([np.nan,], 0)
 
             elif "jan_mgd" in list(df) and normalized:
                 df["tot_wu_mgd"] = np.zeros((len(df),))
@@ -121,6 +113,14 @@ def get_input_data(f, dataframe=None, monthly=False, normalized=False):
 
                 df = df.drop(columns=list(MONTHLY))
                 df = df[df['tot_wu_mgd'].notna()]
+
+            elif "jan_mgd" in list(df) and not normalized:
+                for field in MONTHLY:
+                    new = field.split("_")[0] + "_pp_gd"
+                    df[new] = (df[field] / df[pop_field]) * 1e+6
+
+                df = df.replace([np.inf, -np.inf], 0)
+                df = df.replace([np.nan,], 0)
 
         if "year" in list(df):
             df = df.loc[df.year == 2010]
