@@ -227,7 +227,7 @@ class SBAccess:
         return jsnf
 
     def _handle_error(self, err, sb_id=None):
-        if err.errno == 10060:
+        if isinstance(err, ConnectionError):
             w_str = 'WARNING: Connection aborted, reconnecting...'
             print(w_str)
             ErrorLog.instance().write_warning(w_str)
@@ -975,6 +975,19 @@ class SBFile:
         # store names of all unziped files and update file log
         self.zip_files = {}
         sync_log = SyncLog.instance()
+        if len(zipped_files) > 1:
+            # currently not supporting multiple files
+            message = 'Zip files containing multiple files is currently ' \
+                      'not supported.  Only zip files with a single ' \
+                      'file supported.  File {} contains multiple files' \
+                      '.'.format(self.sb_name)
+            type_, value_, traceback_ = sys.exc_info()
+            full_stack = inspect.stack()
+            ErrorLog.instance().write_log('SBFile',
+                                          'upload_to_sciencebase',
+                                          full_stack, str(type_), str(value_),
+                                          message)
+            raise Exception(message)
         for zipped_file in zipped_files:
             zf_full_path = os.path.join(self.local_folder_path, zipped_file)
             self.zip_files[zf_full_path] = True
