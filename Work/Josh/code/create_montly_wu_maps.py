@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from scipy.interpolate import griddata
-import utilities as utl
+from CAWSC_WaterUse.etc import utilities as utl
 import spatial_outlier_detection as sod
 import matplotlib.pyplot as plt
 

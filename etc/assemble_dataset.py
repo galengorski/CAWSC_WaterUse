@@ -49,6 +49,11 @@ def get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=False,
     'median_income', 'tot_h_age', 'h_age_newer_2005',  'h_age_2000_2004', 'h_age_1990_1999', 'h_age_1980_1989',
     'h_age_1970_1979', 'h_age_1960_1969', 'h_age_1950_1959', 'h_age_1940_1949',  'h_age_older_1939',  'pop_density']
 
+    fn_features = os.path.join(database_root, r"..\..\others\census_features_to_use.txt")
+    ffidr = open(fn_features, 'r')
+    contents = ffidr.readlines()
+    ffidr.close()
+    cs_features = contents[0].split()
 
     huc2s = range(1, 23)
     huc2_folders = os.listdir(database_root)
@@ -98,6 +103,12 @@ def get_all_monthly_db(database_root, wu_file, wsa_file, update_train_file=False
     'income_60k_75k',  'income_75k_100k', 'income_100k_125k',  'income_125k_150k',  'income_150k_200k', 'income_gt_200k',
     'median_income', 'tot_h_age', 'h_age_newer_2005',  'h_age_2000_2004', 'h_age_1990_1999', 'h_age_1980_1989',
     'h_age_1970_1979', 'h_age_1960_1969', 'h_age_1950_1959', 'h_age_1940_1949',  'h_age_older_1939',  'pop_density']
+
+    fn_features = os.path.join(database_root, r"..\..\others\census_features_to_use.txt")
+    ffidr = open(fn_features, 'r')
+    contents = ffidr.readlines()
+    ffidr.close()
+    cs_features = contents[0].split()
 
 
     huc2s = range(1, 23)
@@ -523,7 +534,7 @@ def assemble_monthly_training_dataset(wu_file, wsa_file='', year_field='year', w
 
                 wu_[var] = cc_df
         # wu_.reset_index(inplace=True)
-        curr_wu['sys_id'] = sys_id
+        wu_['sys_id'] = sys_id
         all_wu.append(wu_.copy())
 
     if len(all_wu) > 0:
