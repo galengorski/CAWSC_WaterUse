@@ -795,7 +795,8 @@ class SBMainWindow(QMainWindow):
             raise ex
 
 
-app = QApplication(sys.argv)
-main_window = SBMainWindow()
-main_window.show()
-sys.exit(app.exec_())
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    main_window = SBMainWindow()
+    main_window.show()
+    sys.exit(app.exec_())

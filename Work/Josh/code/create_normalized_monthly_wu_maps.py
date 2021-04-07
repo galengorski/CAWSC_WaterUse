@@ -22,7 +22,7 @@ months = (
 )
 
 miles_to_m = 1.60934 * 1000
-miles_list = [25, 50, 100]
+miles_list = [25, 50, 100, 310.686,]
 for ix, month in enumerate(months):
     for miles in miles_list:
         # miles = 100
@@ -102,4 +102,3 @@ for ix, month in enumerate(months):
         plt.savefig(interp_fig)
         plt.close()
 
-        print('break')
