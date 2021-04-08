@@ -13,13 +13,13 @@ COMMON = (
     "x_centroid",
     "y_centroid",
     "year",
-    "ecode"
+    "ecode",
+    "pop_srv"
 )
 
 
 YEARLY = (
     "tot_wd_mgd",
-    "pop_srv"
 )
 
 MONTHLY = (
@@ -34,7 +34,7 @@ MONTHLY = (
     "sep_mgd",
     "oct_mgd",
     "nov_mgd",
-    "dec_mgd"
+    "dec_mgd",
 )
 
 ndays = {
@@ -95,7 +95,7 @@ def get_input_data(f, dataframe=None, monthly=False, normalized=False):
             left_on='wsa_agidf',
             right_on='wsa_agidf'
         )
-        pop_field = "sum_gu_pop"  # "pop_srv"
+        pop_field = "pop_srv"  # "sum_gu_pop"  # "pop_srv"
         if pop_field in list(df):
             if "tot_wd_mgd" in list(df):
                 df["wu_pp_gd"] = (df.tot_wd_mgd / df[pop_field]) * 1e+6

@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from unidip import UniDip
 
@@ -62,41 +63,63 @@ if __name__ == "__main__":
         max_mo.append(result[2])
         minimum.append(result[3])
         min_mo.append(result[4])
-        modal.append(describe_modality(row))
+        # modal.append(describe_modality(row))
 
     df['max_val'] = peak
     df['amplitude'] = amplitude
-    df['max_mo'] = np.array(max_mo) / 12.
+    df['max_mo'] = np.array(max_mo)
     df['minimum'] = minimum
-    df['min_mo'] = np.array(min_mo) /12.
+    df['min_mo'] = np.array(min_mo)
     df['freq'] = df["max_mo"] - df["min_mo"]
-    df["freq"] = df["freq"].abs() / 12
+    df["freq"] = df["freq"].abs()
+
+    # df = df[df['tot_wu_mgd'] <= 250]
+    print(df['tot_wu_mgd'].max())
+    print(df['tot_wu_mgd'].mean())
     df['tot_wu_norm'] = df["tot_wu_mgd"] / df['tot_wu_mgd'].max()
     df['x_norm'] = df['x_centroid'] / df['x_centroid'].max()
     df['y_norm'] = df['y_centroid'] / df['y_centroid'].max()
-    df['modal'] = modal
+    # df['modal'] = modal
 
     df = df[df['minimum'] > 0.]
-    fields = ['minimum', 'amplitude', 'tot_wu_norm', 'modal',
-              'x_norm', 'y_norm']
-    km = KMeans(n_clusters=4, n_init=100)
-    km.fit(df[fields])
-    Xt = km.transform(df[fields])
-    labels = km.labels_
+    fields = ['tot_wu_mgd', "pop_srv", 'amplitude',
+              'freq', "x_centroid", "y_centroid", 'minimum',
+              'max_val'] + list(columns)
+    # fields = list(columns)
+    df2 = StandardScaler().fit_transform(df[fields])
 
-    for f in fields:
-        for ff in fields:
-            plt.scatter(df[f], df[ff], c=labels, cmap='viridis')
+    clusters = 40
+
+    km = KMeans(n_clusters=clusters, n_init=100)
+    km.fit(df2)
+    Xt = km.transform(df2)
+    labels = km.labels_
+    df['cluster'] = labels
+
+    df.to_csv("wu_mean_spatial_2010_normalized_monthly_clustered.csv", index=False)
+    """
+    for fx, f in enumerate(fields):
+        for ffx, ff in enumerate(fields):
+            if f == ff:
+                continue
+            plt.scatter(df2[:, fx], df2[:, ffx], c=labels, cmap='viridis')
             plt.xlabel(f)
             plt.ylabel(ff)
             plt.show()
-
-    for field in fields:
-        for i in range(4):
-            plt.scatter(df[field], Xt[:, i], c=labels, cmap='viridis')
+    
+    for fx, field in enumerate(fields):
+        for i in range(clusters):
+            plt.scatter(df2[:, fx], Xt[:, i], c=labels, cmap='viridis')
             plt.xlabel(field)
             plt.ylabel("Dimension {}".format(i + 1))
             plt.show()
-
-    plt.scatter(df["x_centroid"], df['y_centroid'], c=labels, cmap="viridis")
-    plt.show()
+    
+    for i in range(clusters):
+        for j in range(clusters):
+            if i == j:
+                continue
+            plt.scatter(Xt[:, j], Xt[:, i], c=labels, cmap='viridis')
+            plt.xlabel("Dimension {}".format(j + 1))
+            plt.ylabel("Dimension {}".format(i + 1))
+            plt.show()
+    """
