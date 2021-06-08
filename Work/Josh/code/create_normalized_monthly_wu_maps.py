@@ -33,6 +33,8 @@ for ix, month in enumerate(months):
         wsa_locations = os.path.join(ws, "..", "data",
                                      "WSA_v2_1_alb83_attrib.txt")
         wsa_data = os.path.join(ws, "..", "data", "Join_swud_nswud.csv")
+        buy_sell_data = os.path.join(ws, "..", "data",
+                                     "water_exchange_info.csv")
         interp_shp = os.path.join(ws, "..", "output", "monthly",
                                   "2010_interp_normalized_{}_{}m.shp".format(
                                       month.split("_")[0], miles))
@@ -47,8 +49,13 @@ for ix, month in enumerate(months):
 
         df = utl.get_input_data(wsa_locations, monthly=True)
         df = utl.get_input_data(wsa_data, df, monthly=True, normalized=True)
+        df = utl.get_input_data(buy_sell_data, df)
 
-        df = sod.spatial_detect(df, radius, sod.mean_stdev, field=month)
+        df = df[df['ecode'] == "N"]
+
+        df = sod.spatial_detect(df, radius, [sod.mean_stdev,
+                                             sod.mean_stdev],
+                                field=month)
         df.to_csv(os.path.join(ws, "..", "output", "monthly",
                                "wu_mean_spatial_2010_normalized.csv"),
                    index=False)
