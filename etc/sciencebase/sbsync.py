@@ -24,6 +24,32 @@ class FileStatus(enum.Enum):
     out_of_date_merge_status_unknown = 8
 
 
+class DetailedLog:
+    # ErrorLog is used to write errors out to a file to help with debugging
+    # this python application
+    _instance = None
+
+    def __init__(self):
+        raise RuntimeError('Call instance() instead')
+
+    @classmethod
+    def instance(cls):
+        if cls._instance is None:
+            cls._instance = cls.__new__(cls)
+            cls._instance._log_dict = None
+            cls._instance._fd_log_file = open('detailed_log_sbsync.txt', 'w')
+
+        return cls._instance
+
+    def write_log(self, message):
+        self._fd_log_file.write(message)
+        self._fd_log_file.write('\n\n')
+        self._fd_log_file.flush()
+
+    def __del__(self):
+        self._fd_log_file.close()
+
+
 class ErrorLog:
     # ErrorLog is used to write errors out to a file to help with debugging
     # this python application
@@ -198,10 +224,24 @@ class SBAccess:
         self.username = username
         self.password = password
         self.sb = sciencebasepy.SbSession()
-        self.max_retries = 100
+        self.max_retries = 20
         self.authenticated = False
+        self.log_all_messages = False
+        self.too_many_retries = False
         if self.username:
             self._authenticate()
+
+    def _write_detailed_log(self, method, text, params=None):
+        if self.log_all_messages:
+            if params is not None:
+                if isinstance(params, list):
+                    params_txt = ','.join(params)
+                else:
+                    params_txt = params
+                message = '{} ({}): {}'.format(method, text, params_txt)
+            else:
+                message = '{}: {}'.format(method, text)
+            DetailedLog.instance().write_log(message)
 
     def _remove_empty_json(self, jsnf):
         # get rid of any empty items
@@ -226,7 +266,7 @@ class SBAccess:
             jsnf.pop(item)
         return jsnf
 
-    def _handle_error(self, err, sb_id=None):
+    def _handle_error(self, err, sb_id=None, std_err=True):
         if isinstance(err, ConnectionError):
             w_str = 'WARNING: Connection aborted, reconnecting...'
             print(w_str)
@@ -237,19 +277,34 @@ class SBAccess:
                 id_text = ' while getting item identified by {}'.format(sb_id)
             else:
                 id_text = ''
+            if std_err:
+                err_caught = ''
+            else:
+                err_caught = 'Error not specifically trapped.  '
+            if hasattr(err, "strerror"):
+                error_name = err.strerror
+            else:
+                error_name = str(err)
+            if hasattr(err, "errno"):
+                error_num = err.errno
+            else:
+                error_num = "(No error number)"
             w_str = 'WARNING: "{}" occurred{}, ' \
-                    'error number {}.  Retrying..' \
-                    '.'.format(err.strerror, id_text, err.errno)
+                    'error number {}.  {}Retrying..' \
+                    '.'.format(error_name, id_text, error_num, err_caught)
             print(w_str)
             ErrorLog.instance().write_warning(w_str)
 
-    def _handle_too_many_retries(op_name, **kwargs):
-        msg = 'WARNING: Unable to {}.'.format(op_name)
+    def _handle_too_many_retries(self, op_name, *args):
+        msg = 'WARNING: Too many retry attempts. Unable to ' \
+              '{}.'.format(op_name)
         print(msg)
         msg = '{}  Parameters:'.format(msg)
-        for value in kwargs.values():
-            msg = '{}\n{}'.format(msg, value)
+        if args:
+            for value in args:
+                msg = '{}\n{}'.format(msg, value)
         ErrorLog.instance().write_warning(msg)
+        self.too_many_retries = True
 
     def get_item(self, sb_id):
         success = False
@@ -258,12 +313,19 @@ class SBAccess:
         while not success and retry_attempt < self.max_retries:
             try:
                 item_json = self.sb.get_item(sb_id)
+                self._write_detailed_log('get_item', item_json, sb_id)
                 success = True
             except OSError as err:
+                self._write_detailed_log('get_item',
+                                         'OSError Exception Raised', sb_id)
                 self._handle_error(err, sb_id)
                 retry_attempt += 1
+            except Exception as err:
+                self._write_detailed_log('get_item', 'Exception Raised', sb_id)
+                self._handle_error(err, sb_id, True)
+                retry_attempt += 1
         if retry_attempt >= self.max_retries:
-            self._handle_too_many_retries('get item', sb_id)
+            self._handle_too_many_retries('get item')
         return item_json
 
     def get_child_ids(self, sb_id):
@@ -273,9 +335,18 @@ class SBAccess:
         while not success and retry_attempt < self.max_retries:
             try:
                 child_ids = self.sb.get_child_ids(sb_id)
+                self._write_detailed_log('get_child_ids', child_ids, sb_id)
                 success = True
             except OSError as err:
+                self._write_detailed_log('get_child_ids',
+                                         'OSError Exception Raised',
+                                         sb_id)
                 self._handle_error(err, sb_id)
+                retry_attempt += 1
+            except Exception as err:
+                self._write_detailed_log('get_child_ids', 'Exception Raised',
+                                         sb_id)
+                self._handle_error(err, sb_id, False)
                 retry_attempt += 1
         if retry_attempt >= self.max_retries:
             self._handle_too_many_retries('get child ids', sb_id)
@@ -287,10 +358,20 @@ class SBAccess:
         retry_attempt = 0
         while not success and retry_attempt < self.max_retries:
             try:
-                self.sb.get_item_files(sb_json, destination)
+                response = self.sb.get_item_files(sb_json, destination)
+                self._write_detailed_log('get_item_files', response, [sb_json,
+                                         destination])
                 success = True
             except OSError as err:
+                self._write_detailed_log('get_item_files',
+                                         'OSError Exception Raised',
+                                         [sb_json, destination])
                 self._handle_error(err)
+                retry_attempt += 1
+            except Exception as err:
+                self._write_detailed_log('get_item_files', 'Exception Raised',
+                                         [sb_json, destination])
+                self._handle_error(err, std_err=False)
                 retry_attempt += 1
         if retry_attempt >= self.max_retries:
             self._handle_too_many_retries('get item files', sb_json,
@@ -302,10 +383,24 @@ class SBAccess:
         retry_attempt = 0
         while not success and retry_attempt < self.max_retries:
             try:
-                self.sb.download_file(sb_url, file_name, local_folder_path)
+                complete_name = self.sb.download_file(sb_url, file_name,
+                                                      local_folder_path)
+                self._write_detailed_log('download_file', complete_name,
+                                         [sb_url, file_name,
+                                          local_folder_path])
                 success = True
             except OSError as err:
+                self._write_detailed_log('download_file',
+                                         'OSError Exception Raised',
+                                         [sb_url, file_name,
+                                          local_folder_path])
                 self._handle_error(err, sb_url)
+                retry_attempt += 1
+            except Exception as err:
+                self._write_detailed_log('download_file', 'Exception Raised',
+                                         [sb_url, file_name,
+                                          local_folder_path])
+                self._handle_error(err, sb_url, std_err=False)
                 retry_attempt += 1
         if retry_attempt >= self.max_retries:
             self._handle_too_many_retries('download file', sb_url, file_name,
@@ -315,19 +410,31 @@ class SBAccess:
     def upload_files_to_item(self, json_item, local_file_paths,
                              scrape_file=True):
         json_item = self._remove_empty_json(json_item)
-        #success_dict = {}
-        #for local_file_path in local_file_paths:
         success = False
         retry_attempt = 0
         while not success and retry_attempt < self.max_retries:
             try:
-                self.sb.upload_files_and_update_item(json_item,
-                                                     local_file_paths,
-                                                     scrape_file=
-                                                     scrape_file)
+                rsp = self.sb.upload_files_and_update_item(json_item,
+                                                           local_file_paths,
+                                                           scrape_file=
+                                                           scrape_file)
+                self._write_detailed_log('upload_files_to_item', rsp,
+                                         [json_item, local_file_paths,
+                                          scrape_file])
                 success = True
             except OSError as err:
+                self._write_detailed_log('upload_files_to_item',
+                                         'OSError Exception Raised',
+                                         [json_item, local_file_paths,
+                                          scrape_file])
                 self._handle_error(err)
+                retry_attempt += 1
+            except Exception as err:
+                self._write_detailed_log('upload_files_to_item',
+                                         'Exception Raised',
+                                         [json_item, local_file_paths,
+                                          scrape_file])
+                self._handle_error(err, std_err=False)
                 retry_attempt += 1
         if retry_attempt >= self.max_retries:
             self._handle_too_many_retries('upload files to item', json_item,
@@ -341,9 +448,19 @@ class SBAccess:
         while not success and retry_attempt < self.max_retries:
             try:
                 value = self.sb.replace_file(local_file_path, json_item)
+                self._write_detailed_log('replace_file', value,
+                                         [local_file_path, json_item])
                 success = True
             except OSError as err:
+                self._write_detailed_log('replace_file',
+                                         'OSError Exception Raised',
+                                         [local_file_path, json_item])
                 self._handle_error(err, local_file_path)
+                retry_attempt += 1
+            except Exception as err:
+                self._write_detailed_log('replace_file', 'Exception Raised',
+                                         [local_file_path, json_item])
+                self._handle_error(err, local_file_path, std_err=False)
                 retry_attempt += 1
         if retry_attempt >= self.max_retries:
             self._handle_too_many_retries('replace file', local_file_path,
@@ -358,9 +475,18 @@ class SBAccess:
         while not success and retry_attempt < self.max_retries:
             try:
                 result = self.sb.create_item(json_item)
+                self._write_detailed_log('create_item', result, json_item)
                 success = True
             except OSError as err:
+                self._write_detailed_log('create_item',
+                                         'OSError Exception Raised', json_item)
                 self._handle_error(err)
+                retry_attempt += 1
+            except Exception as err:
+                self._write_detailed_log('create_item', 'Exception Raised',
+                                         json_item)
+                self._write_detailed_log('create_item', result, json_item)
+                self._handle_error(err, std_err=False)
                 retry_attempt += 1
         if retry_attempt >= self.max_retries:
             self._handle_too_many_retries('create item', json_item)
@@ -372,10 +498,19 @@ class SBAccess:
         retry_attempt = 0
         while not success and retry_attempt < self.max_retries:
             try:
-                self.sb.update_item(json_item)
+                result = self.sb.update_item(json_item)
+                self._write_detailed_log('update_item', result, json_item)
                 success = True
             except OSError as err:
+                self._write_detailed_log('update_item',
+                                         'OSError Exception Raised', json_item)
                 self._handle_error(err)
+                retry_attempt += 1
+            except Exception as err:
+                self._write_detailed_log('update_item', 'Exception Raised',
+                                         json_item)
+                self._write_detailed_log('update_item', result, json_item)
+                self._handle_error(err, std_err=False)
                 retry_attempt += 1
         if retry_attempt >= self.max_retries:
             self._handle_too_many_retries('update item', json_item)
@@ -1565,16 +1700,17 @@ class SBTreeRoot(SBTreeNode):
                 # get folder contents of next folder
                 next_folder = folders_to_process.pop()
                 child_ids = self.sb_access.get_child_ids(next_folder.sb_id)
-                for child_id in child_ids:
-                    # build child item and populate it
-                    child_item = SBTreeNode(next_folder.local_folder_path,
-                                            self.sb_access, next_folder,
-                                            child_id)
-                    # add child to folder/file tree
-                    next_folder.folder_child_items[child_item.sb_title] = \
-                        child_item
-                    # add child to list of possible folders to process
-                    folders_to_process.append(child_item)
+                if child_ids is not None:
+                    for child_id in child_ids:
+                        # build child item and populate it
+                        child_item = SBTreeNode(next_folder.local_folder_path,
+                                                self.sb_access, next_folder,
+                                                child_id)
+                        # add child to folder/file tree
+                        next_folder.folder_child_items[child_item.sb_title] = \
+                            child_item
+                        # add child to list of possible folders to process
+                        folders_to_process.append(child_item)
             # sort
             self._sort_items()
         except Exception as ex:
