@@ -1,0 +1,19 @@
+Metadata-Version: 1.2
+Name: html-report
+Version: 0.1
+Summary: html_report is a package for creating interactive reports and plots that can be shared across systems
+Home-page: https://github.com/jlarsen-usgs/html_reports
+Author: Joshua Larsen
+Author-email: jlarsen@usgs.gov
+License: MIT license
+Description: UNKNOWN
+Keywords: html_report
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Topic :: Scientific/Engineering :: Hydrology
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6

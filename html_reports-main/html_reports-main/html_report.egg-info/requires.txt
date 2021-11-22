@@ -1,0 +1,5 @@
+pandas
+numpy
+pyshp
+geojson
+plotly

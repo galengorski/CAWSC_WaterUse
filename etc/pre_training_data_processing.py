@@ -16,8 +16,10 @@ wsa_county = geopandas.read_file(r"C:\work\water_use\mldataset\gis\wsa_county_ma
 awuds_df = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\awuds_all_years.csv")
 sell_buy_df = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\selling_buying\water_exchange_info.csv")
 land_use_fn = r"C:\work\water_use\mldataset\ml\training\misc_features\land_use\NWALT_landUse_summarized_for_ICITE_033021.xlsx"
+koppen_climate_df = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\kg_zones\kg_wsa_zones.csv")
+agg_pop_df = pd.read_csv(os.path.join(db_root,r"ml\training\misc_features\WSA_V1_fromCheryl.csv"))
+ag_pop_year_df = pd.read_excel(os.path.join(db_root, r"ml\training\misc_features\V1_polys_with_water_service_06022021_for_GIS.xlsx"), sheet_name="V1_1polyswWS")
 
-['sys_id', 'Year', 'WSA_SQKM', 'swud_pop', 'population', 'wu_rate', 'Ecode']
 collect_all_annual_data = False
 collect_all_monthly_data = False
 add_swud_data = False
@@ -36,8 +38,11 @@ add_area = False
 scale_pop_using_land_use = False
 More_land_use = False
 Add_Manufacturing_establishments = False
-correct_enhance_pop_using_swud = True
-
+add_agg_wsa_pop = False
+correct_enhance_pop_using_swud = False
+add_climate_classes = False
+add_agg_pop_year = True
+add_state_fips = False
 
 # =======================================
 # Collect Annual Data
@@ -70,9 +75,11 @@ else:
 # =======================================
 if collect_all_monthly_data:
     wu = []
+    features_to_use = ['YEAR', 'month', 'wu_rate', 'etr', 'pr', 'tmmn', 'tmmx', 'sys_id']
     fdb_root = os.path.join(db_root, r"ml\training\features")
     huc2_folders = os.listdir(fdb_root)
     for huc2_folder in huc2_folders:
+        print(huc2_folder)
         fn = os.path.join(fdb_root, os.path.join(huc2_folder, "assemble"))
         fn = os.path.join(fn, "train_db_monthly_{}.csv".format(huc2_folder))
         if os.path.isfile(fn):
@@ -80,20 +87,19 @@ if collect_all_monthly_data:
             wu.append(wu_)
 
     train_db_monthly = pd.concat(wu)
+    train_db_monthly = train_db_monthly[features_to_use]
     #train_db_monthly = wu.compute()
 
     XY = train_db[['sys_id', 'LAT', 'LONG']]
     XY = XY.drop_duplicates(subset=['sys_id'])
-    features_to_use = ['YEAR',	'month', 'wu_rate','etr', 'pr',	'tmmn',	'tmmx',	'sys_id']
-    train_db_monthly = train_db_monthly[features_to_use]
-
     train_db_monthly = train_db_monthly.merge(XY, left_on='sys_id', right_on='sys_id', how='left')
     train_db_monthly.to_csv(monthly_training_file, index=False)
 
 
 # =======================================
-# Add swud data
+# Add swud data -- we should not use this per Cheryl B suggestions
 # =======================================
+add_swud_data = False # should always be false
 if add_swud_data:
     train_db = pd.read_csv(annual_training_file)
     sys_ids = train_db['sys_id'].unique()
@@ -113,10 +119,44 @@ if add_swud_data:
         train_db.loc[train_db['sys_id'] == sys_id, 'small_gb_pop'] = pop2
     train_db.to_csv(annual_training_file, index = False)
 
+# =======================================
+# Add Aggrigated Population: this seems to be the best pop estimation
+# =======================================
+if add_agg_wsa_pop:
+    agg_pop_df = agg_pop_df[['WSA_AGIDF', 'TPOPSRV']]
+    train_db = train_db.merge(agg_pop_df, left_on='sys_id', right_on= 'WSA_AGIDF', how='left')
+    del (train_db['WSA_AGIDF'])
+    train_db.to_csv(annual_training_file, index=False)
+
+if add_agg_pop_year:
+    def extrat_year(txt):
+        new_string = ''
+        for s in txt:
+            if s.isdigit():
+                new_string = new_string + s
+            else:
+                new_string = new_string + " "
+
+        years = new_string.strip().split()
+        years = [int(y) for y in years]
+        years = np.array(years)
+        years = years[years>1000]
+        year = np.mean(years)
+        if pd.isna(year):
+            return year
+        else:
+            return int(year)
+
+
+    ag_pop_year_df['year'] = ag_pop_year_df['POP_METH'].apply(extrat_year)
+
+
+    pass
 
 # =======================================
 # Correct Census Population Using Swud Pop
 # =======================================
+correct_census_pop_using_swud = False
 if correct_census_pop_using_swud:
     train_db['pc_swud'] = train_db['wu_rate']/train_db['swud_pop']
     train_db['pc_tract_data'] = train_db['wu_rate'] / train_db['population']
@@ -334,6 +374,13 @@ if add_county_data:
     train_db.to_csv(annual_training_file, index=False)
 
 # =======================================
+# Add state fips from county data
+# =======================================
+if add_state_fips:
+    train_db['state_id'] = (train_db['county_id'] / 1000.0).astype(int)
+    train_db.to_csv(annual_training_file, index=False)
+
+# =======================================
 # Add economic county data 2 - number of establishments
 # =======================================
 if Add_Manufacturing_establishments:
@@ -489,7 +536,7 @@ if More_land_use:
     for ii, uid in enumerate(urban_col):
         lu_theobald_swa['dua'] = lu_theobald_swa['dua'] + lu_theobald_swa[uid] * (1.0/density[ii])
         del(lu_theobald_swa[uid])
-    #lu_theobald_swa = pd.DataFrame(lu_theobald_swa[urban_col].sum(axis=1))
+
 
     lu_theobald_swa['dua_bg'] = total_bg_lu['dua']
     lu_theobald_swa['ratio_lu'] = lu_theobald_swa['dua'] / lu_theobald_swa['dua_bg']
@@ -505,11 +552,6 @@ if More_land_use:
     train_db = train_db.merge(db2010, left_on='sys_id', right_on='sys_id', how='left')
     train_db['pop_enhanced'] = train_db['population'] * train_db['ratio_2010']
     train_db.to_csv(annual_training_file, index=False)
-    #xx = train_db[train_db['wu_rate'] > 0]
-    #plt.scatter(xx['population'], xx['wu_rate'], s=5)
-    # plt.scatter(xx['pop_enhanced'], xx['wu_rate'], s=5)
-    # plt.scatter(xx['swud_pop'], xx['wu_rate'], s=5)
-    #plt.scatter(xx['pop_enhanced'], xx['population'], c=np.log10(xx['WSA_SQKM']), s=5, cmap = 'jet')
 
 
 # =======================================
@@ -521,8 +563,14 @@ if correct_enhance_pop_using_swud:
     swud_df_ = swud_df_[['WSA_AGIDF', 'YEAR', 'POP_SRV' ]]
     swud_df_['swud_year'] = swud_df_['YEAR']
     del( swud_df_['YEAR'])
+
+    swud_df_ = swud_df_.drop_duplicates(
+        subset=['WSA_AGIDF', 'swud_year'],
+        keep='first').reset_index(drop=True)
+
     train_db = train_db.merge(swud_df_, left_on=['sys_id', 'Year'], right_on=['WSA_AGIDF', 'swud_year'], how='left')
     train_db['swud_pop_ratio'] = train_db['POP_SRV'] / train_db['pop_enhanced']
+
     rratio = train_db.groupby('sys_id').mean()['swud_pop_ratio']
     del(train_db['swud_pop_ratio'])
     del(train_db['swud_year'])
@@ -531,6 +579,22 @@ if correct_enhance_pop_using_swud:
 
     rratio = rratio.reset_index()
     train_db = train_db.merge(rratio, left_on='sys_id', right_on= 'sys_id', how='left')
+    train_db.loc[train_db['swud_pop_ratio'].isna(),'swud_pop_ratio'] = 1.0
+    train_db.loc[train_db['swud_pop_ratio']==0, 'swud_pop_ratio'] = 1.0
     train_db['LUpop_Swudpop'] = train_db['swud_pop_ratio'] * train_db['pop_enhanced']
     train_db.to_csv(annual_training_file, index=False)
     x = 1
+
+# =======================================
+# add Koppen Climate classification
+# =======================================
+if add_climate_classes:
+    koppen_climate_df = koppen_climate_df[['WSA_AGIDF', 'MAJORITY']]
+    koppen_climate_df['KG_climate_zone'] = koppen_climate_df['MAJORITY']
+    del(koppen_climate_df['MAJORITY'])
+    train_db = train_db.merge(koppen_climate_df, left_on='sys_id', right_on='WSA_AGIDF', how='left')
+    del (koppen_climate_df['WSA_AGIDF'])
+    train_db.to_csv(annual_training_file, index=False)
+
+    xx = 1
+xx = 1

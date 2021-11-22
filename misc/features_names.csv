@@ -1,0 +1,6 @@
+Feature_ID,Meaning,Units
+Q_ann,Annual water use for a certain area,Mg/year
+Qc_ann,Average annual water use for a certain area per capita per day,g/day/capita
+pr,precipitation,??
+tmin,minimum temperature,
+tmax,max temperature,
