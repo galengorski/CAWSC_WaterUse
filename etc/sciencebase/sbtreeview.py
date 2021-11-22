@@ -256,7 +256,7 @@ class SBMainWindow(QMainWindow):
                                                     'Date Modified SB',
                                                     'Last Modified By'])
         self.table_view.setStyleSheet(
-            "QHeaderView::section { background-color:gray; font: bold 15px; }")
+            "QHeaderView::section { background-color:gray }")
 
     def connect_event(self):
         try:
@@ -275,6 +275,10 @@ class SBMainWindow(QMainWindow):
                     QLineEdit.Password)
 
             if ok and self.password:
+                # loading folder structure message
+                self._set_message_text('Authenticating and downloading folder '
+                                       'structure...')
+
                 # connect to ScienceBase
                 self.tree = SBTreeRoot(self.textbox_local_path.text(),
                                        self.textbox_username.text(),
@@ -297,6 +301,9 @@ class SBMainWindow(QMainWindow):
                 self.tree.mirror_sciencebase_locally(False)
                 self.tree.populate_local_folder_structure()
 
+                # loading folder structure message
+                self._set_message_text('')
+
                 # populate ui tree-view
                 self.populate_ui_tree()
 
@@ -305,28 +312,44 @@ class SBMainWindow(QMainWindow):
                 cs.update_settings(self.textbox_root_folder_id.text(),
                                    self.textbox_username.text(),
                                    self.textbox_local_path.text())
+                if self.tree.sb_access.too_many_retries:
+                    self.display_warning('WARNING: Too many retry attempts '
+                                         'while loading folder tree.  Folder '
+                                         'tree may be incomplete.')
+                    self.tree.sb_access.too_many_retries = False
         except Exception:
             type_, value_, traceback_ = sys.exc_info()
             stack = inspect.stack()
             ErrorLog.instance().write_log('SBMainWindow',
                                           'connect_event', stack,
                                           str(type_), str(value_))
-            self._clear_labels_buttons()
-            self.bottom_display_text = \
-                QLabel('{}WARNING: Failed to populate folder tree. '
-                       'See error log for more information. <\\span'
-                       '>'.format(self.error_heading_style))
-            self.button_layout.addWidget(self.bottom_display_text, 1, 1)
+            self.display_warning('WARNING: Failed to populate folder tree. '
+                                 'See error log for more information.')
+
+    def display_warning(self, warning_msg):
+        self._clear_labels_buttons()
+        self.bottom_display_text = \
+            QLabel('{}{}<\\span'
+                   '>'.format(self.error_heading_style, warning_msg))
+        self.button_layout.addWidget(self.bottom_display_text, 1, 1)
 
     def refresh_event(self):
         try:
+            # loading folder structure message
+            self._set_message_text('Downloading folder structure...')
             self.tree.read_sb_folder_structure()
             self.tree.mirror_sciencebase_locally(False)
+            self._set_message_text('')
             self.tree.populate_local_folder_structure()
             self.populate_ui_tree()
             # clear list view
             self.clicked_tree_node = None
             self._populate_list_view()
+            if self.tree.sb_access.too_many_retries:
+                self.display_warning('WARNING: Too many retry attempts'
+                                     'while refreshing folder tree.  Folder'
+                                     'tree may be incomplete.')
+                self.tree.sb_access.too_many_retries = False
         except Exception:
             type_, value_, traceback_ = sys.exc_info()
             stack = inspect.stack()
@@ -469,6 +492,10 @@ class SBMainWindow(QMainWindow):
     def download_event(self, val):
         try:
             if self.current_file is not None:
+                # display downloading message
+                self._set_message_text('Downloading file "{}"..'
+                                       '.'.format(self.current_file.sb_name))
+                # download file
                 if self.current_file.download_file_from_sciencebase():
                     self._clear_labels_buttons()
                     self._add_labels_buttons()
@@ -501,8 +528,14 @@ class SBMainWindow(QMainWindow):
                 files_downloaded = []
                 files_failed = []
                 for child_file in self.clicked_tree_node.files.values():
-                    if child_file.file_status == FileStatus.local_file_missing or \
-                            child_file.file_status == FileStatus.local_out_of_date:
+                    if child_file.file_status == \
+                            FileStatus.local_file_missing or \
+                            child_file.file_status == \
+                            FileStatus.local_out_of_date:
+                        # display downloading message
+                        self._set_message_text('Downloading file "{}"..'
+                                               '.'.format(child_file.sb_name))
+                        # download file
                         if child_file.download_file_from_sciencebase():
                             files_downloaded.append(child_file.sb_name)
                         else:
@@ -546,6 +579,10 @@ class SBMainWindow(QMainWindow):
             if self.current_file is not None:
                 convert_zip = self.checkbox is not None and \
                               self.checkbox.isChecked()
+                # display uploading message
+                self._set_message_text('Uploading file "{}"..'
+                                       '.'.format(self.current_file.sb_name))
+                # upload file
                 if self.current_file.upload_to_sciencebase(
                     convert_to_zip=convert_zip
                 ):
@@ -579,11 +616,16 @@ class SBMainWindow(QMainWindow):
             if self.clicked_tree_node is not None:
                 files_uploaded = []
                 files_failed = []
+                # upload files
                 for child_file in self.clicked_tree_node.files.values():
                     if child_file.file_status == \
                             FileStatus.sciencebase_file_missing or \
                             child_file.file_status == \
                             FileStatus.sciencebase_out_of_date:
+                        # display uploading message
+                        self._set_message_text('Uploading file "{}"..'
+                                               '.'.format(child_file.sb_name))
+                        # upload file
                         if child_file.upload_to_sciencebase():
                             files_uploaded.append(child_file.sb_name)
                         else:
@@ -654,6 +696,16 @@ class SBMainWindow(QMainWindow):
                                           'recursive_populate_ui_tree', stack,
                                           str(type_), str(value_))
             raise ex
+
+    def _set_message_text(self, message):
+        # display uploading message
+        self._clear_labels_buttons()
+        self.bottom_display_text = \
+            QLabel('{}{} <\\span'
+                   '>'.format(self.heading_style,
+                              message))
+        self.button_layout.addWidget(self.bottom_display_text, 1, 1)
+        QApplication.processEvents()
 
     def _add_labels_buttons(self, download_all_btn=False, upload_all_btn=False):
         try:
