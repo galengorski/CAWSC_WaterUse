@@ -1,5 +1,7 @@
 # Climate_Scripts
 
+Routines for collecting GRIDMET climate data for shapefiles 
+
 Note, paths will need to be modified depending on the location of pilot study area shapefiles and desired output directory structure
 
 /data/ subdirectory will need to be unzipped (too large to push unless zipped)
