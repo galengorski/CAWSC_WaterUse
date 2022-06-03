@@ -40,22 +40,15 @@ def get_features(huc2s=[], database_root=""):
     # reduce to monthly
 
 
-def get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=False, wu_field = '',
+def get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=False, wu_field='',
                       sys_id_field=''):
-
-    cs_features = ['population',  'households2',  'income_lt_10k', 'income_10K_15k', 'income_15k_20k', 'income_20k_25k',
-    'income_25k_30k', 'income_30k_35k', 'income_35k_40k', 'income_40k_45k', 'income_45k_50k',  'income_50k_60k',
-    'income_60k_75k',  'income_75k_100k', 'income_100k_125k',  'income_125k_150k',  'income_150k_200k', 'income_gt_200k',
-    'median_income', 'tot_h_age', 'h_age_newer_2005',  'h_age_2000_2004', 'h_age_1990_1999', 'h_age_1980_1989',
-    'h_age_1970_1979', 'h_age_1960_1969', 'h_age_1950_1959', 'h_age_1940_1949',  'h_age_older_1939',  'pop_density']
-
     fn_features = os.path.join(database_root, r"..\..\others\census_features_to_use.txt")
     ffidr = open(fn_features, 'r')
     contents = ffidr.readlines()
     ffidr.close()
     cs_features = contents[0].split()
-
-    huc2s = range(1, 23)
+    not_folders = []
+    huc2s = range(1, 22)
     huc2_folders = os.listdir(database_root)
     for huc2 in huc2s:
         # loop over all huc2s
@@ -69,13 +62,13 @@ def get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=False,
         if not ("assemble" in os.listdir(feature_folder)):
             os.mkdir(assemble_folder)
         else:
-            fn_train = os.path.join(assemble_folder, "train_db_{}.csv".format(huc2))
+            # fn_train = os.path.join(assemble_folder, "train_db_{}.csv".format(huc2))
             if not (update_train_file):
                 continue
 
         # extract census
         census_folder = os.path.join(database_root,
-                                     os.path.join(str(huc2), "census"))
+                                     os.path.join(str(huc2), "census_places"))
         # extract climate
         climate_folder = os.path.join(database_root,
                                       os.path.join(str(huc2), "climate"))
@@ -90,26 +83,28 @@ def get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=False,
                                                      cs_features=cs_features)
         if len(df_annual) > 0:
             df_annual['HUC2'] = huc2
-            df_annual.to_csv(os.path.join(assemble_folder, "train_db_{}.csv".format(huc2)))
+            df_annual.to_csv(os.path.join(assemble_folder, "train_db2_{}.csv".format(huc2)))
 
     # now loop over assemble folders to assemble the final file
 
 
-def get_all_monthly_db(database_root, wu_file, wsa_file, update_train_file=False, wu_field = '',
-                      sys_id_field=''):
-
-    cs_features = ['population',  'households2',  'income_lt_10k', 'income_10K_15k', 'income_15k_20k', 'income_20k_25k',
-    'income_25k_30k', 'income_30k_35k', 'income_35k_40k', 'income_40k_45k', 'income_45k_50k',  'income_50k_60k',
-    'income_60k_75k',  'income_75k_100k', 'income_100k_125k',  'income_125k_150k',  'income_150k_200k', 'income_gt_200k',
-    'median_income', 'tot_h_age', 'h_age_newer_2005',  'h_age_2000_2004', 'h_age_1990_1999', 'h_age_1980_1989',
-    'h_age_1970_1979', 'h_age_1960_1969', 'h_age_1950_1959', 'h_age_1940_1949',  'h_age_older_1939',  'pop_density']
+def get_all_monthly_db(database_root, wu_file, wsa_file, update_train_file=False, wu_field='',
+                       sys_id_field=''):
+    cs_features = ['population', 'households2', 'income_lt_10k', 'income_10K_15k', 'income_15k_20k', 'income_20k_25k',
+                   'income_25k_30k', 'income_30k_35k', 'income_35k_40k', 'income_40k_45k', 'income_45k_50k',
+                   'income_50k_60k',
+                   'income_60k_75k', 'income_75k_100k', 'income_100k_125k', 'income_125k_150k', 'income_150k_200k',
+                   'income_gt_200k',
+                   'median_income', 'tot_h_age', 'h_age_newer_2005', 'h_age_2000_2004', 'h_age_1990_1999',
+                   'h_age_1980_1989',
+                   'h_age_1970_1979', 'h_age_1960_1969', 'h_age_1950_1959', 'h_age_1940_1949', 'h_age_older_1939',
+                   'pop_density']
 
     fn_features = os.path.join(database_root, r"..\..\others\census_features_to_use.txt")
     ffidr = open(fn_features, 'r')
     contents = ffidr.readlines()
     ffidr.close()
     cs_features = contents[0].split()
-
 
     huc2s = range(1, 23)
     huc2_folders = os.listdir(database_root)
@@ -136,12 +131,14 @@ def get_all_monthly_db(database_root, wu_file, wsa_file, update_train_file=False
         climate_folder = os.path.join(database_root,
                                       os.path.join(str(huc2), "climate"))
         # ****
-        df_monthly = assemble_monthly_training_dataset(wu_file=wu_file, wsa_file= wsa_file, year_field='YEAR',
-                                        wu_field=wu_field, sys_id_field=sys_id_field, shp_sys_id_field='WSA_AGIDF',
-                                        output_file='', census_folder=census_folder, climate_folder=climate_folder,
-                                        func_to_process_sys_name=None, to_galon=1e6,
-                                        census_file_prefex="cs_wsa_", climate_file_prefix="",
-                                        cs_features=cs_features, maxYear=2020, minYear=2000)
+        df_monthly = assemble_monthly_training_dataset(wu_file=wu_file, wsa_file=wsa_file, year_field='YEAR',
+                                                       wu_field=wu_field, sys_id_field=sys_id_field,
+                                                       shp_sys_id_field='WSA_AGIDF',
+                                                       output_file='', census_folder=census_folder,
+                                                       climate_folder=climate_folder,
+                                                       func_to_process_sys_name=None, to_galon=1e6,
+                                                       census_file_prefex="cs_wsa_", climate_file_prefix="",
+                                                       cs_features=cs_features, maxYear=2020, minYear=2000)
         if len(df_monthly) > 0:
             df_monthly['HUC2'] = huc2
             df_monthly.to_csv(os.path.join(assemble_folder, "train_db_monthly_{}.csv".format(huc2)))
@@ -215,7 +212,11 @@ def extrapolate_census_data(df, fields_to_interpolate, index_type='year'):
         x = np.array(x_1)
 
     for var in fields_to_interpolate:
-        y = df[var].values
+        try:
+            y = df[var].values
+        except:
+            #print(" {} does not exist".format(var))
+            continue
         maskNaN = np.isnan(y)
         if np.sum(maskNaN) == len(y):
             df[var] = y
@@ -224,7 +225,7 @@ def extrapolate_census_data(df, fields_to_interpolate, index_type='year'):
         x_ = x[mask]
         y_ = y[mask]
         mean_value = np.mean(y_)
-        if len(y_)<3:
+        if len(y_) < 3:
             df[var] = np.nanmean(y_)
             continue
         else:
@@ -237,7 +238,6 @@ def extrapolate_census_data(df, fields_to_interpolate, index_type='year'):
             f = interpolate.interp1d(x_, y_, fill_value='extrapolate', kind='linear')
         except:
             pass
-
 
         xnew = x[maskNaN]
         ynew = f(xnew)
@@ -260,7 +260,7 @@ def frac_to_date(frac_date):
     return ddate
 
 
-def get_water_system_ids_from_folder(folder, prefix=['cs_'], skip_prfix = 'X_X_X' ):
+def get_water_system_ids_from_folder(folder, prefix=['cs_'], skip_prfix='X_X_X'):
     if not (type(prefix) is list):
         prefix = [prefix]
 
@@ -283,8 +283,13 @@ def get_water_system_ids_from_folder(folder, prefix=['cs_'], skip_prfix = 'X_X_X
         for pre in prefix:
             fn = fn.replace(pre, "")
         ws_list.append(fn.upper())
-    ws_list = set(ws_list)  # remove duplicates
-    return list(ws_list)
+    no_dub = []
+    for s in ws_list:
+        if s in no_dub:
+            continue
+        no_dub.append(s)
+    ws_list = no_dub  # remove duplicates
+    return ws_list
 
 
 def assemble_annual_training_dataset(wu_file, wsa_file='', year_field='year', wu_field='wu', sys_id_field='x',
@@ -319,7 +324,7 @@ def assemble_annual_training_dataset(wu_file, wsa_file='', year_field='year', wu
     wu_df = wu_df[wu_df[sys_id_field].isin(sys_ids)]
 
     wu_df[wu_field] = wu_df[wu_field] * to_galon
-    sys_in_census = get_water_system_ids_from_folder(census_folder, prefix=['cs_wsa_'], skip_prfix = "_yearly")
+    sys_in_census = get_water_system_ids_from_folder(census_folder, prefix=['cs_wsa_', '_yearly'], skip_prfix="XXXX")
 
     index = 0
     all_wu = []
@@ -342,39 +347,55 @@ def assemble_annual_training_dataset(wu_file, wsa_file='', year_field='year', wu
             LONG = curr_wu['T_LONG'].values[0]
 
         # remove nonswud
-        curr_non_swud = curr_wu[curr_wu['is_swud']==0]
-        curr_wu = curr_wu[curr_wu['is_swud']==1]
+        curr_non_swud = curr_wu[curr_wu['is_swud'] == 0]
+        curr_wu = curr_wu[curr_wu['is_swud'] == 1]
         curr_wu = curr_wu.groupby(by=year_field).sum()
 
-        if len(curr_non_swud)>0:
+        if len(curr_non_swud) > 0:
             curr_wu = curr_wu.reset_index()
             curr_wu = pd.concat([curr_wu, curr_non_swud])
-            curr_wu = curr_wu.groupby(by=year_field).mean() ## in case flow exist in both swud and nonswud
+            curr_wu = curr_wu.groupby(by=year_field).mean()  ## in case flow exist in both swud and nonswud
 
         wu_ = pd.DataFrame(columns=curr_wu.columns, index=np.arange(minYear, maxYear + 1))
         for cc in curr_wu.columns:
             wu_[cc] = curr_wu[cc]
 
-
-
         print(sys_id)
+        if sys_id in ['010106001','MA4197001', 'NH1721010', 'CT0500021', 'VT0005638']:
+            vvv = 1
 
         if not (func_to_process_sys_name is None):
             sys_id = func_to_process_sys_name(sys_id)
 
         # census
-        fn = "{}{}.csv".format(census_file_prefex, sys_id)
+        fn = "{}{}_yearly.csv".format(census_file_prefex, sys_id)
         fn_cs = os.path.join(census_folder, fn)
         if os.path.isfile(fn_cs):
-            cs_features_ = ['dyear'] + cs_features
-            cs_df = pd.read_csv(fn_cs)[cs_features_]
-            cs_df['date'] = cs_df['dyear'].apply(frac_to_date)
+            cs_features_ = ['year'] + cs_features
+            cs_df = pd.read_csv(fn_cs)
+            # cs_df['date'] = cs_df['year'].apply(frac_to_date)
             cs_df['sys_id'] = sys_id.lower()
-            cs_df['year'] = cs_df['date'].dt.year
+            # cs_df['year'] = cs_df['date'].dt.year
+            lyears = list(range(minYear, maxYear + 1, 1))
+            for yr_i in lyears:
+                if yr_i in cs_df['year']:
+                    continue
+                cs_df.loc[cs_df.shape[0]] = None
+                cs_df.at[cs_df.shape[0] - 1, 'year'] = yr_i
+
             cs_df = cs_df.groupby(by=['year']).mean()
+            cs_df['pop_interpolated'] = 0
+            cs_df.loc[cs_df['population'].isna(), 'pop_interpolated'] = 1
+
             cs_df = extrapolate_census_data(cs_df,
                                             fields_to_interpolate=cs_features)
-            for cs_var in cs_features:
+
+            set1 = list(set(cs_features + ['pop_interpolated'], ).difference(cs_df.columns))
+            feats = cs_features + ['pop_interpolated']
+            for nan_col in set1:
+                cs_df[nan_col] = np.NAN
+
+            for cs_var in feats:
                 wu_[cs_var] = cs_df[cs_var]
 
         # climate
@@ -391,10 +412,10 @@ def assemble_annual_training_dataset(wu_file, wsa_file='', year_field='year', wu
                 if 1:
                     cc_df2 = cc_df.copy()
                     cc_df2['month'] = cc_df2['day'].dt.month
-                    cc_df_worm = cc_df2[cc_df2['month'].isin([4,5,6,7,8,9])]
-                    del(cc_df_worm['month'])
+                    cc_df_worm = cc_df2[cc_df2['month'].isin([4, 5, 6, 7, 8, 9])]
+                    del (cc_df_worm['month'])
                     cc_df_worm = cc_df_worm.groupby(by=['year']).mean()
-                    wu_[var+'_warm'] = cc_df_worm
+                    wu_[var + '_warm'] = cc_df_worm
 
                     cc_df_coo = cc_df2[cc_df2['month'].isin([10, 11, 12, 1, 2, 3])]
                     del (cc_df_coo['month'])
@@ -428,7 +449,6 @@ def assemble_monthly_training_dataset(wu_file, wsa_file='', year_field='year', w
                                       func_to_process_sys_name=None, to_galon=1.0,
                                       census_file_prefex="", climate_file_prefix="",
                                       cs_features=[], maxYear=2020, minYear=2000):
-
     mon = {1: 'JAN_MGD', 2: 'FEB_MGD', 3: 'MAR_MGD', 4: 'APR_MGD', 5: 'MAY_MGD', 6: 'JUN_MGD',
            7: 'JUL_MGD', 8: 'AUG_MGD', 9: 'SEP_MGD', 10: 'OCT_MGD', 11: 'NOV_MGD', 12: 'DEC_MGD'}
     cols_to_load = [year_field, sys_id_field] + list(mon.values()) + ['is_swud']
@@ -449,8 +469,8 @@ def assemble_monthly_training_dataset(wu_file, wsa_file='', year_field='year', w
 
     wu_df_non_swud = wu_df[wu_df['is_swud'] == 0]
     wu_df = wu_df[wu_df['is_swud'] == 1]
-    del(wu_df['is_swud'])
-    del(wu_df_non_swud['is_swud'])
+    del (wu_df['is_swud'])
+    del (wu_df_non_swud['is_swud'])
 
     wu_df = wu_df.groupby(['YEAR', 'WSA_AGIDF']).sum()
 
@@ -468,13 +488,13 @@ def assemble_monthly_training_dataset(wu_file, wsa_file='', year_field='year', w
     wu_df['month'] = wu_df['level_2']
     del (wu_df['level_2'])
 
-    sys_in_census = get_water_system_ids_from_folder(census_folder, prefix=['cs_wsa_'], skip_prfix = "_yearly")
+    sys_in_census = get_water_system_ids_from_folder(census_folder, prefix=['cs_wsa_'], skip_prfix="_yearly")
     # wu_df = wu_df.set_index(keys=[date_field])
     index = 0
     all_wu = []
     for sys_id in sys_in_census:
 
-        #if not (sys_id in sys_ids):
+        # if not (sys_id in sys_ids):
         #    continue
 
         index = index + 1
@@ -484,7 +504,7 @@ def assemble_monthly_training_dataset(wu_file, wsa_file='', year_field='year', w
         curr_wu = curr_wu.groupby(by=[year_field, 'month']).sum()
         continueEmpty = False
 
-        yr_xv, mo_yv = np.meshgrid(np.arange(minYear, maxYear + 1), np.arange(1,13))
+        yr_xv, mo_yv = np.meshgrid(np.arange(minYear, maxYear + 1), np.arange(1, 13))
         yr = yr_xv.flatten()
         mo = mo_yv.flatten()
         wu_ = pd.DataFrame(columns=curr_wu.columns)
@@ -517,8 +537,8 @@ def assemble_monthly_training_dataset(wu_file, wsa_file='', year_field='year', w
             for cs_var in cs_features:
                 wu_[cs_var] = cs_df[cs_var]
 
-            #cs_df['wu_rate'] = curr_wu['wu_rate']
-            #curr_wu = cs_df
+            # cs_df['wu_rate'] = curr_wu['wu_rate']
+            # curr_wu = cs_df
         # climate
         for var in ["etr", "pr", "tmmn", "tmmx"]:
             clim_fn = "{}_{}.csv".format(var, sys_id)
@@ -629,7 +649,7 @@ if __name__ == '__main__':
         wu_file = r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\SWUDS_v14.csv"
         wsa_file = r"C:\work\water_use\mldataset\gis\wsa\WSA_v2_1_alb83_attrib.shp"
         database_root = r"C:\work\water_use\mldataset\ml\training\features"
-        get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=True, wu_field = 'TOT_WD_MGD')
+        get_all_annual_db(database_root, wu_file, wsa_file, update_train_file=True, wu_field='TOT_WD_MGD')
         pass
 
     if test_annually:

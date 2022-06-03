@@ -7,8 +7,8 @@ from assemble_dataset import get_all_monthly_db
 
 #wu_file_swud = r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\SWUDS_v14.csv"
 #wu_file_nonswud = r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\NSWUD_annual_monthly_counties.csv"
-wu_file_joint =  r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\Join_swud_nswud.csv"
-wsa_file = r"C:\work\water_use\mldataset\gis\wsa\WSA_v3_02072021\WSA_v3_alb83_02072021.shp"
+wu_file_joint =  r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\Join_swud_nswud3.csv"
+wsa_file = r"C:\work\water_use\mldataset\gis\wsa\WSA_v1\WSA_v1.shp"
 database_root = r"C:\work\water_use\mldataset\ml\training\features"
 
 
@@ -20,7 +20,7 @@ xx = 1
 if True:
     get_all_annual_db(database_root, wu_file_joint, wsa_file, update_train_file=True, wu_field = 'TOT_WD_MGD',
                   sys_id_field = 'WSA_AGIDF')
-if True:
+if False:
     get_all_monthly_db(database_root, wu_file_joint, wsa_file, update_train_file=True, wu_field='TOT_WD_MGD',
                       sys_id_field='WSA_AGIDF')
 

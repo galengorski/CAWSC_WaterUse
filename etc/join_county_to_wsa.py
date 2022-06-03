@@ -3,13 +3,14 @@ from CAWSC_WaterUse.etc import utilities as utl
 
 # fields to keep/read in! Please see parameters.txt for a description
 # on how to use this file
-def add_county_data():
+def add_county_data(trn_df = None):
     annual_db_root = r"C:\work\water_use\mldataset\ml"
     PARAMETERS = utl.load_parameters(os.path.join(annual_db_root, r'training\misc_features\parameters.txt'))
 
     # load existing training data
-    trn_data = os.path.join(annual_db_root, r"training\train_datasets\Annual\wu_annual_training.csv")
-    trn_df = utl.load_training_data(trn_data)
+    if trn_df is None:
+        trn_data = os.path.join(annual_db_root, r"training\train_datasets\Annual\wu_annual_training3.csv")
+        trn_df = utl.load_training_data(trn_data)
 
     # load all csv files and shapefile data
     dfs = utl.load_all(PARAMETERS)
@@ -29,6 +30,6 @@ def add_county_data():
         print(s)
 
     # write dataframe to file
-    w_out = os.path.dirname(trn_data)
+    #w_out = os.path.dirname(trn_data)
     return trn_df
     #trn_df.to_csv(os.path.join(w_out,"wsa_annual_training_2_extended.csv"), index=False)
