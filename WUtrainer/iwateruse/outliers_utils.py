@@ -54,6 +54,9 @@ def drop_values(model, **kwargs):
         df = df[~mask]
 
     model.df_train = df
+    model.log.info("Outliers are removed based on this role : {}".format(opts))
+    model.log.info("Data after data removed is")
+    model.log.to_table(model.df_train)
 
 def drop_na_target(model):
 
@@ -61,6 +64,10 @@ def drop_na_target(model):
     target = df[model.target]
     df = df[~target.isna()]
     model.df_train = df
+
+    model.log.info("Drop any NaN target.. ")
+    model.log.info("Data after data removed is")
+    model.log.to_table(model.df_train)
 
 
 

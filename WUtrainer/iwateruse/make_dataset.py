@@ -3,21 +3,22 @@ import pandas as pd
 import numpy as np
 
 
-def make_ds_per_capita_basic(model):
+def make_ds_per_capita_basic(model, datafile = None):
     # ======= Load =======
-    model.df_train_bk = pd.read_csv(r"C:\work\water_use\ml_experiments\annual_v_0_0\clean_train_db.csv")
-    pc_50_swud = pd.read_csv(r"spatial_pc_statistics_apply_max_min_pc.csv")
+    df_train_bk = pd.read_csv(datafile)
+    #pc_50_swud = pd.read_csv(r"spatial_pc_statistics_apply_max_min_pc.csv")
     annual_wu = pd.read_csv(r"annual_wu.csv")
-    model.df_train = model.df_train_bk.copy()
+    df_train = df_train_bk.copy()
 
     # ====== Add water use =======
     annual_wu['wu_rate_mean'] = annual_wu[['annual_wu_G_swuds', 'annual_wu_G_nonswuds']].mean(axis=1)
     annual_wu['wu_rate_mean'] = annual_wu['wu_rate_mean'] / annual_wu['days_in_year']
     avg_wu = annual_wu[['WSA_AGIDF', 'YEAR', 'wu_rate_mean']].copy()
     avg_wu.rename(columns={'WSA_AGIDF': 'sys_id', 'YEAR': 'Year', 'wu_rate_mean': 'wu_rate'}, inplace=True)
-    del (model.df_train['wu_rate'])
-    model.df_train = model.df_train.merge(avg_wu, on=['sys_id', 'Year'], how='left')
-    model.df_train_bk = model.df_train.copy()
+    del (df_train['wu_rate'])
+    df_train = df_train.merge(avg_wu, on=['sys_id', 'Year'], how='left')
+
+    model.add_training_df( df_train = df_train)
 
 
 def make_ds_per_capita_system_average(model):

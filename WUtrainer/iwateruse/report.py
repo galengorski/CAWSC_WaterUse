@@ -38,7 +38,9 @@ class Logger():
     def to_table(self, df, title = '',  header = 5):
         self.fidw.write("\n")
         txt_table = tabulate(df.iloc[:header], headers='keys', tablefmt='psql')
-        self.fidw.write(title + " -- Top {} lines --".format(header) + "\n")
+        rows = len(df)
+        cols = len(df.columns)
+        self.fidw.write(title + " -- Top {} lines, nrows = {}, ncols = {}".format(header,rows, cols) + "\n")
         self.fidw.write(txt_table)
         self.fidw.write("\n")
         self.fidw.flush()

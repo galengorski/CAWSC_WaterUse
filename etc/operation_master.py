@@ -13,7 +13,7 @@ path: C:\work\water_use\CAWSC_WaterUse\etc\generate_annual_training_dataset.py
 use: Use it for annual only. For Monthly, use annual census and then compute climate from the following function.
 
 
-(4) we can obtain annual, monthly, and daily fromn
+(4) we can obtain annual, monthly, and daily climate from
 path:C:\work\water_use\CAWSC_WaterUse\etc\assemble_climate_only.py
 or C:\work\water_use\CAWSC_WaterUse\etc\assemble_climate_from_one_folder.py
 
