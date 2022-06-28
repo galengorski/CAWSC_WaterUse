@@ -1,6 +1,3 @@
-Feature_ID,Meaning,Units
-Q_ann,Annual water use for a certain area,Mg/year
-Qc_ann,Average annual water use for a certain area per capita per day,g/day/capita
-pr,precipitation,??
-tmin,minimum temperature,
-tmax,max temperature,
+version https://git-lfs.github.com/spec/v1
+oid sha256:85136ca7cd60c6ed0c58df605426e3663db3183fcfe9a314e818c54ff3e09014
+size 232
