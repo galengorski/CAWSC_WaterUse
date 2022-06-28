@@ -183,7 +183,8 @@ def code_wu_outliers(annual_wu, monthly_wu, master_pop):
 
 
     # (3) systems with large temporal change
-    def compute_temporal_variability(df, field):
+    def compute_temporal_variability(df_, field):
+        df = df_[df_[field]>0]
         df.sort_values(by = 'YEAR', inplace = True)
         if len(df)>1:
             pc = (df[field]/ df['pop'])
@@ -264,13 +265,13 @@ if __name__ == "__main__":
     agg_rules = pd.read_csv(r"../../ml_experiments/annual_v_0_0/aggregation_roles.csv")
 
     swud = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\SWUDS_v17.csv", encoding='cp1252')
-    nonswud3 = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\nonswuds_wu_v4_clean.csv")
+    nonswud3 = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\nonswuds_wu_v5_clean.csv")
     wsa_shp = geopandas.read_file(r"C:\work\water_use\mldataset\gis\wsa\WSA_v1.shp")
     main_db = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\train_datasets\Annual\wu_annual_training3.csv")
 
     if 1:
         annual_wu, monthly_wu = join_swuds_nonswuds(swud, nonswud3)
-        master_pop = pd.read_csv(r"/ml_experiments/annual_v_0_0/master_population.csv")
+        master_pop = pd.read_csv(r"C:\work\water_use\ml_experiments\annual_v_0_0\master_population.csv")
         df = code_wu_outliers(annual_wu, monthly_wu, master_pop)
 
     if 0:

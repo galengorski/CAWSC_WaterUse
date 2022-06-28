@@ -81,13 +81,14 @@ class Model:
 
     def add_training_df(self, df_train = None):
         if not (df_train is None):
-            self.df_train_bk = df_train.copy()
-            self.df_train = df_train.copy()
-            self.log.to_table(df_train, title="Raw Training Dataset", header=10)
-            summary = self.df_train.describe()
-            self.log.to_table(summary, title="Raw Training Data Summary")
-        else:
-            raise ValueError("Training dataset is empty...")
+            print("Warning: You are overwriting an existing database...")
+            self.log.info("Warning: You are overwriting an existing database")
+
+        self.df_train_bk = df_train.copy()
+        self.df_train = df_train.copy()
+        self.log.to_table(df_train, title="Raw Training Dataset", header=10)
+        summary = self.df_train.describe()
+        self.log.to_table(summary, title="Raw Training Data Summary")
 
     def add_feature_to_skip_list(self, features):
 

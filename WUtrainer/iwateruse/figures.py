@@ -9,6 +9,7 @@ def one_to_one(y_actual, y_hat, heading, xlabel, ylabel, figfile):
         fig = plt.figure(figsize=(10, 8))
         ax = fig.add_subplot(1, 1, 1)
         ax.scatter(y_actual, y_hat, marker="o", s=20, alpha=0.5)
+        plt.plot([min(y_actual), max(y_actual)], [min(y_actual), max(y_actual)], 'r')
         accuracy = r2_score(y_actual, y_hat)
         rmse = np.power(mean_squared_error(y_actual,y_hat), 0.5)
         styles.heading(ax=ax,
@@ -23,4 +24,23 @@ def one_to_one(y_actual, y_hat, heading, xlabel, ylabel, figfile):
         styles.ylabel(ax = ax, fontsize=12,  label = ylabel)
         plt.savefig(figfile)
         plt.close(fig)
+
+
+def feature_importance(estimator, max_num_feature , type , figfile):
+    from xgboost import plot_importance
+    with styles.USGSPlot():
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(1, 1, 1)
+        f = plot_importance(ax = ax, booster=estimator, max_num_features=max_num_feature, importance_type=type)
+        styles.heading(ax=ax,
+                       heading='Feature Importance',
+                       idx=0, fontsize=16)
+        styles.xlabel(ax=ax, fontsize=16, label=type)
+        styles.ylabel(ax=ax, fontsize=16, label= 'Feature')
+        plt.tick_params(axis='x', labelsize=14)
+        plt.tick_params(axis='y', labelsize=14)
+        plt.savefig(figfile)
+        plt.close(fig)
+
+
 
