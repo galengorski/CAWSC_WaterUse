@@ -2,14 +2,14 @@ import os, sys
 import pandas as pd
 from . import report
 
+
 class Model:
-    def __init__(self, name='exp1', df_train=None, feature_status_file = None,  log_file=None):
+    def __init__(self, name='exp1', df_train=None, feature_status_file=None, log_file=None):
         self.name = name
         if log_file is None:
             self.log_file = 'train_log.log'
         else:
             self.log_file = log_file
-
 
         self.log = report.Logger(self.log_file, title="Annual Water Use")
         self.log.info("initialize ...")
@@ -25,7 +25,7 @@ class Model:
         self.raw_target = ''
         self.target = ''
         self._features = []
-        #self.features = []
+        # self.features = []
 
         self.X = None
         self.y = None
@@ -41,13 +41,12 @@ class Model:
         if feature_status_file is None:
             self.feature_status = None
         else:
-            self.get_feature_status(fn = feature_status_file)
+            self.get_feature_status(fn=feature_status_file)
 
         self.func_types = ['target_func', 'outliers_func',
                            'add_features_func', 'pre_train_func', 'split_func']
 
         self.steps = []
-
 
     def apply_func(self, func=None, type=None, **kwargs):
 
@@ -57,12 +56,17 @@ class Model:
     def get_feature_status(self, fn):
         self.feature_status_file = fn
         self.feature_status = pd.read_excel(fn, sheet_name='annual')
-        not_features = self.feature_status[self.feature_status['Not_Feature']==1]['Feature_name'].values.tolist()
-        skip_features = self.feature_status[self.feature_status['Skip']==1]['Feature_name'].values.tolist()
+        not_features = self.feature_status[self.feature_status['Not_Feature'] == 1]['Feature_name'].values.tolist()
+        skip_features = self.feature_status[self.feature_status['Skip'] == 1]['Feature_name'].values.tolist()
         self._features_to_skip = self._features_to_skip + not_features + skip_features
 
-        self._categorical_features = self.feature_status[self.feature_status['Type'].isin(['categorical'])]['Feature_name'].values.tolist()
-
+        cat_feat = self.feature_status[self.feature_status['Type'].isin(['categorical'])][
+            'Feature_name'].values.tolist()
+        self._categorical_features = []
+        for feat in cat_feat:
+            if feat in self._features_to_skip:
+                continue
+            self._categorical_features.append(feat)
 
     @property
     def features(self):
@@ -79,7 +83,7 @@ class Model:
     def categorical_features(self):
         return self._categorical_features
 
-    def add_training_df(self, df_train = None):
+    def add_training_df(self, df_train=None):
         if not (df_train is None):
             print("Warning: You are overwriting an existing database...")
             self.log.info("Warning: You are overwriting an existing database")
@@ -97,9 +101,3 @@ class Model:
         for feat in features:
             msg = msg + feat + ","
         self.log.info(msg)
-
-
-
-
-
-
