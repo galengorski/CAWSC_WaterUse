@@ -46,10 +46,6 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, GridSearchCV
 
-# %%
-# %matplotlib widget
-# %matplotlib inline
-# %matplotlib ipympl
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -58,17 +54,25 @@ xgb.set_config(verbosity=0)
 # %%
 from iwateruse.model import Model
 from iwateruse import targets, weights, pipelines, outliers_utils, estimators
+from iwateruse import selection
 
+# =============================
+# Setup Training
+# =============================
 
-# %%
-model = Model(name='annual_pc')
+model = Model(name='annual_pc', log_file = 'train_log.log',  feature_status_file= r"features_status.xlsx")
 model.raw_target = 'wu_rate'
 model.target = 'per_capita'
 
-make_dataset.make_ds_per_capita_basic(model)
+datafile = r"C:\work\water_use\ml_experiments\annual_v_0_0\clean_train_db.csv"
+df_train = pd.read_csv(datafile)
+model.add_training_df( df_train = df_train)
 
-model.columns_to_drop = [model.raw_target, 'population', 'swud_tmean', 'pop_median',
-                         'swud_median', 'tpop_tmean', 'tpop_median', 'sys_id']
+
+# make_dataset.make_ds_per_capita_basic(model, datafile=datafile)
+model.df_train['pop_density']  = model.df_train['pop']/model.df_train['WSA_SQKM']
+model.df_train.loc[model.df_train['WSA_SQKM']==0, 'pop_density'] = np.NaN
+
 # add water use
 seed1 = 123
 seed2 = 456
@@ -83,10 +87,9 @@ model.apply_func(func=outliers_utils.drop_values, type='outliers_func', opts = o
 model.apply_func(func = outliers_utils.drop_na_target, type='outliers_func')
 model.apply_func(func=None, type='add_features_func', args=None)
 
-# split
-model.apply_func(func=splittors.random_split, args={'frac': 0.9999, 'seed': seed1})
-
-
+# =============================
+# Prepare the initial estimator
+# =============================
 params = {
     'objective': "reg:squarederror",
     'tree_method': 'hist',
@@ -104,23 +107,38 @@ params = {
     'max_delta_step': 0,
     'seed': seed2
 }
+
 gb = estimators.xgb_estimator(params)
+encode_cat_features = False
+if encode_cat_features:
+    main_pipeline = pipelines.make_pipeline(model)
+    main_pipeline.append(('estimator', gb))
+    gb = Pipeline(main_pipeline)
+
+features = model.features
+target = model.target
+
+final_dataset = model.df_train
+final_dataset = final_dataset.drop_duplicates(subset = ['sys_id', 'Year'], keep = 'first')
+model.log.to_table(final_dataset[features].describe(percentiles = [0,0.05,0.5,0.95,1]), "Features", header=-1)
+model.log.to_table(final_dataset[[target]].describe(percentiles = [0,0.05,0.5,0.95,1]), "Target", header=-1)
+#X_train, X_test, y_train, y_test = splittors.stratified_split(model, test_size = 0.3,  id_column = 'HUC2', seed = 123)
 
 #
-not_features = model.columns_to_drop + ['wu_rate', 'Ecode', 'wu_rate', 'per_capita', 'sys_id']
-features = []
-for col in model.df_train.columns:
-    if col in not_features:
-        continue
-    features.append(col)
-
-
-dfff = model.df_train.reset_index(drop = True)
-dfff['id'] = dfff.index.values
+# not_features = model.columns_to_drop + ['wu_rate', 'Ecode', 'wu_rate', 'per_capita', 'sys_id']
+# features = []
+# for col in model.df_train.columns:
+#     if col in not_features:
+#         continue
+#     features.append(col)
+#
+#
+final_dataset = final_dataset.reset_index(drop = True)
+# dfff['id'] = dfff.index.values
 
 if 1:
     if 1:
-        df_results = denoise.purify(dfff, target = 'per_capita', features = features, col_id = ['id'],
+        df_results = denoise.purify(final_dataset, target = 'per_capita', features = features, col_id = 'sample_id',
                                     max_iterations = 400, estimator = gb, score = 'neg_root_mean_squared_error',
                                     min_signal_ratio = 0.17, min_mse = 30**2.0)
     else:

@@ -46,9 +46,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, GridSearchCV
 
 # %%
-# %matplotlib widget
-# %matplotlib inline
-# %matplotlib ipympl
+# # %matplotlib widget
+# # %matplotlib inline
+# # %matplotlib ipympl
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -56,10 +56,10 @@ xgb.set_config(verbosity=0)
 
 # %%
 dataset = pd.read_csv(r"C:\work\water_use\ml_experiments\annual_v_0_0\clean_train_db.csv")
-# pop_info = pd.read_csv(r"pop_info.csv")
-# pc_50_swud = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\spatial_features\pc_50_pop_swud15.csv")
+pop_info = pd.read_csv(r"pop_info.csv")
+pc_50_swud = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\spatial_features\pc_50_pop_swud15.csv")
 # pc_50_plc = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\spatial_features\pc_50_plc_pop_interpolated.csv")
-# pc95_5 = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\spatial_features\pc_50_swud_pop_p95_5.csv")
+pc95_5 = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\spatial_features\pc_50_swud_pop_p95_5.csv")
 
 
 # %%
@@ -73,22 +73,21 @@ del(df_)
 
 
 # %%
-pop_info
 
 # %%
-pop_info['pop'] = pop_info['pop_swud16'].copy()
-mask = pop_info['pop'].isna() | pop_info['pop']==0
-pop_info.loc[mask, 'pop'] = pop_info[mask]['plc_pop_interpolated']
-mask = pop_info['pop'].isna() | pop_info['pop']==0
-pop_info.loc[mask, 'pop'] = pop_info[mask]['TPOPSRV']
-mask = pop_info['pop'].isna() | pop_info['pop']==0
-pop_info.loc[mask, 'pop'] = pop_info[mask]['tract_pop']
+# pop_info['pop'] = pop_info['pop_swud16'].copy()
+# mask = pop_info['pop'].isna() | pop_info['pop']==0
+# pop_info.loc[mask, 'pop'] = pop_info[mask]['plc_pop_interpolated']
+# mask = pop_info['pop'].isna() | pop_info['pop']==0
+# pop_info.loc[mask, 'pop'] = pop_info[mask]['TPOPSRV']
+# mask = pop_info['pop'].isna() | pop_info['pop']==0
+# pop_info.loc[mask, 'pop'] = pop_info[mask]['tract_pop']
 
 
 #dataset = dataset[dataset['Ecode_num']==0]
 
-pop_df = pop_info[['sys_id', 'pop', 'Year']]
-dataset = dataset.merge(pop_df, right_on=['sys_id', 'Year'], left_on=['sys_id', 'Year'] , how = 'left')
+# pop_df = pop_info[['sys_id', 'pop', 'Year']]
+# dataset = dataset.merge(pop_df, right_on=['sys_id', 'Year'], left_on=['sys_id', 'Year'] , how = 'left')
 
 
 # %%
@@ -101,7 +100,9 @@ dataset_bck = dataset.copy()
 # dataset = ohc1.transform(dataset)
 
 # %%
-dataset = dataset_bck.copy()
+dataset 
+
+# %%
 
 # %%
 categorical_features = ['HUC2', 'state_id']
@@ -124,6 +125,9 @@ for i in ['KG_climate_zone', 'HUC2', 'state_id', 'Ecode_num', 'county_id', "KG_c
     except:
         print(" {} is not the list".format(i))
 
+# %%
+df
+
 
 # %%
 
@@ -142,7 +146,7 @@ def log_cosh_quantile(alpha):
 
 # %%
 
-columns_to_drop = [ 'population','sys_id', 'wu_rate'] + extra_drop#'population',
+columns_to_drop = [ 'sys_id', 'wu_rate',  'sample_id'] + extra_drop#'population',
 df = dataset.copy()
 #df['pc_median']
 df['pc'] = df['wu_rate']/df['pop']

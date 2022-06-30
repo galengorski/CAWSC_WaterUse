@@ -155,6 +155,8 @@ def purify(df, **kwargs):
     kwargs['initial_df'] = df.copy()
     fig, axs = visulize(fig=None)
 
+    unique_sample_ids = df[col_id].values.tolist()
+
     # shuffle
     df = df.sample(frac=1).reset_index(drop=True)
     df_signal = df.sample(frac=initial_split_frac)
@@ -285,14 +287,14 @@ def purify(df, **kwargs):
             sigal_smoothed_score.append(np.mean(last5))
 
         if iter == 0:
-            columns = ['iter', 'score', 'sscore'] + list(range(len(df)))
+            columns = ['iter', 'score', 'sscore'] + unique_sample_ids
             df_results = pd.DataFrame(np.nan, index=list(range(N)), columns=columns)
             df_results['iter'] = np.arange(N)
         iter_mask = df_results['iter'] == iter
         df_results.loc[iter_mask, 'score'] = signal_iter_score[-1]
         df_results.loc[iter_mask, 'sscore'] = sigal_smoothed_score[-1]
-        signal_ids = df_signal['id'].values.tolist()
-        df_results.loc[iter_mask, list(range(len(df)))] = 0
+        signal_ids = df_signal[col_id].values.tolist()
+        df_results.loc[iter_mask,unique_sample_ids] = 0
         df_results.loc[iter_mask, signal_ids] = 1
 
         if np.mod(iter, 10) == 0:

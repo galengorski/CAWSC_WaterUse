@@ -45,33 +45,31 @@ def random_split(model, args):
     # model.y_train = y_train
     # model.y_test = y_test
 
-def stratified_split(model, args):
+def stratified_split(model, test_size = 0.3,  id_column = 'HUC1', seed = 123):
     """
 
     :param model:
     :param args:
     :return:
     """
-    frac = args['frac']
-    seed = args['seed']
-    id_column = args['id_column']
-    test_size = 1 - frac
-
 
     df = model.df_train
-    features = list(df.columns)
-    features.remove(model.target)
+    features = df.columns.to_list()
+    target = model.target
+    feats = features.remove(target)
     X = df[features]
     y = df[model.target]
 
     model.X = X
     model.y = y
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size,
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, shuffle = True,
                                                         random_state=seed, stratify=df[id_column])
     model.X_train = X_train
     model.X_test = X_test
     model.y_train = y_train
     model.y_test = y_test
+
+    return X_train, X_test, y_train, y_test
 
 def split_by_id(model, args):
     """

@@ -42,5 +42,44 @@ def feature_importance(estimator, max_num_feature , type , figfile):
         plt.savefig(figfile)
         plt.close(fig)
 
+def plot_scatter_map(lon, lat, df, legend_column, cmap, title, figfile, log_scale = False ):
+    import geopandas
+    import contextily as cx
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    import matplotlib
+
+    df_shp = geopandas.GeoDataFrame(
+        df, geometry=geopandas.points_from_xy(lon, lat, crs="EPSG:4326"))
+
+    legend_kwds = {'label': "Population by Country",
+                   'orientation': "horizontal"}
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(1, 1, 1)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.1)
+
+    legend_kwds = {'label': "Population by Country",
+                   'orientation': "horizontal"}
+    if log_scale:
+        norm = matplotlib.colors.LogNorm(vmin=df_shp[legend_column].min(), vmax=df_shp[legend_column].max())
+    else:
+        norm = None
+
+    with styles.USGSMap():
+        ax = df_shp.plot(ax = ax, column= legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
+                        legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
+        cx.add_basemap(ax, crs=df_shp.crs.to_string(), source=cx.providers.Stamen.TonerLines, alpha=1, attribution = False)
+        cx.add_basemap(ax, crs=df_shp.crs.to_string(), source=cx.providers.Stamen.TonerBackground, alpha=0.1, attribution = False)
+
+        styles.heading(ax=ax,
+                       heading= title,
+                       idx=0, fontsize=16)
+        styles.xlabel(ax=ax, fontsize=16, label='LONG')
+        styles.ylabel(ax=ax, fontsize=16, label='LAT')
+        plt.tick_params(axis='x', labelsize=14)
+        plt.tick_params(axis='y', labelsize=14)
+        plt.savefig(figfile)
+        plt.close(fig)
+
 
 
