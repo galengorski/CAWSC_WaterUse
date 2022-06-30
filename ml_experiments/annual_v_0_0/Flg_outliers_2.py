@@ -118,7 +118,7 @@ for col in model.df_train.columns:
 dfff = model.df_train.reset_index(drop = True)
 dfff['id'] = dfff.index.values
 
-if 0:
+if 1:
     if 1:
         df_results = denoise.purify(dfff, target = 'per_capita', features = features, col_id = ['id'],
                                     max_iterations = 400, estimator = gb, score = 'neg_root_mean_squared_error',
