@@ -4,3 +4,6 @@ wu_package\climate_data_collector\data\
 *.log
 *.ipynb_checkpoints
 WUtrainer\iwateruse.egg-info\
+.ipynb_checkpoints
+catboost_info
+/ml_experiments/annual_v_0_0/pycaret/*.log
