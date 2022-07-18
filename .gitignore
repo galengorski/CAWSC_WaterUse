@@ -1,2 +1,11 @@
 wu_package\climate_data_collector\data\
 *.pyc
+/__pycache__
+/Work/Ayman/data/US_nation_2010_alb83.shp
+/Work/Ayman/data/US_nation_2010_alb83.shp.xml
+/Work/Ayman/data/US_nation_2010_alb83.shx
+/Work/Ayman/data/US_nation_2010_alb83.cpg
+/Work/Ayman/data/US_nation_2010_alb83.dbf
+/Work/Ayman/data/US_nation_2010_alb83.prj
+/Work/Ayman/data/US_nation_2010_alb83.sbn
+/Work/Ayman/data/US_nation_2010_alb83.sbx
