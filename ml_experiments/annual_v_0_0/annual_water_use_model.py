@@ -88,7 +88,7 @@ seed2 = 456
 # %%
 model.apply_func(func=targets.compute_per_capita, type='target_func', args=None)
 
-opts = ['pop<=1000', 'per_capita>=500', 'per_capita<=25']
+opts = ['pop<=100', 'per_capita>=500', 'per_capita<=25']
 model.apply_func(func=outliers_utils.drop_values, type='outliers_func', opts = opts )
 model.apply_func(func = outliers_utils.drop_na_target, type='outliers_func')
 

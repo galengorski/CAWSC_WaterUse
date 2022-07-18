@@ -279,7 +279,7 @@ if run_chi_selection:
     from sklearn.feature_selection import chi2
     chi_test_df = selection.chi_square_test(X=final_dataset[features], y=final_dataset[target], nbins=20)
 
-    
+
 if run_RFECV_selection:
     from sklearn.feature_selection import RFE, RFECV
 
