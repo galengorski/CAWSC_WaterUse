@@ -51,8 +51,6 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 # %matplotlib widget
 # %matplotlib inline
 # %matplotlib ipympl
-import matplotlib
-matplotlib.use('Qt5Agg')
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -214,12 +212,12 @@ if 0:
     confirmed_features = selection.boruta(X=final_dataset[features], y =  final_dataset[target], estimator = rf)
 if 1:
     scoring = ['r2']#, 'neg_mean_absolute_percentage_error', 'neg_mean_squared_error']
-    feature_importance = selection.permutation_selection(X_test[features], y_test, estimator = gb, scoring = scoring,
+    feature_importance = selection.permutation_selection(X_test, y_test, estimator = gb, scoring = scoring,
                                                 n_repeats = 10, features = features)
     metrics =feature_importance['metric'].unique()
     for m in metrics:
         curr_ = feature_importance[feature_importance['metric'].isin([m])]
-    cc = 1
+
 
 
 if 0:

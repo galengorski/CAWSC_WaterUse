@@ -7,3 +7,4 @@ WUtrainer\iwateruse.egg-info\
 .ipynb_checkpoints
 catboost_info
 /ml_experiments/annual_v_0_0/pycaret/*.log
+/ml_experiments/annual_v_0_0/.idea
