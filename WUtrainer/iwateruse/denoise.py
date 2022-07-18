@@ -228,7 +228,7 @@ def purify(df, **kwargs):
             err_up_rel = min_rel_error
         if 1:
             w[err < error_upper_threshold] = 1.0
-            w[rel_err<min_rel_error] = 0
+            #w[rel_err<min_rel_error] = 0
             w = w / np.sum(w)
             w[np.isnan(w)] = 0
         else:
@@ -313,7 +313,7 @@ def purify(df, **kwargs):
 
 
 
-        if 1:
+        if 0:
             visulize(
                 fig=fig, axs=axs,
                 signal_average_scroe=signal_iter_score, sigal_smoothed_score=sigal_smoothed_score,

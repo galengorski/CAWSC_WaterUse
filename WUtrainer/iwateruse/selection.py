@@ -15,7 +15,7 @@ def boruta(X, y, estimator):
 
     # define random forest classifier, with utilising all cores and
     # sampling in proportion to y labels
-    rf = RandomForestRegressor(n_jobs=-1, max_depth=5)
+    #rf = RandomForestRegressor(n_jobs=-1, max_depth=5)
 
     # define Boruta feature selection method
     feat_selector = BorutaPy(estimator, n_estimators='auto', verbose=2, random_state=1)
@@ -30,7 +30,7 @@ def boruta(X, y, estimator):
     feat_selector.ranking_
 
     # call transform() on X to filter it down to selected features
-    X_filtered = feat_selector.transform(X)
+    #X_filtered = feat_selector.transform(X)
     return X.columns[feat_selector.support_]
 
 def permutation_selection(X, y, estimator, scoring, n_repeats = 5, features = None):

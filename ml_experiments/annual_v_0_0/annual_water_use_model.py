@@ -60,7 +60,7 @@ xgb.set_config(verbosity=0)
 
 # %%
 from iwateruse.model import Model
-from iwateruse import targets, weights, pipelines, outliers_utils, estimators
+from iwateruse import targets, weights, pipelines, outliers_utils, estimators, featurize
 from iwateruse import selection
 
 
@@ -73,13 +73,16 @@ model = Model(name='annual_pc', log_file = 'train_log.log',  feature_status_file
 model.raw_target = 'wu_rate'
 model.target = 'per_capita'
 
-datafile = r"C:\work\water_use\ml_experiments\annual_v_0_0\clean_train_db.csv" #clean_train_db_backup_6_24_2022.csv
+datafile = r"clean_train_db.csv" #clean_train_db_backup_6_24_2022.csv
 df_train = pd.read_csv(datafile)
+del(df_train['dom_frac'])
+del(df_train['cii_frac'])
+#df_train = df_train[['pop', 'wu_rate', 'dom_frac']]
 model.add_training_df( df_train = df_train)
 
 # make_dataset.make_ds_per_capita_basic(model, datafile=datafile)
-model.df_train['pop_density']  = model.df_train['pop']/model.df_train['WSA_SQKM']
-model.df_train.loc[model.df_train['WSA_SQKM']==0, 'pop_density'] = np.NaN
+# model.df_train['pop_density']  = model.df_train['pop']/model.df_train['WSA_SQKM']
+# model.df_train.loc[model.df_train['WSA_SQKM']==0, 'pop_density'] = np.NaN
 # add water use
 seed1 = 123
 seed2 = 456
@@ -87,10 +90,19 @@ seed2 = 456
 # %%
 model.apply_func(func=targets.compute_per_capita, type='target_func', args=None)
 
-opts = ['pop<=8000', 'per_capita>=500', 'per_capita<=25']
+opts = ['pop<=1000', 'per_capita>=500', 'per_capita<=25']
 model.apply_func(func=outliers_utils.drop_values, type='outliers_func', opts = opts )
 model.apply_func(func = outliers_utils.drop_na_target, type='outliers_func')
-model.apply_func(func=None, type='add_features_func', args=None)
+
+# =============================
+# Feature Engineering
+# =============================
+# Target summary
+tr_df, cat_df = featurize.summary_encode(model, cols=model.categorical_features)
+df_concat = pd.concat([tr_df, cat_df], axis=1)
+model.add_feature_to_skip_list( model.categorical_features)
+model.add_training_df( df_train = df_concat)
+del(tr_df); del(cat_df); del(df_concat)
 
 # =============================
 # Prepare the initial estimator
@@ -144,13 +156,15 @@ features = model.features
 target = model.target
 
 final_dataset = model.df_train
-final_dataset = final_dataset.drop_duplicates(subset = ['sys_id', 'Year'], keep = 'first')
 model.log.to_table(final_dataset[features].describe(percentiles = [0,0.05,0.5,0.95,1]), "Features", header=-1)
 model.log.to_table(final_dataset[[target]].describe(percentiles = [0,0.05,0.5,0.95,1]), "Target", header=-1)
 
+
+
 X_train, X_test, y_train, y_test = splittors.stratified_split(model, test_size = 0.3,  id_column = 'HUC2', seed = 123)
+#X_train, X_test, y_train, y_test = splittors.split_by_id(model, args = {'frac' : 0.7, 'seed':547, 'id_column':'sys_id' })
 # X_train, X_test, y_train, y_test = train_test_split(final_dataset[features],  final_dataset[target],
-#                                                              test_size=0.2, random_state=123)#, shuffle = False
+#                                                               test_size=0.2, random_state=123)#, shuffle = False
 
 #w_train, w_test = weights.generate_weights_ones(model)
 vv = gb.fit(X_train[features], y_train)
@@ -172,7 +186,7 @@ model.log.info("See initial model perfromance at {}".format(figfile))
 model.log.to_table(df_metric)
 
 # regional performance
-perf_df = model_diagnose.generat_metric_by_category(gb, X_test[features], y_test, category='HUC2')
+perf_df = model_diagnose.generat_metric_by_category(gb, X_test[features], y_test,features=features, category='HUC2')
 
 
 figfile = os.path.join(figures_folder, "map_val_error.pdf")
@@ -185,7 +199,13 @@ figures.plot_scatter_map(X_test['LONG'], X_test['LAT'], err,
 importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
 for type in importance_types:
     figfile = os.path.join(figures_folder, "annual_feature_importance_{}_v_0.pdf".format(type))
-    figures.feature_importance(gb, max_num_feature = 15, type = type, figfile = figfile)
+    if isinstance(gb, Pipeline):
+        estm = gb.named_steps["estimator"]
+        gb.named_steps["preprocess"].get_feature_names()
+    else:
+        estm = gb
+
+    figures.feature_importance(estm, max_num_feature = 15, type = type, figfile = figfile)
 
 # =============================
 # Simplify model by dropping features with little importance
@@ -194,11 +214,12 @@ if 0:
     confirmed_features = selection.boruta(X=final_dataset[features], y =  final_dataset[target], estimator = rf)
 if 1:
     scoring = ['r2']#, 'neg_mean_absolute_percentage_error', 'neg_mean_squared_error']
-    feature_importance = selection.permutation_selection(X_test, y_test, estimator = gb, scoring = scoring,
+    feature_importance = selection.permutation_selection(X_test[features], y_test, estimator = gb, scoring = scoring,
                                                 n_repeats = 10, features = features)
     metrics =feature_importance['metric'].unique()
     for m in metrics:
         curr_ = feature_importance[feature_importance['metric'].isin([m])]
+    cc = 1
 
 
 if 0:

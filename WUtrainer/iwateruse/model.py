@@ -4,14 +4,19 @@ from . import report
 
 
 class Model:
-    def __init__(self, name='exp1', df_train=None, feature_status_file=None, log_file=None):
+    def __init__(self, name='exp1', df_train=None, feature_status_file=None, log_file=None, model_type = 'annual'):
         self.name = name
+        self.model_type = model_type.strip().lower()
         if log_file is None:
             self.log_file = 'train_log.log'
         else:
             self.log_file = log_file
 
-        self.log = report.Logger(self.log_file, title="Annual Water Use")
+        if model_type.lower()=='annual':
+            title = "Annual Water Use"
+        else:
+            title = "Monthly Water Use"
+        self.log = report.Logger(self.log_file, title=title)
         self.log.info("initialize ...")
         self.log.info("Model Name: {}".format(name))
 
@@ -56,17 +61,33 @@ class Model:
     def get_feature_status(self, fn):
         self.feature_status_file = fn
         self.feature_status = pd.read_excel(fn, sheet_name='annual')
-        not_features = self.feature_status[self.feature_status['Not_Feature'] == 1]['Feature_name'].values.tolist()
-        skip_features = self.feature_status[self.feature_status['Skip'] == 1]['Feature_name'].values.tolist()
-        self._features_to_skip = self._features_to_skip + not_features + skip_features
 
-        cat_feat = self.feature_status[self.feature_status['Type'].isin(['categorical'])][
-            'Feature_name'].values.tolist()
-        self._categorical_features = []
-        for feat in cat_feat:
-            if feat in self._features_to_skip:
-                continue
-            self._categorical_features.append(feat)
+        if self.model_type == 'annual':
+            not_features = self.feature_status[self.feature_status['Not_Feature'] == 1]['Feature_name'].values.tolist()
+            skip_features = self.feature_status[self.feature_status['Skip'] == 1]['Feature_name'].values.tolist()
+            self._features_to_skip = self._features_to_skip + not_features + skip_features
+
+            cat_feat = self.feature_status[self.feature_status['Type'].isin(['categorical'])][
+                'Feature_name'].values.tolist()
+            self._categorical_features = []
+            for feat in cat_feat:
+                if feat in self._features_to_skip:
+                    continue
+                self._categorical_features.append(feat)
+        else:
+            not_features = self.feature_status[self.feature_status['Not_Feature'] == 1]['Feature_name'].values.tolist()
+            skip_features = self.feature_status[self.feature_status['Skip'] == 1]['Feature_name'].values.tolist()
+            skip_features = skip_features+ self.feature_status[self.feature_status['monthly Skip'] == 1]['Feature_name'].values.tolist()
+            self._features_to_skip = list(set(self._features_to_skip + not_features + skip_features))
+
+            cat_feat = self.feature_status[self.feature_status['Type'].isin(['categorical'])][
+                'Feature_name'].values.tolist()
+            self._categorical_features = []
+            for feat in cat_feat:
+                if feat in self._features_to_skip:
+                    continue
+                self._categorical_features.append(feat)
+
 
     @property
     def features(self):

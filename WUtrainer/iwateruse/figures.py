@@ -78,6 +78,7 @@ def plot_scatter_map(lon, lat, df, legend_column, cmap, title, figfile, log_scal
         styles.ylabel(ax=ax, fontsize=16, label='LAT')
         plt.tick_params(axis='x', labelsize=14)
         plt.tick_params(axis='y', labelsize=14)
+        plt.tight_layout()
         plt.savefig(figfile)
         plt.close(fig)
 

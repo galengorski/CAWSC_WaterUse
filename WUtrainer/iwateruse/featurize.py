@@ -2,11 +2,23 @@ import os, sys
 import pandas as pd
 import numpy as np
 from sklearn.base import TransformerMixin
-
+import category_encoders as ce
 try:
     import tsfel
 except:
     pass
+
+def summary_encode(model, cols):
+    sum_ce = ce.quantile_encoder.SummaryEncoder(cols = cols,
+                                                quantiles=[0.05, 0.25, 0.5, 0.75, 0.95])
+
+    df_ = model.df_train
+    cat_df = df_[cols + ['sample_id']].copy()
+    features = model.features
+    target = model.target
+    df_trans = sum_ce.fit_transform(df_[features], df_[target] )
+    df_trans[target] = df_[target]
+    return df_trans, cat_df
 
 
 class MultiOneHotEncoder(TransformerMixin):
@@ -128,3 +140,6 @@ def add_moving_average_to_dataset(dataset, pc_stat):
     dataset = dataset.merge(df_, right_on=['sys_id'], left_on=['sys_id'], how='left')
     del (df_)
     return dataset
+
+
+

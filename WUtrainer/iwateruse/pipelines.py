@@ -30,8 +30,8 @@ def make_pipeline(model):
     preprocessor = ColumnTransformer(
         remainder='passthrough',
         transformers=[
-            ("cat", categorical_transformer, categorical_features),
-            ('Target encoding', ce.OneHotEncoder(cols=categorical_features), categorical_features)
+            #("cat", categorical_transformer, categorical_features),
+            ('Target encoding', ce.quantile_encoder.SummaryEncoder(cols=categorical_features, quantiles=(0.05, 0.25, 0.75, 0.5, 0.95)), categorical_features)
         ])
     main_pipeline.append(('preprocess', preprocessor))
 

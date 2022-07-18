@@ -11,9 +11,10 @@ from iwateruse.model import Model
 import iwateruse.spatial_feat_utils as spatial_feat
 
 
-feature_status_file = r"C:\work\water_use\ml_experiments\annual_v_0_0\features_status.xlsx"
-model = Model(name='annual_pc', log_file = 'train_log.log',  feature_status_file= feature_status_file)
-
+feature_status_file = r"..\ml_experiments\annual_v_0_0\features_status.xlsx"
+model = Model(name='annual_pc', log_file = 'assemble_annual_data.log',  feature_status_file= feature_status_file)
+model_monthly = Model(name='monthly_frac', log_file = 'assemble_monthly_data.log',
+                      feature_status_file= feature_status_file, model_type='monthly')
 
 db_root = r"C:\work\water_use\mldataset"
 annual_training_file = os.path.join(db_root, r"ml\training\train_datasets\annual\wu_annual_training3.csv")
@@ -48,9 +49,12 @@ annual_climate = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\features\
 county_shp = geopandas.read_file(r"C:\work\water_use\mldataset\gis\tl_2016_us_county\tl_2016_us_county.shp")
 annual_wu = pd.read_csv(r"annual_wu.csv")
 monthly_wu = pd.read_csv(r"monthly_wu.csv")
+cii_fractions_df = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\cii\national_cii_dpc_ml_results.csv")
+thermo_2010 = pd.read_excel(r"C:\work\water_use\mldataset\ml\training\misc_features\thermo\TEP_2010_WaterSouceMunicipal.xlsx")
+thermo_2015 = pd.read_excel(r"C:\work\water_use\mldataset\ml\training\misc_features\thermo\TEP_2015_WaterSourceMunicipal.xlsx")
 
 collect_all_annual_data = False
-collect_all_monthly_data = False
+collect_all_monthly_data = True
 drop_repeated_records = False
 add_full_climate = False
 fill_lat_lon_gaps = False
@@ -71,6 +75,10 @@ add_enhanced_pop = False
 update_wu_data = False
 make_negative_nan = False
 add_annual_water_use = False
+add_cii_water_use = False
+add_thermo = False
+add_pop_density = False
+generate_monthly_data = True
 
 # =======================================
 # Collect Annual Data
@@ -111,7 +119,7 @@ else:
 # Collect Monthly data
 # =======================================
 """
-Since census data are changing slowly, this code interpolates obtain monthly 
+Since census data are changing slowly, this code interpolates monthly 
 census from annual using linear interpolation. 
 """
 if collect_all_monthly_data:
@@ -119,21 +127,67 @@ if collect_all_monthly_data:
     train_db_monthly = train_db_monthly.drop_duplicates(subset=['Year', 'sys_id'], keep='last').reset_index(drop=True)
     for mo in range(1, 13):
         train_db_monthly[mo] = mo
-    train_db_monthly = train_db_monthly.melt(id_vars=['sys_id', 'Year'], value_name='month')
+    train_db_monthly = train_db_monthly.melt(id_vars=['sys_id', 'Year'], value_name='Month')
     del (train_db_monthly['variable'])
 
     train_db_monthly = train_db_monthly.merge(train_db, how='left', on=['Year', 'sys_id'])
-    #TOdo: THE FOLLOWING VARUIABLES ARE INCORRECT
-    climate_variables = ['etr_warm', 'etr_cool', 'etr', 'pr_warm', 'pr_cool',
-                         'pr', 'tmmn_warm', 'tmmn_cool', 'tmmn', 'tmmx_warm', 'tmmx_cool',
-                         'tmmx', 'wu_rate']
+    monthly_skip = model_monthly.feature_status[model_monthly.feature_status['monthly Skip'] == 1]['Feature_name']
+    #annual_skip = model_monthly.feature_status[model_monthly.feature_status['Skip'] == 1]['Feature_name']
 
-    for var in climate_variables:
-        del (train_db_monthly[var])
+    features_2_drop = list(set(monthly_skip))+ ['wu_rate_backkup', 'pop_backkup']
+    annual_climate_features =  model_monthly.feature_status[model_monthly.feature_status['Group_Name'].isin(['Climate'])]['Feature_name']
+    if "KG_climate_zone" in set(annual_climate_features):
+        annual_climate_features = set(annual_climate_features)
+        annual_climate_features.remove("KG_climate_zone")
 
-    monthly_climate.rename(columns={'year': 'Year'}, inplace=True)
-    train_db_monthly = train_db_monthly.merge(monthly_climate, how='left', on=['Year', 'sys_id'])
+    features_2_drop = features_2_drop + list(annual_climate_features)
+
+    for var in features_2_drop:
+        try:
+            del (train_db_monthly[var])
+        except:
+            print("Warnining: Unable to remove {} from monthly database".format(var))
+
+    # add climate
+    monthly_climate.rename(columns={'year': 'Year', 'month':'Month'}, inplace=True)
+    train_db_monthly = train_db_monthly.merge(monthly_climate, how='left', on=['Year', 'sys_id', 'Month'])
+    train_db_monthly.drop_duplicates(subset=['sys_id', 'Year', 'Month'], inplace=True)
+
+    #add water _use
+    monthly_wu.drop_duplicates(subset=['WSA_AGIDF', 'YEAR', 'Month'], inplace=True)
+    monthly_wu = monthly_wu[monthly_wu['inWSA'] > 0]
+    monthly_wu = monthly_wu[(monthly_wu['seasonality_simil_swud'] > 0) | (monthly_wu['seasonality_simil_nonswud'] > 0)]
+
+    # let us make sure all nan simil metrics are numeric -- no nans
+    monthly_wu.loc[monthly_wu['seasonality_simil_swud'].isna(), 'seasonality_simil_swud'] = 0
+    monthly_wu.loc[monthly_wu['seasonality_simil_nonswud'].isna(), 'seasonality_simil_nonswud'] = 0
+
+    # drop samples when both are zeros
+    monthly_wu = monthly_wu[
+        ~((monthly_wu['seasonality_simil_swud'] == 0) & (monthly_wu['seasonality_simil_nonswud'] == 0))]
+
+    Good_swud_mask = monthly_wu['seasonality_simil_swud'] >= monthly_wu['seasonality_simil_nonswud']
+    Good_nonswud_mask = monthly_wu['seasonality_simil_swud'] < monthly_wu['seasonality_simil_nonswud']
+    monthly_wu['frac_final'] = 0
+    monthly_wu['isswuds'] = 0
+    monthly_wu['simil_final'] = 0
+    monthly_wu.loc[Good_swud_mask, 'frac_final'] = monthly_wu[Good_swud_mask]['month_frac_swud']
+    monthly_wu.loc[Good_swud_mask, 'simil_final'] = monthly_wu[Good_swud_mask]['seasonality_simil_swud']
+    monthly_wu.loc[Good_swud_mask, 'monthly_wu'] = monthly_wu[Good_swud_mask]['monthly_wu_G_swuds']
+    monthly_wu.loc[Good_swud_mask, 'isswuds'] = 1
+
+    monthly_wu.loc[Good_nonswud_mask, 'frac_final'] = monthly_wu[Good_nonswud_mask]['month_frac_nonswud']
+    monthly_wu.loc[Good_nonswud_mask, 'simil_final'] = monthly_wu[Good_nonswud_mask]['seasonality_simil_nonswud']
+    monthly_wu.loc[Good_nonswud_mask, 'monthly_wu'] = monthly_wu[Good_nonswud_mask]['monthly_wu_G_nonswuds']
+
+    monthly_wu = monthly_wu[['WSA_AGIDF', 'YEAR', 'Month', 'frac_final', 'simil_final', 'monthly_wu']].copy()
+    monthly_wu.rename(columns={'WSA_AGIDF': 'sys_id', 'YEAR': 'Year', 'frac_final': 'monthly_fraction',
+                                     'simil_final': 'simil_stat'}, inplace=True)
+
+    train_db_monthly = train_db_monthly.merge(monthly_wu, how='left', on=['sys_id', 'Year', 'Month'])
+
     train_db_monthly.to_csv(monthly_training_file, index=False)
+    xx = 1
 
 # =======================================
 # drop repeated records
@@ -542,6 +596,8 @@ if make_negative_nan:
         if col in ['X', 'Y', 'LAT', 'LONG', 'pr_cumdev']:
             continue
         train_db.loc[train_db[col]<0, col] = np.nan
+
+    train_db.loc[train_db['gini']>0.999, 'gini']=0.999
     train_db.to_csv(annual_training_file, index=False)
 
 # =======================================
@@ -676,15 +732,46 @@ if add_annual_water_use:
     train_db['wu_rate'] = train_db['final_wu_mgd']
     del(train_db['final_wu_mgd'])
     train_db.to_csv(annual_training_file, index=False)
-    # step 1: update pop
-    x = 1
-
-pass
 
 
 
 
+# =======================================
+ # add update water use
+# =======================================
+if add_cii_water_use:
 
+    temp_ = train_db.merge(cii_fractions_df[['wsa_agidf', 'year', 'cii_frac', 'dom_frac']], how='left',
+                        left_on=['sys_id', 'Year'], right_on=['wsa_agidf', 'year'])
+    del (temp_['year'])
+    del (temp_['wsa_agidf'])
+    train_db = temp_
+    train_db.to_csv(annual_training_file, index=False)
+
+if add_thermo:
+    thermo_2010 = thermo_2010[~thermo_2010['PWS_ID'].isna()]
+    thermo_2010 = thermo_2015[~thermo_2015['PWS_ID'].isna()]
+    thermal_sys = set(thermo_2010['PWS_ID']).union(thermo_2015['PWS_ID'])
+    thermal_sys = list(thermal_sys)
+    thermal_sys_ = []
+    for sy in thermal_sys:
+        if sy in [np.NAN, 'none']:
+            continue
+        thermal_sys_.append(sy)
+
+    train_db['is_thermal'] = 0
+    train_db.loc[ train_db['sys_id'].isin(thermal_sys_), 'is_thermal'] = 1
+    train_db.to_csv(annual_training_file, index=False)
+
+
+if add_pop_density:
+    train_db['pop_density']  = train_db['pop']/train_db['WSA_SQKM']
+    train_db.loc[train_db['WSA_SQKM']==0, 'pop_density'] = np.NaN
+    train_db.loc[train_db['pop'] == 0, 'pop_density'] = np.NaN
+    train_db.to_csv(annual_training_file, index=False)
+
+if generate_monthly_data:
+    pass
 
 if 0:
 
