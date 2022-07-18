@@ -4,23 +4,9 @@ import configparser
 
 import pandas as pd
 import numpy as np
-from scipy import stats
-from scipy.stats import norm
-import xgboost as xgb
-import matplotlib.pyplot as plt
-
-from xgboost import plot_importance
-import tensorflow as tf
-import warnings
-
-# sklearn
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import FunctionTransformer
-from sklearn.compose import ColumnTransformer
 
 # local utils
 from iwateruse import data_cleaning, report
-from iwateruse.featurize import MultiOneHotEncoder
 from iwateruse import impute_utils
 
 
@@ -34,13 +20,13 @@ def initialize(model, config_file):
 
     model.name = model.config.get("General", 'Model_Name')
     model.version = model.config.get("General", 'Version')
-    model.type = model.config.get("General", 'Type')
+    model.type = model.config.get("General", 'Type').strip().lower()
 
-    model.workspace = model.config.get("Files", "Workspace")
-    model.train_file = model.config.get("Files", "Train_file")
+    model.workspace = os.path.abspath(model.config.get("Files", "Workspace"))
+    model.train_file = os.path.abspath(model.config.get("Files", "Train_file"))
     model.target = model.config.get("Target", "target_field")
 
-    logfile = model.config.get("Log", "Log_File")
+    logfile = os.path.abspath(model.config.get("Log", "Log_File"))
     append_date_to_log_file = model.config.get("Log", "append_date_to_file_name")
     append_date_to_log_file = append_date_to_log_file.strip().lower()
     if "true" in append_date_to_log_file:
@@ -53,7 +39,7 @@ def initialize(model, config_file):
     else:
         abs_logfile = os.path.join(model.workspace, logfile)
 
-    model.log = report.Logger(abs_logfile, title="Public Water Use")
+    model.log = report.Logger(abs_logfile, title="Monthly Public Water Use")
     model.log.info("initialize()...")
     model.log.info("Model Name: {}".format(model.name))
     model.log.info("Type: {}".format(model.type))
@@ -74,41 +60,19 @@ def load(model):
     model.log.info("loading: {}".format(model.train_file))
     df_main = pd.read_csv(model.train_file)
     df_main['sample_id'] = list(df_main.index)
-    df_train = df_main[df_main['wu_rate'] > 0]
+    if model.type in ['monthly']:
+        df_train = df_main[df_main['monthly_fraction'] > 0]
+    else:
+        df_train = df_main[df_main['wu_rate'] > 0]
     model.df_main = df_main
     model.df_train = df_train
 
     model.log.info("Finish Loading the data ...")
-    title = 'Full annual data, shape = {}'.format(model.df_train.shape)
+    title = 'Full {} data, shape = {}'.format(model.type, model.df_train.shape)
     model.log.to_table(df_train, title=title)
 
     summary = model.df_train.describe()
-    model.log.to_table(summary, title="Raw Training Data Summary")
-
-
-def preprocess(model):
-    """
-    (1) filtering (not part of the sklearn pipeline)
-     - PC filtering
-     - Pop filtering
-
-    (2) categorical features transfromations
-
-    (3) Contenuous features transfromations
-        - StandardScaler()
-
-    """
-
-    pass
-
-
-def prepare(model):
-    """
-
-    :param model:
-    :return:
-    """
-    pass
+    model.log.to_table(summary, title="Raw Training Data Summary", header=8)
 
 
 def list_to_df(clist, ncols):
@@ -141,7 +105,13 @@ def clean(model):
     dff = list_to_df(list(features_not_in_feature_list), 5)
     model.log.to_table(dff, header=len(dff), title="Columns not in the features list ...")
 
-    feature_mask = ~((model.feature_info_df['Skip'] == 1))# | (model.feature_info_df['Not_Feature'] == 1))
+    if model.type in ['annual']:
+        feature_mask = ~((model.feature_info_df['Skip'] == 1))# | (model.feature_info_df['Not_Feature'] == 1))
+    elif model.type in ['monthly']:
+        feature_mask = ~((model.feature_info_df['monthly Skip'] == 1))
+    else:
+        raise ValueError("Unknown model type...")
+
     not_features = model.feature_info_df[~(model.feature_info_df['Not_Feature'] == 1)]['Feature_name'].values.tolist()
     features_to_drop = model.feature_info_df[~feature_mask]['Feature_name'].values.tolist()
     features_to_drop = (set(features_to_drop).union(features_not_in_feature_list)).difference(features_not_in_data_base)
@@ -197,27 +167,6 @@ def clean(model):
     model.df_train.to_csv(fn_clean_df, index=False)
 
 
-def featurize(model):
-    """
-    From now on we use pipelines
-    :param model:
-    :return:
-    """
-    pass
-
-
-def split(model):
-    pass
-
-
-def validate(model):
-    pass
-
-
-def make_pipeline(model):
-    pass
-
-
 def main(config_file):
     #
     model = Model()
@@ -225,7 +174,6 @@ def main(config_file):
     load(model)
 
     # preprocess(model)
-
     model.clean_file_name = os.path.abspath(model.config.get("Files", "cleaned_training_file"))
 
     clean_the_data = model.config.get("Filter Data", "clean_data")
@@ -243,10 +191,11 @@ def main(config_file):
         model.log.info("Clean database is read from {} ....".format(model.clean_file_name))
         model.df_train = fn_clean_df
 
-    featurize(model)
 
     c = 1
 
 
 if __name__ == "__main__":
-    main(config_file=r"config_file2.ini")
+
+    #main(config_file=r"config_file_annual.ini")
+    main(config_file=r"config_file_monthly.ini")

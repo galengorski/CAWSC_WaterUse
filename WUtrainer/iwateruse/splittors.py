@@ -98,5 +98,7 @@ def split_by_id(model, args):
     model.X_test = df[df[id_column].isin(test_ids[0])]
     model.y_test = model.X_test[model.target]
 
+    return  model.X_train,  model.X_test,  model.y_train,  model.y_test
+
 
 

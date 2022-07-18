@@ -42,13 +42,14 @@ def generate_metrics(y_true, y_pred):
     df = pd.DataFrame([scores], columns=names)
     return df
 
-def generat_metric_by_category(estimator, X, y_true, category = 'HUC2'):
+def generat_metric_by_category(estimator, X, y_true, features, category = 'HUC2'):
+
     ids = X[category].unique()
     all_metrics = []
     for id in ids:
         mask = X[category] == id
         X_ = X[mask].copy()
-        y_hat = estimator.predict(X_)
+        y_hat = estimator.predict(X_[features])
         df_ = generate_metrics(y_true[mask],y_hat)
         df_[category] = id
         all_metrics.append(df_)
