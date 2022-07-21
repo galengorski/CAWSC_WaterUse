@@ -1,11 +1,9 @@
-
 # ===============****===================
 """
 Annual Water Use Model
 Date: 7/14/2022
 """
 # ===============****===================
-
 import os
 import warnings
 import pandas as pd
