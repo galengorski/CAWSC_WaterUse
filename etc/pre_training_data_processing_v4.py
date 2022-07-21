@@ -52,6 +52,7 @@ monthly_wu = pd.read_csv(r"monthly_wu.csv")
 cii_fractions_df = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\cii\national_cii_dpc_ml_results.csv")
 thermo_2010 = pd.read_excel(r"C:\work\water_use\mldataset\ml\training\misc_features\thermo\TEP_2010_WaterSouceMunicipal.xlsx")
 thermo_2015 = pd.read_excel(r"C:\work\water_use\mldataset\ml\training\misc_features\thermo\TEP_2015_WaterSourceMunicipal.xlsx")
+tourism_df = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\tourism\water_use_service_areas_tourism_trd.csv")
 
 collect_all_annual_data = False
 collect_all_monthly_data = True
@@ -78,7 +79,8 @@ add_annual_water_use = False
 add_cii_water_use = False
 add_thermo = False
 add_pop_density = False
-generate_monthly_data = True
+add_tourism = False
+
 
 # =======================================
 # Collect Annual Data
@@ -185,6 +187,23 @@ if collect_all_monthly_data:
                                      'simil_final': 'simil_stat'}, inplace=True)
 
     train_db_monthly = train_db_monthly.merge(monthly_wu, how='left', on=['sys_id', 'Year', 'Month'])
+
+    # add tourism
+    temp_tour = tourism_df[['WSA_AGIDF', 'January', 'February', 'March',
+                'April', 'May', 'June', 'July', 'August', 'September', 'October',
+                'November', 'December']].copy()
+    mon_key = {'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6, 'July': 7, 'August': 8,
+               'September': 9, 'October': 10,
+               'November': 11, 'December': 12}
+    temp_tour.rename(columns=mon_key, inplace=True)
+    temp_tour = temp_tour.melt(id_vars=['WSA_AGIDF'], value_name='monthly_tourism')
+    temp_tour.rename(columns={'variable': 'Month', 'WSA_AGIDF':'sys_id'}, inplace=True)
+    temp_tour.reset_index(inplace=True)
+    temp_tour = temp_tour.drop(columns=['index'])
+    temp_tour['monthly_tourism'] = temp_tour['monthly_tourism'].astype(int)
+
+    train_db_monthly = train_db_monthly.merge(temp_tour, how='left', on=['sys_id', 'Month'])
+
 
     train_db_monthly.to_csv(monthly_training_file, index=False)
     xx = 1
@@ -770,8 +789,14 @@ if add_pop_density:
     train_db.loc[train_db['pop'] == 0, 'pop_density'] = np.NaN
     train_db.to_csv(annual_training_file, index=False)
 
-if generate_monthly_data:
-    pass
+if add_tourism:
+    tourism_df['avg_touris'] = tourism_df['avg_touris'].astype(int)
+    temp_ = tourism_df[['WSA_AGIDF', 'avg_touris']].copy()
+    temp_.rename(columns={'WSA_AGIDF': 'sys_id'}, inplace=True)
+    train_db = train_db.merge(temp_, how='left', on='sys_id')
+    train_db.to_csv(annual_training_file, index=False)
+    del(temp_)
+
 
 if 0:
 

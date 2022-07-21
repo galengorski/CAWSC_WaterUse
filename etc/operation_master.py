@@ -20,8 +20,8 @@ or C:\work\water_use\CAWSC_WaterUse\etc\assemble_climate_from_one_folder.py
 (5) correct population
 path: C:\work\water_use\ml_experiments\annual_v_0_0\0_population_auditing_fixed2.py
 
-(5) run pr_training script that will prepare water use data
-path:C:\work\water_use\CAWSC_WaterUse\etc\pre_cleaning_utils.py
+(5) run pr_training script that will prepare water use data (""pre_cleaning_utils.py"
+path:C:\work\water_use\CAWSC_WaterUse\etc\prepare_water_use.py
 
 (6) add data from non-collectors sources
 

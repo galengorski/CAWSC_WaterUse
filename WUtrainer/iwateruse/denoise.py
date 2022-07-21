@@ -297,7 +297,7 @@ def purify(df, **kwargs):
         df_results.loc[iter_mask,unique_sample_ids] = 0
         df_results.loc[iter_mask, signal_ids] = 1
 
-        if np.mod(iter, 10) == 0:
+        if np.mod(iter, 5) == 0:
             sigs = df_signal.sample(frac = 0.01)
             noss = df_noise.sample(frac=0.01)
 

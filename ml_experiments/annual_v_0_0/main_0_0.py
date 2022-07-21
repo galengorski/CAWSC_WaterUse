@@ -191,11 +191,7 @@ def main(config_file):
         model.log.info("Clean database is read from {} ....".format(model.clean_file_name))
         model.df_train = fn_clean_df
 
-
-    c = 1
-
-
 if __name__ == "__main__":
 
-    #main(config_file=r"config_file_annual.ini")
+    main(config_file=r"config_file_annual.ini")
     main(config_file=r"config_file_monthly.ini")
