@@ -1,5 +1,13 @@
 wu_package\climate_data_collector\data\
 *.pyc
+*.xml
+*.log
+*.ipynb_checkpoints
+WUtrainer\iwateruse.egg-info\
+.ipynb_checkpoints
+catboost_info
+/ml_experiments/annual_v_0_0/pycaret/*.log
+/ml_experiments/annual_v_0_0/.idea
 /__pycache__
 /Work/Ayman/data/US_nation_2010_alb83.shp
 /Work/Ayman/data/US_nation_2010_alb83.shp.xml
