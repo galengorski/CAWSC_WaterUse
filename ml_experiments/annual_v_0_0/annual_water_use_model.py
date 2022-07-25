@@ -17,14 +17,14 @@ from sklearn.pipeline import Pipeline
 from iwateruse.model import Model
 from iwateruse import targets, weights, pipelines, outliers_utils, estimators, featurize, predictions
 from iwateruse import selection
-
+from sklearn.model_selection import train_test_split
 warnings.filterwarnings('ignore')
 xgb.set_config(verbosity=0)
 
 # =============================
 # Flags
 # =============================
-train_initial_model = True
+train_initial_model = False
 plot_diagnosis = False
 run_boruta = True
 use_boruta_results = False
@@ -32,7 +32,8 @@ run_permutation_selection = False
 run_chi_selection = False
 run_RFECV_selection = False
 detect_outliers = False
-make_prediction = False
+use_denoised_data = True
+
 interpret_model = False
 quantile_regression = False
 
@@ -287,6 +288,40 @@ if detect_outliers:
     df_results = denoise.purify(dataset, target='per_capita', features=features_to_use, col_id='sample_id',
                                 max_iterations=400, estimator=gb, score='neg_root_mean_squared_error',
                                 min_signal_ratio=0.17, min_mse=30 ** 2.0)
+# =============================
+# Use denoised data
+# =============================
+if use_denoised_data:
+    dfff = model.df_train.copy()
+    outlier_info = pd.read_csv(r"outliers_7_24_22.csv")
+    ids = []
+    for col in outlier_info.columns:
+        if col.isdigit():
+            ids.append(col)
+
+    outlier_info['signal_ratio'] = outlier_info[ids].sum(axis=1) / len(ids)
+    oo = outlier_info[outlier_info['iter'] > 30]
+    w = oo[ids].mean(axis=0)
+    w = w.reset_index().rename(columns={'index': 'sample_id', 0: 'weight'})
+    w['sample_id'] = w['sample_id'].astype(int)
+    dfff = dfff.merge(w, how = 'left', on = 'sample_id')
+    dfff1 = dfff[dfff['weight'] > 0.05]
+    dfff1['weight'] = 1.0
+
+    X_train, X_test, y_train, y_test = train_test_split(dfff1[features + ['weight']], dfff1[target], test_size=0.3, shuffle=True,
+                                                        random_state=777, stratify=dfff1['HUC2'])
+
+
+    w_train = X_train['weight'].values
+    w_test = X_test['weight'].values
+    gb.fit(X_train[features], y_train, sample_weight=w_train)
+
+    plt.scatter(y_test, gb.predict(X_test[features]), marker="o", s=20, c=w_test, cmap='jet',
+                alpha=0.5)
+    print(r2_score(gb.predict(X_test[features]), y_test))
+    cc = 1
+
+
 # =============================
 # Predictions
 # =============================
