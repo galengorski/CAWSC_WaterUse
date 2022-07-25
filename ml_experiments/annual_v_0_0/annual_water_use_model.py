@@ -25,6 +25,8 @@ xgb.set_config(verbosity=0)
 # =============================
 # Flags
 # =============================
+apply_summary_encoding = False
+apply_onehot_encoding = True
 train_initial_model = True
 plot_diagnosis = False
 run_boruta = True
@@ -76,10 +78,10 @@ model.apply_func(func=outliers_utils.drop_na_target, type='outliers_func')
 # Feature Engineering
 # =============================
 # Target summary
-df_trans, encoding_summary = featurize.summary_encode(model, cols=model.categorical_features)
-fn = "summary_encoding.json"
-model.dict_to_file(data = encoding_summary, fn=fn)
-if False:
+if apply_summary_encoding:
+    df_trans, encoding_summary = featurize.summary_encode(model, cols=model.categorical_features)
+    fn = "summary_encoding.json"
+    model.dict_to_file(data = encoding_summary, fn=fn)
     model.add_feature_to_skip_list(model.categorical_features)
     model.add_training_df(df_train=df_trans)
 
@@ -105,9 +107,7 @@ params = {
 }
 
 gb = estimators.xgb_estimator(params)
-
-encode_cat_features = False
-if encode_cat_features:
+if apply_onehot_encoding:
     # pipeline
     main_pipeline = pipelines.make_pipeline(model)
     main_pipeline.append(('estimator', gb))
@@ -134,12 +134,9 @@ if train_initial_model:
     vv = gb.fit(X_train[features], y_train)
     y_hat = gb.predict(X_test[features])
     err = pd.DataFrame(y_test - y_hat)
-
     model_file_name = r".\models\annual\1_initial_model.json"
     model.log.info("\n\n Initial Model saved at ")
     joblib.dump(vv, model_file_name)
-    # to load model ==> loaded_model = joblib.load(model_file_name)
-
 
     # =============================
     #  diagnose
