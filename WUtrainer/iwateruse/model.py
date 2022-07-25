@@ -31,6 +31,7 @@ class Model:
         self.raw_target = ''
         self.target = ''
         self._features = []
+        self._features_selected = []
         # self.features = []
 
         self.X = None
@@ -127,3 +128,12 @@ class Model:
     def dict_to_file(self, data, fn):
         with open(fn, 'w') as ff:
             ff.write(json.dumps(data))
+
+    def load_features_selected(self, method = 'xgb_cover'):
+        feat_selec_file = 'confirmed_selected_features.json'
+        f = open(feat_selec_file)
+        feature_selection_info = json.load(f)
+        f.close()
+        self.features_selected = feature_selection_info[method]
+        return self.features_selected
+

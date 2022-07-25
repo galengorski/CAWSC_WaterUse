@@ -26,13 +26,13 @@ xgb.set_config(verbosity=0)
 # =============================
 train_initial_model = True
 plot_diagnosis = False
-run_boruta = False
+run_boruta = True
 use_boruta_results = False
 run_permutation_selection = False
 run_chi_selection = False
 run_RFECV_selection = False
 detect_outliers = False
-make_prediction = True
+make_prediction = False
 interpret_model = False
 quantile_regression = False
 
@@ -260,6 +260,7 @@ if use_boruta_results:
     selection_eval_results = pd.concat(selection_eval_results)
     model.log.to_table(df=selection_eval_results, title="Evaluation of feature selection ",
                        header=len(selection_eval_results))
+    selection_eval_results.to_csv(r"results\feature_selection_summary.csv")
 
 if run_chi_selection:
     chi_test_df = selection.chi_square_test(X=final_dataset[features], y=final_dataset[target], nbins=20)
