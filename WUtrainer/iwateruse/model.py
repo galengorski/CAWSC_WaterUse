@@ -1,6 +1,7 @@
 import os, sys
 import pandas as pd
 from . import report
+import json
 
 
 class Model:
@@ -122,3 +123,7 @@ class Model:
         for feat in features:
             msg = msg + feat + ","
         self.log.info(msg)
+
+    def dict_to_file(self, data, fn):
+        with open(fn, 'w') as ff:
+            ff.write(json.dumps(data))

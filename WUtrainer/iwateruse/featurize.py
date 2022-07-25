@@ -3,28 +3,54 @@ import pandas as pd
 import numpy as np
 from sklearn.base import TransformerMixin
 import category_encoders as ce
+
 try:
     import tsfel
 except:
     pass
 
-def summary_encode(model, cols):
-    sum_ce = ce.quantile_encoder.SummaryEncoder(cols = cols,
-                                                quantiles=[0.05, 0.25, 0.5, 0.75, 0.95])
 
-    df_ = model.df_train
-    cat_df = df_[cols + ['sample_id']].copy()
-    features = model.features
+def summary_encode(model, cols):
+    quantiles = [0.05, 0.25, 0.5, 0.75, 0.95]
+    sum_ce = ce.quantile_encoder.SummaryEncoder(cols=cols,
+                                                quantiles= quantiles)
+
+    df_ = model.df_train.copy()
     target = model.target
-    df_trans = sum_ce.fit_transform(df_[features], df_[target] )
-    df_trans[target] = df_[target]
-    return df_trans, cat_df
+    cat_df = df_[["sample_id"]+cols]
+    df_trans = sum_ce.fit_transform(df_, df_[target])
+
+    # generate_summary of target encoding
+    temp =df_trans.merge(cat_df, how = 'left', on = 'sample_id' )
+    feat_encod_map = {}
+    for col in cols:
+        nfeat = []
+        for q in quantiles:
+            nm = col + "_"+ str(int(100*q))
+            nfeat.append(nm)
+        feat_encod_map[col] = nfeat
+
+    encoding_summary = {}
+    for group in cols:
+        scol = feat_encod_map[group] + [group]
+        ddf_ = temp[scol].groupby(by=group).mean()
+        encoding_summary[group] = ddf_.to_dict()
+
+
+    return temp, encoding_summary
+
+def summary_encode_pred(model, cols, df_pred):
+    sum_ce = ce.quantile_encoder.SummaryEncoder(cols=cols,
+                                                quantiles=[0.05, 0.25, 0.5, 0.75, 0.95])
+    target = model.target
+    df_trans = sum_ce.fit_transform(df_pred, df_pred[target])
+    return df_trans
 
 
 class MultiOneHotEncoder(TransformerMixin):
     #
 
-    def __init__(self, catfeatures = None):
+    def __init__(self, catfeatures=None):
         """ catfeaturesis a list"""
         self.catfeatures = catfeatures
 
@@ -39,12 +65,10 @@ class MultiOneHotEncoder(TransformerMixin):
         for feature in self.catfeatures:
             ft_df = pd.get_dummies(X_[feature], prefix=feature)
             all_cat_feats.append(ft_df.copy())
-            X_.drop(feature, axis = 1, inplace = True)
+            X_.drop(feature, axis=1, inplace=True)
         X_ = [X_] + all_cat_feats
-        X_= pd.concat(X_, axis=1)
+        X_ = pd.concat(X_, axis=1)
         return X_
-
-
 
 
 def get_feature_type(feature_info_df, features):
@@ -77,25 +101,29 @@ def add_dayOfweek(X):
     X_['DoW'] = X_['Date'].dt.dayofweek
     return X_
 
+
 def add_holidays(X):
     X_ = X.copy()
     from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
     start_date = X_['Date'].min()
     end_date = X_['Date'].max()
     cal = calendar()
-    holidays = cal.holidays(start = start_date, end = end_date)
+    holidays = cal.holidays(start=start_date, end=end_date)
     X_['Holiday'] = X_['Date'].isin(holidays)
     X_['Holiday'] = X_['Holiday'].astype('int')
     return X_
 
+
 def add_per_capita_wu(X):
     X_ = X.copy()
-    X_['per_capita_wu'] = X_['wu_rate']/X_['population']
+    X_['per_capita_wu'] = X_['wu_rate'] / X_['population']
     return X_
+
 
 def drop_na_features(X, y):
     xx = 1;
     pass
+
 
 def drop_na_targets(X, y):
     pass
@@ -104,10 +132,11 @@ def drop_na_targets(X, y):
 def hot_encode(X, y, cat_features):
     all_cat_feats = []
     for feature in cat_features:
-        ft_df = pd.get_dummies(X[feature], prefix = feature)
+        ft_df = pd.get_dummies(X[feature], prefix=feature)
         all_cat_feats.append(ft_df.copy())
-        del(X[feature])
+        del (X[feature])
     all_cat_feats = pd.concat(all_cat_feats)
+
 
 def Log10_target_transform(pipe):
     """
@@ -116,6 +145,7 @@ def Log10_target_transform(pipe):
     :param pipe:
     :return:
     """
+
     def target_transform(y):
         y_ = np.log10(y.copy())
         return y_
@@ -126,12 +156,11 @@ def Log10_target_transform(pipe):
 
     from sklearn.compose import TransformedTargetRegressor
     model = TransformedTargetRegressor(regressor=pipe,
-                                       func= target_transform,
-                                       inverse_func= inverse_target_transform,
+                                       func=target_transform,
+                                       inverse_func=inverse_target_transform,
                                        check_inverse=False
                                        )
     return model
-
 
 
 def add_moving_average_to_dataset(dataset, pc_stat):
@@ -140,6 +169,3 @@ def add_moving_average_to_dataset(dataset, pc_stat):
     dataset = dataset.merge(df_, right_on=['sys_id'], left_on=['sys_id'], how='left')
     del (df_)
     return dataset
-
-
-

@@ -15,7 +15,7 @@ import json
 import shap
 from sklearn.pipeline import Pipeline
 from iwateruse.model import Model
-from iwateruse import targets, weights, pipelines, outliers_utils, estimators, featurize
+from iwateruse import targets, weights, pipelines, outliers_utils, estimators, featurize, predictions
 from iwateruse import selection
 
 warnings.filterwarnings('ignore')
@@ -24,14 +24,15 @@ xgb.set_config(verbosity=0)
 # =============================
 # Flags
 # =============================
-train_initial_model = False
+train_initial_model = True
+plot_diagnosis = False
 run_boruta = False
 use_boruta_results = False
 run_permutation_selection = False
 run_chi_selection = False
 run_RFECV_selection = False
-detect_outliers = True
-make_prediction = False
+detect_outliers = False
+make_prediction = True
 interpret_model = False
 quantile_regression = False
 
@@ -40,6 +41,7 @@ usa_conus_file = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_usa2.s
 huc2_shp_file = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_huc2.shp'
 state_shp_file = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_states.shp'
 county_shp_file = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_county.shp'
+prediction_file = os.path.abspath(r"..\..\..\mldataset\ml\training\train_datasets\Annual\wu_annual_training3.csv")
 
 # =============================
 # Setup Training
@@ -72,13 +74,13 @@ model.apply_func(func=outliers_utils.drop_na_target, type='outliers_func')
 # Feature Engineering
 # =============================
 # Target summary
-tr_df, cat_df = featurize.summary_encode(model, cols=model.categorical_features)
-df_concat = pd.concat([tr_df, cat_df], axis=1)
-model.add_feature_to_skip_list(model.categorical_features)
-model.add_training_df(df_train=df_concat)
-del (tr_df);
-del (cat_df);
-del (df_concat)
+df_trans, encoding_summary = featurize.summary_encode(model, cols=model.categorical_features)
+fn = "summary_encoding.json"
+model.dict_to_file(data = encoding_summary, fn=fn)
+if False:
+    model.add_feature_to_skip_list(model.categorical_features)
+    model.add_training_df(df_train=df_trans)
+
 
 # =============================
 # Prepare the initial estimator
@@ -125,47 +127,54 @@ X_train, X_test, y_train, y_test = splittors.stratified_split(model, test_size=0
 # =============================
 # initial Model Training
 # =============================
+
 if train_initial_model:
     vv = gb.fit(X_train[features], y_train)
     y_hat = gb.predict(X_test[features])
     err = pd.DataFrame(y_test - y_hat)
 
+    model_file_name = r".\models\annual\1_initial_model.json"
+    model.log.info("\n\n Initial Model saved at ")
+    vv.save_model(model_file_name)
+
     # =============================
     #  diagnose
     # =============================
-    heading = "Scatter Plot for Annual Water Use"
-    xlabel = "Actual Per Capita Water Use - Gallons"
-    ylabel = "Estimated Per Capita Water Use - Gallons"
-    figfile = os.path.join(figures_folder, "annual_one_2_one_initial.pdf")
-    figures.one_to_one(y_test, y_hat, heading=heading, xlabel=xlabel, ylabel=ylabel, figfile=figfile)
-    model.log.info("\n\n\n ======= Initial model performance ==========")
     df_metric = model_diagnose.generate_metrics(y_true=y_test, y_pred=y_hat)
-    model.log.info("See initial model perfromance at {}".format(figfile))
-    model.log.to_table(df_metric)
+    if plot_diagnosis:
+        heading = "Scatter Plot for Annual Water Use"
+        xlabel = "Actual Per Capita Water Use - Gallons"
+        ylabel = "Estimated Per Capita Water Use - Gallons"
+        figfile = os.path.join(figures_folder, "annual_one_2_one_initial.pdf")
+        figures.one_to_one(y_test, y_hat, heading=heading, xlabel=xlabel, ylabel=ylabel, figfile=figfile)
+        model.log.info("\n\n\n ======= Initial model performance ==========")
 
-    # regional performance
-    perf_df_huc2 = model_diagnose.generat_metric_by_category(gb, X_test, y_test, features=features, category='HUC2')
-    # perf_df_state = model_diagnose.generat_metric_by_category(gb, X_test, y_test,features=features, category='HUC2')
+        model.log.info("See initial model perfromance at {}".format(figfile))
+        model.log.to_table(df_metric)
 
-    figfile = os.path.join(figures_folder, "annual_validation_error_by_huc2.pdf")
-    figures.plot_huc2_map(shp_file=huc2_shp_file, usa_map=usa_conus_file, info_df=perf_df_huc2, legend_column='rmse',
-                          log_scale=False, epsg=5070, cmap='cool', title='R2', figfile=figfile)
+        # regional performance
+        perf_df_huc2 = model_diagnose.generat_metric_by_category(gb, X_test, y_test, features=features, category='HUC2')
+        # perf_df_state = model_diagnose.generat_metric_by_category(gb, X_test, y_test,features=features, category='HUC2')
 
-    figfile = os.path.join(figures_folder, "map_val_error.pdf")
-    figures.plot_scatter_map(X_test['LONG'], X_test['LAT'], err,
-                             legend_column='per_capita', cmap='jet', title="Per Capita WU", figfile=figfile,
-                             log_scale=False)
+        figfile = os.path.join(figures_folder, "annual_validation_error_by_huc2.pdf")
+        figures.plot_huc2_map(shp_file=huc2_shp_file, usa_map=usa_conus_file, info_df=perf_df_huc2, legend_column='rmse',
+                              log_scale=False, epsg=5070, cmap='cool', title='R2', figfile=figfile)
 
-    # plot importance
-    importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
-    for type in importance_types:
-        figfile = os.path.join(figures_folder, "annual_feature_importance_{}_v_0.pdf".format(type))
-        if isinstance(gb, Pipeline):
-            estm = gb.named_steps["estimator"]
-            gb.named_steps["preprocess"].get_feature_names()
-        else:
-            estm = gb
-        figures.feature_importance(estm, max_num_feature=15, type=type, figfile=figfile)
+        figfile = os.path.join(figures_folder, "map_val_error.pdf")
+        figures.plot_scatter_map(X_test['LONG'], X_test['LAT'], err,
+                                 legend_column='per_capita', cmap='jet', title="Per Capita WU", figfile=figfile,
+                                 log_scale=False)
+
+        # plot importance
+        importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
+        for type in importance_types:
+            figfile = os.path.join(figures_folder, "annual_feature_importance_{}_v_0.pdf".format(type))
+            if isinstance(gb, Pipeline):
+                estm = gb.named_steps["estimator"]
+                gb.named_steps["preprocess"].get_feature_names()
+            else:
+                estm = gb
+            figures.feature_importance(estm, max_num_feature=15, type=type, figfile=figfile)
 
 # =============================
 # Simplify model by dropping
@@ -277,7 +286,36 @@ if detect_outliers:
     df_results = denoise.purify(dataset, target='per_capita', features=features_to_use, col_id='sample_id',
                                 max_iterations=400, estimator=gb, score='neg_root_mean_squared_error',
                                 min_signal_ratio=0.17, min_mse=30 ** 2.0)
-    pass
+# =============================
+# Predictions
+# =============================
+if make_prediction:
+    pred_col = 'pred' + model.target
+
+    model_predict = xgb.XGBRegressor()
+    model_predict.load_model(r".\models\annual\1_initial_model.json")
+    pred_features = model_predict.get_booster().feature_names
+
+    df_prediction = pd.read_csv(prediction_file)
+
+
+    df_prediction[model.target] = df_prediction['wu_rate'] / df_prediction['pop']
+    cat_groups = list(encoding_summary.keys())
+    for cat_feat in cat_groups:
+        curr_group = encoding_summary[cat_feat]
+        curr_group = pd.DataFrame.from_dict(curr_group)
+        curr_group.index.rename(cat_feat, inplace=True)
+        curr_group.reset_index(inplace=True)
+        df_prediction = df_prediction.merge(curr_group, how='left', on=cat_feat)
+
+    df_prediction[pred_col] = model_predict.predict(df_prediction[pred_features])
+    b2010 = df_prediction[df_prediction['Year'] == 2010]
+    plt.scatter(b2010['LONG'], b2010['LAT'], s=4, c=b2010[pred_col], cmap='jet')
+
+    huc2_wu = predictions.upscale_to_area(df_prediction, pred_column= pred_col, scale='HUC2')
+
+
+    ccc = 1
 
 
 # =============================

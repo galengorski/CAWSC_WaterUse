@@ -48,7 +48,10 @@ def lightGB_estimator(params):
 
     }
     alpha = 0.5
-    gb = LGBMRegressor(objective='regression', **lgb_params)
+    gb = LGBMRegressor(objective='regression', **params)
     return gb
+
+def meta_model():
+    pass
 
 
