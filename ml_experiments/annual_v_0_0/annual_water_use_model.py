@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import xgboost as xgb
 import json
 import shap
+import joblib
 from sklearn.pipeline import Pipeline
 from iwateruse.model import Model
 from iwateruse import targets, weights, pipelines, outliers_utils, estimators, featurize, predictions
@@ -24,7 +25,7 @@ xgb.set_config(verbosity=0)
 # =============================
 # Flags
 # =============================
-train_initial_model = False
+train_initial_model = True
 plot_diagnosis = False
 run_boruta = True
 use_boruta_results = False
@@ -136,7 +137,9 @@ if train_initial_model:
 
     model_file_name = r".\models\annual\1_initial_model.json"
     model.log.info("\n\n Initial Model saved at ")
-    vv.save_model(model_file_name)
+    joblib.dump(vv, model_file_name)
+    # to load model ==> loaded_model = joblib.load(model_file_name)
+
 
     # =============================
     #  diagnose
@@ -327,11 +330,8 @@ if use_denoised_data:
 # =============================
 if make_prediction:
     pred_col = 'pred' + model.target
-
-    model_predict = xgb.XGBRegressor()
-    model_predict.load_model(r".\models\annual\1_initial_model.json")
+    model_predict = joblib.load(r".\models\annual\1_initial_model.json")
     pred_features = model_predict.get_booster().feature_names
-
     df_prediction = pd.read_csv(prediction_file)
 
 
