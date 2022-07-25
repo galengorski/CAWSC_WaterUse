@@ -8,6 +8,23 @@ import geopandas
 import contextily as cx
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib
+import joblib
+
+def show_figure(fig):
+    dummy = plt.figure()
+    new_manager = dummy.canvas.manager
+    new_manager.canvas.figure = fig
+    fig.set_canvas(new_manager.canvas)
+
+def save_figure(obj, fn):
+    joblib.dump(obj, fn)
+
+def load_figure(fn):
+    load_fig = joblib.load(fn)
+    show_figure(load_fig[0].figure)
+
+def get_fig_data(fig):
+    pass
 
 
 def one_to_one(y_actual, y_hat, heading, xlabel, ylabel, figfile):
