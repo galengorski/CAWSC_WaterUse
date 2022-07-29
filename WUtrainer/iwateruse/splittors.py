@@ -52,8 +52,8 @@ def stratified_split(model, test_size = 0.3,  id_column = 'HUC1', seed = 123):
     :param args:
     :return:
     """
-
-    df = model.df_train
+    target =  model.target
+    df = model.df_train [model.df_train[target]>0]
     features = df.columns.to_list()
     target = model.target
     feats = features.remove(target)

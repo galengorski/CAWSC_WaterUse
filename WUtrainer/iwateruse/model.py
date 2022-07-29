@@ -1,17 +1,33 @@
-import os, sys
+import os, sys,shutil
 import pandas as pd
 from . import report
 import json
 
 
 class Model:
-    def __init__(self, name='exp1', df_train=None, feature_status_file=None, log_file=None, model_type = 'annual'):
+    def __init__(self, name='exp1', df_train=None, feature_status_file=None, log_file=None, model_type = 'annual',
+                 model_ws = "model_1", clean = False):
+
+
         self.name = name
         self.model_type = model_type.strip().lower()
-        if log_file is None:
-            self.log_file = 'train_log.log'
+        self.model_ws= model_ws
+
+        if os.path.isdir(self.model_ws):
+            if clean:
+                print("...>  remove {}".format(self.model_ws))
+                shutil.rmtree(model_ws)
+                os.mkdir(self.model_ws)
+                os.mkdir(os.path.join(self.model_ws, 'figs'))
         else:
-            self.log_file = log_file
+            os.mkdir(self.model_ws)
+            os.mkdir(os.path.join(self.model_ws, 'figs'))
+
+
+        if log_file is None:
+            self.log_file = os.path.join(self.model_ws, 'train_log.log')
+        else:
+            self.log_file = os.path.join(self.model_ws, log_file)
 
         if model_type.lower()=='annual':
             title = "Annual Water Use"
@@ -22,7 +38,7 @@ class Model:
         self.log.info("Model Name: {}".format(name))
 
         if not (df_train is None):
-            self.df_train_bk = df_train.copy()
+            #self.df_train_bk = df_train.copy()
             self.df_train = df_train.copy()
             self.log.to_table(df_train, title="Raw Training Dataset", header=10)
             summary = self.df_train.describe()
@@ -32,6 +48,7 @@ class Model:
         self.target = ''
         self._features = []
         self._features_selected = []
+        self.dropped_features = []
         # self.features = []
 
         self.X = None
@@ -107,19 +124,22 @@ class Model:
         return self._categorical_features
 
     def add_training_df(self, df_train=None):
+
         if not (df_train is None):
             print("Warning: You are overwriting an existing database...")
             self.log.info("Warning: You are overwriting an existing database")
 
-        self.df_train_bk = df_train.copy()
+
+        #self.df_train_bk = df_train.copy()
         self.df_train = df_train.copy()
         self.log.to_table(df_train, title="Raw Training Dataset", header=10)
         summary = self.df_train.describe()
         self.log.to_table(summary, title="Raw Training Data Summary")
 
-    def add_feature_to_skip_list(self, features):
 
-        self._features_to_skip = self._features_to_skip + features
+    def add_feature_to_skip_list(self, features):
+        self.dropped_features = self.dropped_features + features
+        self._features_to_skip = list(set(self._features_to_skip + features))
         msg = "The folowing features are added to skip list: "
         for feat in features:
             msg = msg + feat + ","

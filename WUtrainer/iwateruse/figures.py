@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from flopy.plot import styles
 from sklearn.metrics import r2_score, mean_squared_error
+import joblib
 
 import geopandas
 import contextily as cx
@@ -46,7 +47,9 @@ def one_to_one(y_actual, y_hat, heading, xlabel, ylabel, figfile):
         styles.xlabel(ax=ax, fontsize=12, label=xlabel)
         styles.ylabel(ax=ax, fontsize=12, label=ylabel)
         plt.savefig(figfile)
+        joblib.dump(fig, figfile+".fig")
         plt.close(fig)
+
 
 
 def feature_importance(estimator, max_num_feature, type, figfile):
@@ -64,6 +67,7 @@ def feature_importance(estimator, max_num_feature, type, figfile):
         plt.tick_params(axis='y', labelsize=14)
         plt.savefig(figfile)
         plt.close(fig)
+        joblib.dump(fig, figfile + ".fig")
 
 
 def plot_huc2_map(shp_file, usa_map, info_df, legend_column, log_scale=False, epsg=5070, cmap='cool',
@@ -102,7 +106,10 @@ def plot_huc2_map(shp_file, usa_map, info_df, legend_column, log_scale=False, ep
         plt.tight_layout()
 
         plt.savefig(figfile)
+        joblib.dump(fig, figfile + ".fig")
         plt.close(fig)
+        basename = os.path.splitext(figfile)[0]
+        shp_df.to_file(basename + ".shp")
 
 
 def plot_scatter_map(lon, lat, df, legend_column, cmap, title, figfile, log_scale=False, epsg=5070):
@@ -143,3 +150,6 @@ def plot_scatter_map(lon, lat, df, legend_column, cmap, title, figfile, log_scal
 
         plt.savefig(figfile)
         plt.close(fig)
+
+        basename = os.path.splitext(figfile)[0]
+        df_shp.to_file(basename + ".shp")

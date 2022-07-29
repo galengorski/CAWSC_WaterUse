@@ -61,9 +61,10 @@ def load(model):
     df_main = pd.read_csv(model.train_file)
     df_main['sample_id'] = list(df_main.index)
     if model.type in ['monthly']:
-        df_train = df_main[df_main['monthly_fraction'] > 0]
+        df_main.loc[df_main['monthly_fraction'] <= 0, 'monthly_fraction'] = np.NAN
     else:
-        df_train = df_main[df_main['wu_rate'] > 0]
+        df_main.loc[df_main['wu_rate'] <= 0, "wu_rate"] = np.NAN
+    df_train = df_main # the clean datafile will have everything
     model.df_main = df_main
     model.df_train = df_train
 

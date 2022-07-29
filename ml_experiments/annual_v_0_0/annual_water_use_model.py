@@ -18,7 +18,9 @@ from sklearn.pipeline import Pipeline
 from iwateruse.model import Model
 from iwateruse import targets, weights, pipelines, outliers_utils, estimators, featurize, predictions
 from iwateruse import selection
+from iwateruse.pipelines import Spipe
 from sklearn.model_selection import train_test_split
+
 warnings.filterwarnings('ignore')
 xgb.set_config(verbosity=0)
 
@@ -27,39 +29,50 @@ xgb.set_config(verbosity=0)
 # =============================
 apply_summary_encoding = False
 apply_onehot_encoding = True
-train_initial_model = True
+train_initial_model = False
 plot_diagnosis = False
-run_boruta = True
+run_boruta = False
 use_boruta_results = False
 run_permutation_selection = False
 run_chi_selection = False
 run_RFECV_selection = False
 detect_outliers = False
-use_denoised_data = True
-
+train_denoised_model = True
+make_prediction = True
 interpret_model = False
 quantile_regression = False
 
 # files
-usa_conus_file = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_usa2.shp"
-huc2_shp_file = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_huc2.shp'
-state_shp_file = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_states.shp'
-county_shp_file = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_county.shp'
-prediction_file = os.path.abspath(r"..\..\..\mldataset\ml\training\train_datasets\Annual\wu_annual_training3.csv")
-
+files_info = {}
+files_info['usa_conus_file'] = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_usa2.shp"
+files_info['huc2_shp_file'] = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_huc2.shp'
+files_info['state_shp_file'] = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_states.shp'
+files_info['county_shp_file'] = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_county.shp'
+files_info['prediction_file'] = os.path.abspath(
+    r"..\..\..\mldataset\ml\training\train_datasets\Annual\wu_annual_training3.csv")
+files_info['outliers_file_used'] = r"outliers_7_24_22.csv"
 # =============================
 # Setup Training
 # =============================
-figures_folder = "figs"
-model = Model(name='annual_pc', log_file='train_log.log', feature_status_file=r"features_status.xlsx")
+
+model = Model(name='annual_pc', log_file='train_log.log', feature_status_file=r"features_status.xlsx",
+              model_ws=r"models\annual\m7_27_2022", clean=True)
+figures_folder = os.path.join(model.model_ws, "figs")
 model.raw_target = 'wu_rate'
 model.target = 'per_capita'
+model.files_info = files_info
 
 datafile = r"clean_train_db.csv"
 df_train = pd.read_csv(datafile)
 del (df_train['dom_frac'])
 del (df_train['cii_frac'])
 model.add_training_df(df_train=df_train)
+base_features = model.features
+
+# --- use selected features
+selected_features = model.load_features_selected(method='xgb_cover')
+dropped_feat = list(set(base_features).difference(selected_features))
+model.add_feature_to_skip_list(dropped_feat)
 
 # make_dataset.make_ds_per_capita_basic(model, datafile=datafile)
 # model.df_train['pop_density']  = model.df_train['pop']/model.df_train['WSA_SQKM']
@@ -70,21 +83,34 @@ seed2 = 456
 
 model.apply_func(func=targets.compute_per_capita, type='target_func', args=None)
 
-opts = ['pop<=100', 'per_capita>=500', 'per_capita<=25']
-model.apply_func(func=outliers_utils.drop_values, type='outliers_func', opts=opts)
-model.apply_func(func=outliers_utils.drop_na_target, type='outliers_func')
-
 # =============================
 # Feature Engineering
 # =============================
-# Target summary
+# apply feat changes to train/predict data
+# (1) Onehot encoding
+for catfeat in model.categorical_features:
+    model.df_train.loc[model.df_train[catfeat].isna(), catfeat] = -999  # NaN
+    model.df_train[catfeat] = model.df_train[catfeat].astype(int)
+
+if apply_onehot_encoding:
+    ohc = featurize.MultiOneHotEncoder(catfeatures=model.categorical_features)
+    df_tr = ohc.transform(model.df_train)
+    cat_df = model.df_train[model.categorical_features + ['sample_id']]
+    df_tr = df_tr.merge(cat_df, how='left', on='sample_id')
+    model.pred_df = df_tr
+    model.add_feature_to_skip_list(model.categorical_features)
+    model.add_training_df(df_train=df_tr[df_tr[model.target] > 0])
+
 if apply_summary_encoding:
     df_trans, encoding_summary = featurize.summary_encode(model, cols=model.categorical_features)
     fn = "summary_encoding.json"
-    model.dict_to_file(data = encoding_summary, fn=fn)
+    model.dict_to_file(data=encoding_summary, fn=fn)
     model.add_feature_to_skip_list(model.categorical_features)
     model.add_training_df(df_train=df_trans)
 
+opts = ['pop<=100', 'per_capita>=500', 'per_capita<=25']
+model.apply_func(func=outliers_utils.drop_values, type='outliers_func', opts=opts)
+model.apply_func(func=outliers_utils.drop_na_target, type='outliers_func')
 
 # =============================
 # Prepare the initial estimator
@@ -107,20 +133,28 @@ params = {
 }
 
 gb = estimators.xgb_estimator(params)
-if apply_onehot_encoding:
-    # pipeline
-    main_pipeline = pipelines.make_pipeline(model)
-    main_pipeline.append(('estimator', gb))
-    gb = Pipeline(main_pipeline)
+
+# if apply_onehot_encoding:
+#     # pipeline
+#     main_pipeline = pipelines.make_pipeline(model)
+#     main_pipeline.append(('estimator', gb))
+#     gb = Pipeline(main_pipeline)
+#     pgb = Spipe(pipeline = gb)
 
 features = model.features
 target = model.target
 
 final_dataset = model.df_train
+model.log.info("\n\n ****** Data used for training & testing****")
 model.log.to_table(final_dataset[features].describe(percentiles=[0, 0.05, 0.5, 0.95, 1]), "Features", header=-1)
 model.log.to_table(final_dataset[[target]].describe(percentiles=[0, 0.05, 0.5, 0.95, 1]), "Target", header=-1)
 
 X_train, X_test, y_train, y_test = splittors.stratified_split(model, test_size=0.3, id_column='HUC2', seed=123)
+
+model.splits = {"X_train": X_train,
+                "X_test": X_test,
+                "y_train": y_train,
+                "y_test": y_test}
 # X_train, X_test, y_train, y_test = splittors.split_by_id(model, args = {'frac' : 0.7, 'seed':547, 'id_column':'sys_id' })
 # X_train, X_test, y_train, y_test = train_test_split(final_dataset[features],  final_dataset[target],
 #                                                               test_size=0.2, random_state=123)#, shuffle = False
@@ -131,51 +165,14 @@ X_train, X_test, y_train, y_test = splittors.stratified_split(model, test_size=0
 # =============================
 
 if train_initial_model:
-    vv = gb.fit(X_train[features], y_train)
-    y_hat = gb.predict(X_test[features])
-    err = pd.DataFrame(y_test - y_hat)
-    model_file_name = r".\models\annual\1_initial_model.json"
+    trained_gb = gb.fit(X_train[features], y_train)
+
+    model_file_name = os.path.join(model.model_ws, r"1_initial_model.json")
     model.log.info("\n\n Initial Model saved at ")
-    joblib.dump(vv, model_file_name)
+    joblib.dump(trained_gb, model_file_name)
 
-    # =============================
     #  diagnose
-    # =============================
-    df_metric = model_diagnose.generate_metrics(y_true=y_test, y_pred=y_hat)
-    if plot_diagnosis:
-        heading = "Scatter Plot for Annual Water Use"
-        xlabel = "Actual Per Capita Water Use - Gallons"
-        ylabel = "Estimated Per Capita Water Use - Gallons"
-        figfile = os.path.join(figures_folder, "annual_one_2_one_initial.pdf")
-        figures.one_to_one(y_test, y_hat, heading=heading, xlabel=xlabel, ylabel=ylabel, figfile=figfile)
-        model.log.info("\n\n\n ======= Initial model performance ==========")
-
-        model.log.info("See initial model perfromance at {}".format(figfile))
-        model.log.to_table(df_metric)
-
-        # regional performance
-        perf_df_huc2 = model_diagnose.generat_metric_by_category(gb, X_test, y_test, features=features, category='HUC2')
-        # perf_df_state = model_diagnose.generat_metric_by_category(gb, X_test, y_test,features=features, category='HUC2')
-
-        figfile = os.path.join(figures_folder, "annual_validation_error_by_huc2.pdf")
-        figures.plot_huc2_map(shp_file=huc2_shp_file, usa_map=usa_conus_file, info_df=perf_df_huc2, legend_column='rmse',
-                              log_scale=False, epsg=5070, cmap='cool', title='R2', figfile=figfile)
-
-        figfile = os.path.join(figures_folder, "map_val_error.pdf")
-        figures.plot_scatter_map(X_test['LONG'], X_test['LAT'], err,
-                                 legend_column='per_capita', cmap='jet', title="Per Capita WU", figfile=figfile,
-                                 log_scale=False)
-
-        # plot importance
-        importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
-        for type in importance_types:
-            figfile = os.path.join(figures_folder, "annual_feature_importance_{}_v_0.pdf".format(type))
-            if isinstance(gb, Pipeline):
-                estm = gb.named_steps["estimator"]
-                gb.named_steps["preprocess"].get_feature_names()
-            else:
-                estm = gb
-            figures.feature_importance(estm, max_num_feature=15, type=type, figfile=figfile)
+    model_diagnose.complete_model_diagnose(model, estimator=trained_gb, basename="initial")
 
 # =============================
 # Simplify model by dropping
@@ -289,11 +286,15 @@ if detect_outliers:
                                 max_iterations=400, estimator=gb, score='neg_root_mean_squared_error',
                                 min_signal_ratio=0.17, min_mse=30 ** 2.0)
 # =============================
-# Use denoised data
+# Train denoised model
 # =============================
-if use_denoised_data:
+if train_denoised_model:
+    model.log.info("**** Train model with denoised data ...")
+    model.log.info("**** Outliers file name : {}".format(files_info['outliers_file_used']))
+    weight_threshold = 0.05
+    model.log.info("**** Weight Threshold value: {}".format(weight_threshold))
     dfff = model.df_train.copy()
-    outlier_info = pd.read_csv(r"outliers_7_24_22.csv")
+    outlier_info = pd.read_csv(files_info['outliers_file_used'])
     ids = []
     for col in outlier_info.columns:
         if col.isdigit():
@@ -304,52 +305,72 @@ if use_denoised_data:
     w = oo[ids].mean(axis=0)
     w = w.reset_index().rename(columns={'index': 'sample_id', 0: 'weight'})
     w['sample_id'] = w['sample_id'].astype(int)
-    dfff = dfff.merge(w, how = 'left', on = 'sample_id')
-    dfff1 = dfff[dfff['weight'] > 0.05]
+    dfff = dfff.merge(w, how='left', on='sample_id')
+    dfff1 = dfff[dfff['weight'] > weight_threshold]
     dfff1['weight'] = 1.0
+    model.log.to_table(dfff1, title='Denoised Data set')
+    X_train, X_test, y_train, y_test = train_test_split(dfff1[features + ['weight']], dfff1[target], test_size=0.3,
+                                                        shuffle=True,
+                                                        random_state=123, stratify=dfff1['HUC2'])
 
-    X_train, X_test, y_train, y_test = train_test_split(dfff1[features + ['weight']], dfff1[target], test_size=0.3, shuffle=True,
-                                                        random_state=777, stratify=dfff1['HUC2'])
+    model.splits = {"X_train": X_train,
+                    "X_test": X_test,
+                    "y_train": y_train,
+                    "y_test": y_test}
 
+    # --- use all features
+    train_with_weights = False
+    if train_with_weights:
+        w_train = X_train['weight'].values
+        w_test = X_test['weight'].values
+        gb.fit(X_train[features], y_train, sample_weight=w_train)
+    else:
+        gb.fit(X_train[features], y_train)
+    y_hat = gb.predict(X_test[features])
+    df_metric = model_diagnose.generate_metrics(y_true=y_test, y_pred=y_hat)
+    df_metric.to_csv(os.path.join(model.model_ws, 'metric_denoised_all_features.csv'), index=False)
+    model.log.to_table(df_metric, title="Metrics of denoised model with selected features")
 
-    w_train = X_train['weight'].values
-    w_test = X_test['weight'].values
-    gb.fit(X_train[features], y_train, sample_weight=w_train)
+    # diagnose model
+    model_diagnose.complete_model_diagnose(model, estimator=gb, basename="denoised")
 
-    plt.scatter(y_test, gb.predict(X_test[features]), marker="o", s=20, c=w_test, cmap='jet',
-                alpha=0.5)
-    print(r2_score(gb.predict(X_test[features]), y_test))
-    cc = 1
-
+    # save model
+    model_file_name = os.path.join(model.model_ws, "denoised_model_with_selected_features.json")
+    model.log.info("\n\n Initial Model saved at {}".format(model_file_name))
+    joblib.dump(gb, model_file_name)
+    v = 1
 
 # =============================
 # Predictions
 # =============================
 if make_prediction:
+    df_prediction = pd.read_csv(files_info['prediction_file'])
     pred_col = 'pred' + model.target
-    model_predict = joblib.load(r".\models\annual\1_initial_model.json")
-    pred_features = model_predict.get_booster().feature_names
-    df_prediction = pd.read_csv(prediction_file)
-
+    # model_file_name = r".\models\annual\1_initial_model.json"
+    model_file_name = os.path.join(model.model_ws, r"denoised_model_with_selected_features.json")
+    model_predict = joblib.load(model_file_name)
+    try:
+        pred_features = model_predict.get_booster().feature_names
+    except:
+        pred_features = model_predict.steps[-1][1].get_booster().feature_names
 
     df_prediction[model.target] = df_prediction['wu_rate'] / df_prediction['pop']
-    cat_groups = list(encoding_summary.keys())
-    for cat_feat in cat_groups:
-        curr_group = encoding_summary[cat_feat]
-        curr_group = pd.DataFrame.from_dict(curr_group)
-        curr_group.index.rename(cat_feat, inplace=True)
-        curr_group.reset_index(inplace=True)
-        df_prediction = df_prediction.merge(curr_group, how='left', on=cat_feat)
 
-    df_prediction[pred_col] = model_predict.predict(df_prediction[pred_features])
+    # cat_groups = list(encoding_summary.keys())
+    # for cat_feat in cat_groups:
+    #     curr_group = encoding_summary[cat_feat]
+    #     curr_group = pd.DataFrame.from_dict(curr_group)
+    #     curr_group.index.rename(cat_feat, inplace=True)
+    #     curr_group.reset_index(inplace=True)
+    #     df_prediction = df_prediction.merge(curr_group, how='left', on=cat_feat)
+
+    df_prediction[pred_col] = model_predict.predict(df_prediction[features])
     b2010 = df_prediction[df_prediction['Year'] == 2010]
     plt.scatter(b2010['LONG'], b2010['LAT'], s=4, c=b2010[pred_col], cmap='jet')
 
-    huc2_wu = predictions.upscale_to_area(df_prediction, pred_column= pred_col, scale='HUC2')
-
+    huc2_wu = predictions.upscale_to_area(df_prediction, pred_column=pred_col, scale='HUC2')
 
     ccc = 1
-
 
 # =============================
 # Interpret the model
@@ -360,8 +381,8 @@ False, model_expected_value=True, feature_expected_value=True)
 # X100 = shap.utils.sample(X_train, 100)
 # X500 = shap.utils.sample(X_train, 5000)
 # explainer = shap.Explainer(model.predict, X100)
-X100 = X_train[X_train['HUC2'] == 18]
-X100 = shap.utils.sample(X100, 2000)
+X100 = X_train[X_train['HUC2'] == 1]
+# X100 = shap.utils.sample(X100, 571)
 explainer = shap.Explainer(vv, X100)
 # explainer = shap.TreeExplainer(gb, X100)
 shap_values = explainer(X100)
