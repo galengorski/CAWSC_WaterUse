@@ -9,17 +9,19 @@ try:
 except:
     pass
 
+def summary_encode2(model, cols, quantiles = None):
 
-def summary_encode(model, cols):
-    quantiles = [0.05, 0.25, 0.5, 0.75, 0.95]
     sum_ce = ce.quantile_encoder.SummaryEncoder(cols=cols,
-                                                quantiles= quantiles)
+                                                quantiles= quantiles, handle_missing = 'return_nan')
 
     df_ = model.df_train.copy()
     target = model.target
     cat_df = df_[["sample_id"]+cols]
-    df_trans = sum_ce.fit_transform(df_, df_[target])
-
+    df_['cleaned_target'] = df_[target].copy()
+    df_.loc[df_['cleaned_target']<25, 'cleaned_target'] = np.NAN
+    df_.loc[df_['cleaned_target'] >500, 'cleaned_target'] = np.NAN
+    df_trans = sum_ce.fit_transform(df_, df_['cleaned_target'])
+    del(df_trans['cleaned_target'])
     # generate_summary of target encoding
     temp =df_trans.merge(cat_df, how = 'left', on = 'sample_id' )
     feat_encod_map = {}
@@ -35,9 +37,32 @@ def summary_encode(model, cols):
         scol = feat_encod_map[group] + [group]
         ddf_ = temp[scol].groupby(by=group).mean()
         encoding_summary[group] = ddf_.to_dict()
-
-
     return temp, encoding_summary
+
+def summary_encode(model, cols, quantiles = None, max_target = 500, min_target = 25):
+    """
+
+    :param model:
+    :param cols:
+    :param quantiles:
+    :return:
+    """
+    df_ = model.df_train.copy()
+    target = model.target
+    df_['target2'] = df_[target].copy()
+    df_.loc[df_['target2']>max_target, 'target2'] = np.NAN
+    df_.loc[df_['target2'] <min_target, 'target2'] = np.NAN
+    df_.loc[df_['pop'] < 1000, 'target2'] = np.NAN
+    for feat in cols:
+        for q in quantiles:
+            nm = feat + "_" + str(int(q * 100))
+            df2 = df_[[feat, 'target2']].groupby(feat).quantile(q)
+            df2.reset_index(inplace=True)
+            df2.rename(columns = {'target2':nm}, inplace = True)
+            df_ = df_.merge(df2, how = 'left', on = feat)
+    del(df_['target2'])
+    return df_
+
 
 def summary_encode_pred(model, cols, df_pred):
     sum_ce = ce.quantile_encoder.SummaryEncoder(cols=cols,

@@ -33,9 +33,16 @@ class Model:
             title = "Annual Water Use"
         else:
             title = "Monthly Water Use"
-        self.log = report.Logger(self.log_file, title=title)
-        self.log.info("initialize ...")
-        self.log.info("Model Name: {}".format(name))
+
+        if clean:
+            self.log = report.Logger(self.log_file, title=title)
+            self.log.info("initialize ...")
+            self.log.info("Model Name: {}".format(name))
+        else:
+            self.log = report.Logger(self.log_file, title='++')
+            self.log.info("appending log file ...")
+            self.log.info("Model Name: {}".format(name))
+
 
         if not (df_train is None):
             #self.df_train_bk = df_train.copy()
@@ -129,8 +136,6 @@ class Model:
             print("Warning: You are overwriting an existing database...")
             self.log.info("Warning: You are overwriting an existing database")
 
-
-        #self.df_train_bk = df_train.copy()
         self.df_train = df_train.copy()
         self.log.to_table(df_train, title="Raw Training Dataset", header=10)
         summary = self.df_train.describe()

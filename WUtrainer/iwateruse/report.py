@@ -14,8 +14,10 @@ class Logger():
                 os.remove(filename)
             except:
                 pass
-
-        self.fidw = open(self.filename, 'w')
+        if not(remove_log):
+            self.fidw = open(self.filename, 'a')
+        else:
+            self.fidw = open(self.filename, 'w')
         title = text2art(title, "standard")
         self.fidw.write(title)
         self.fidw.write("\n\n")

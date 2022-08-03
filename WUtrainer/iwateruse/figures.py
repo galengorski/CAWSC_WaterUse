@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from flopy.plot import styles
 from sklearn.metrics import r2_score, mean_squared_error
@@ -10,6 +11,11 @@ import contextily as cx
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib
 import joblib
+
+import seaborn as sns
+import statsmodels.api as sm
+
+from statsmodels.graphics.gofplots import ProbPlot
 
 def show_figure(fig):
     dummy = plt.figure()
@@ -46,6 +52,7 @@ def one_to_one(y_actual, y_hat, heading, xlabel, ylabel, figfile):
 
         styles.xlabel(ax=ax, fontsize=12, label=xlabel)
         styles.ylabel(ax=ax, fontsize=12, label=ylabel)
+        plt.tight_layout()
         plt.savefig(figfile)
         joblib.dump(fig, figfile+".fig")
         plt.close(fig)
@@ -65,9 +72,183 @@ def feature_importance(estimator, max_num_feature, type, figfile):
         styles.ylabel(ax=ax, fontsize=16, label='Feature')
         plt.tick_params(axis='x', labelsize=14)
         plt.tick_params(axis='y', labelsize=14)
+        plt.tight_layout()
         plt.savefig(figfile)
         plt.close(fig)
         joblib.dump(fig, figfile + ".fig")
+
+
+def plot_timeseries_per_huc2(df, x, y, figfile):
+    nrows = 3
+    ncols = 6
+    fig, axes = plt.subplots(ncols, nrows, figsize=(13.33, 7.5), sharex=True)
+    huc2s = df['HUC2'].unique()
+    n = 0
+
+    for h in huc2s:
+        curr_ = df[df['HUC2'] == h]
+        i = int(n / nrows)
+        j = np.mod(n, nrows)
+        n = n + 1
+        ax = axes[i][j]
+        with styles.USGSMap():
+            ax.plot(curr_['Year'], curr_['est_per_capita'], marker='o', markerfacecolor='none')
+            title = "$HUC2 = {}$".format(h)
+            ax.text(0.97, 0.75, title,
+                    verticalalignment='bottom', horizontalalignment='right',
+                    transform=ax.transAxes,
+                    color='m', fontsize=12)
+            # ax.set_ylabel('GPCD')
+            # ax.set_xlabel('Year')
+            ax.xaxis.set_ticks(np.arange(2000, 2021, 5))
+            ax.set_xticklabels(ax.get_xticks(), rotation=45)
+
+    fig.text(0.5, 0.01, 'Year', ha='center', fontsize=12)
+    fig.text(0.08, 0.5, 'Per Capita Per Day (G) ', va='center', rotation='vertical', fontsize=12)
+
+    plt.savefig(figfile)
+    joblib.dump(fig, figfile + ".fig")
+    plt.close(fig)
+
+
+def plot_pc_hist_per_huc2(df, figfile):
+
+    nrows = 3
+    ncols = 6
+    fig, axes = plt.subplots(ncols, nrows, figsize=(13.33, 7.5), sharex=True)
+    huc2s = df['HUC2'].unique()
+    huc2s = np.sort(huc2s)
+    n = 0
+
+    for h in huc2s:
+        curr_ = df[df['HUC2'] == h]
+        curr_ = curr_.groupby(by = ['sys_id']).mean()
+        curr_.reset_index(inplace=True)
+        i = int(n / nrows)
+        j = np.mod(n, nrows)
+        n = n + 1
+        ax = axes[i][j]
+        with styles.USGSMap():
+            #ax.hist(curr_['est_per_capita'], bins = 15)
+            sns.histplot(ax = ax, data=curr_, x="est_per_capita", stat = 'density', bins = 30, kde=True,
+                  )
+            ax.lines[0].set_color('red')
+            #sns.kdeplot(ax = ax, data=curr_, x="est_per_capita", color='orange')
+            title = "$HUC2 = {}$".format(h)
+            ax.text(0.97, 0.75, title,
+                    verticalalignment='bottom', horizontalalignment='right',
+                    transform=ax.transAxes,
+                    color='g', fontsize=12)
+            ax.set_ylabel('')
+            ax.set_xlabel('')
+            ax.xaxis.set_ticks(np.arange(25, 500, 50))
+            ax.set_xticklabels(ax.get_xticks(), rotation=45)
+
+    fig.text(0.5, 0.01, 'Gallon Per Capita Per Day', ha='center', fontsize=12)
+    fig.text(0.08, 0.5, 'density', va='center', rotation='vertical', fontsize=12)
+
+    plt.savefig(figfile)
+    joblib.dump(fig, figfile + ".fig")
+    plt.close(fig)
+
+
+def plot_national_pc_change(df_, x, y, figfile=''):
+    df = df_.copy()
+    fig, ax = plt.subplots(figsize=(13.33, 7.5))
+    with styles.USGSMap():
+        bars = ax.bar(
+            x=df[x].values,
+            height=df[y].values,
+            color='tomato', edgecolor='blue', alpha = 0.2
+        )
+
+        ax.plot(df[x], df[y],'--', marker = 'o', color = 'm', markeredgecolor = 'g', markerfacecolor = 'g')
+
+        # ax.spines['top'].set_visible(False)
+        # ax.spines['right'].set_visible(False)
+        # ax.spines['left'].set_visible(False)
+        # ax.spines['bottom'].set_color('#DDDDDD')
+        # ax.tick_params(bottom=False, left=False)
+        # ax.set_axisbelow(True)
+        # ax.yaxis.grid(True, color='#EEEEEE')
+        # ax.xaxis.grid(False)
+
+        # Add text annotations to the top of the bars.
+        bar_color = bars[0].get_facecolor()
+        for bar in bars:
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 1,
+                round(bar.get_height(), 1),
+                horizontalalignment='center',
+                color='k',
+                weight='bold',
+                rotation=-45,
+                fontsize = 9
+            )
+
+        # extra space between the text and the tick labels.
+        ax.set_xlabel('Year',  color='#333333', fontsize=14)#labelpad=15,
+        ax.set_ylabel('Water Use - Gallons Per Capita Per Day (gpcd)',  color='#333333', fontsize=14)#labelpad=15,
+        title = 'Annual Average Per Capita Water Use [2000-2020]'
+        styles.heading(ax=ax,
+                       heading=title,
+                       idx=0, fontsize=16)
+        ax.set_ylim([100, 140])
+
+        plt.savefig(figfile)
+        joblib.dump(fig, figfile + ".fig")
+        plt.close(fig)
+
+
+
+def time_bars(df_, x, y, figfile=''):
+    df = df_.copy()
+    fig, ax = plt.subplots(figsize=(13.33, 7.5))
+    with styles.USGSMap():
+        df[y] = df[y] / 1e6
+        bars = ax.bar(
+            x=df[x].values,
+            height=df[y].values
+        )
+
+        ax.plot(df[x], df[y], color = 'r', marker = 'o')
+        # Axis formatting.
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_color('#DDDDDD')
+        ax.tick_params(bottom=False, left=False)
+        ax.set_axisbelow(True)
+        ax.yaxis.grid(True, color='#EEEEEE')
+        ax.xaxis.grid(False)
+        #
+        # Add text annotations to the top of the bars.
+        bar_color = bars[0].get_facecolor()
+        for bar in bars:
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 300,
+                int(bar.get_height()),
+                horizontalalignment='center',
+                color=bar_color,
+                weight='bold',
+                rotation=-45
+            )
+
+        # extra space between the text and the tick labels.
+        ax.set_xlabel('Year', labelpad=15, color='#333333')
+        ax.set_ylabel('Total Water Use - Million of Gallons Per Day (mgpd)', labelpad=15, color='#333333')
+
+        title = 'Annual Public Water Use [2000-2020]'
+        styles.heading(ax=ax,
+                       heading=title,
+                       idx=0, fontsize=16)
+
+        ax.set_ylim([2.5e4, 3.9e4])
+        plt.savefig(figfile)
+        joblib.dump(fig, figfile + ".fig")
+        plt.close(fig)
 
 
 def plot_huc2_map(shp_file, usa_map, info_df, legend_column, log_scale=False, epsg=5070, cmap='cool',
@@ -109,7 +290,89 @@ def plot_huc2_map(shp_file, usa_map, info_df, legend_column, log_scale=False, ep
         joblib.dump(fig, figfile + ".fig")
         plt.close(fig)
         basename = os.path.splitext(figfile)[0]
-        shp_df.to_file(basename + ".shp")
+    return shp_df
+
+def plot_county_map(shp_file, usa_map, info_df, legend_column, log_scale=False, epsg=5070, cmap='cool',
+                  title='', figfile='', polygon_col_id = 'HUC2'):
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(1, 1, 1)
+    plt.axis('off')
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.1)
+
+    usa_bkg = geopandas.read_file(usa_map)
+
+    shp_df = geopandas.read_file(shp_file)
+    shp_df.to_crs(epsg=epsg, inplace=True)
+    usa_bkg.to_crs(epsg=epsg, inplace=True)
+    info_df['county_id'] = info_df['county_id'].astype(int).astype(str).str.zfill(5)
+    shp_df = shp_df[[polygon_col_id, 'geometry']]
+    shp_df = shp_df.merge(info_df, how='left', left_on=polygon_col_id, right_on = 'county_id')
+
+    if log_scale:
+        norm = matplotlib.colors.LogNorm(vmin=shp_df[legend_column].min(), vmax=shp_df[legend_column].max())
+    else:
+        norm = None
+
+    with styles.USGSMap():
+        ax = shp_df.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
+                         legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
+        usa_bkg.plot(ax=ax, facecolor="none", edgecolor='k', linewidth=0.5)
+
+        styles.heading(ax=ax,
+                       heading=title,
+                       idx=0, fontsize=16)
+
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+        plt.tight_layout()
+
+        plt.savefig(figfile)
+        joblib.dump(fig, figfile + ".fig")
+        plt.close(fig)
+
+    return shp_df
+
+def plot_state_map(shp_file, usa_map, info_df, legend_column, log_scale=False, epsg=5070, cmap='cool',
+                  title='', figfile='', polygon_col_id = 'HUC2'):
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(1, 1, 1)
+    plt.axis('off')
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.1)
+
+    usa_bkg = geopandas.read_file(usa_map)
+
+    shp_df = geopandas.read_file(shp_file)
+    shp_df.to_crs(epsg=epsg, inplace=True)
+    usa_bkg.to_crs(epsg=epsg, inplace=True)
+    info_df['state_id'] = info_df['state_id'].astype(int).astype(str).str.zfill(2)
+    shp_df = shp_df[[polygon_col_id, 'geometry']]
+    shp_df = shp_df.merge(info_df, how='left', left_on=polygon_col_id, right_on = 'state_id')
+
+    if log_scale:
+        norm = matplotlib.colors.LogNorm(vmin=shp_df[legend_column].min()-1, vmax=shp_df[legend_column].max()+1)
+    else:
+        norm = None
+
+    with styles.USGSMap():
+        ax = shp_df.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
+                         legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
+        usa_bkg.plot(ax=ax, facecolor="none", edgecolor='k', linewidth=0.5)
+
+        styles.heading(ax=ax,
+                       heading=title,
+                       idx=0, fontsize=16)
+
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+        plt.tight_layout()
+
+        plt.savefig(figfile)
+        joblib.dump(fig, figfile + ".fig")
+        plt.close(fig)
+
+    return shp_df
 
 
 def plot_scatter_map(lon, lat, df, legend_column, cmap, title, figfile, log_scale=False, epsg=5070):
@@ -151,5 +414,45 @@ def plot_scatter_map(lon, lat, df, legend_column, cmap, title, figfile, log_scal
         plt.savefig(figfile)
         plt.close(fig)
 
-        basename = os.path.splitext(figfile)[0]
-        df_shp.to_file(basename + ".shp")
+        return df_shp
+
+def residual_vs_fitted(model, estimator, figfile):
+    ws = model.model_ws
+    fig_folder = os.path.join(ws, "figs")
+    files_info = model.files_info
+
+    features = model.features
+    target = model.target
+    X_train = model.splits["X_train"]
+    X_test = model.splits["X_test"]
+    y_train = model.splits["y_train"]
+    y_test = model.splits["y_test"]
+
+    y_hat = estimator.predict(X_test[features])
+    err = pd.DataFrame(y_test - y_hat)
+
+    err = err.rename(columns={model.target: "err"})
+    err['y_actual'] = y_test
+    err['y_pred'] = y_hat
+
+    fig, axes = plt.subplots(3,1, figsize=(8, 8))
+
+    ax=sns.residplot(ax = axes[0], data=err, y='err', x='y_actual',
+                          scatter_kws={'alpha': 0.5, 's':4},
+                          line_kws={'color': 'red', 'lw': 1, 'alpha': 0.8})
+    ax.set_title('Residuals vs Fitted')
+    ax.set_xlabel('Actual values')
+    ax.set_ylabel('Residuals');
+
+    QQ = ProbPlot((err['err']-err['err'].mean())/err['err'].std())
+    plot_lm_2 = QQ.qqplot(line='45', alpha=0.5, color='#4C72B0', lw=1, ax = axes[1])
+    plot_lm_2.axes[0].set_title('Normal Q-Q')
+    plot_lm_2.axes[0].set_xlabel('Theoretical Quantiles')
+    plot_lm_2.axes[0].set_ylabel('Standardized Residuals');
+
+    sns.histplot(ax= axes[2], data=err, x="err", kde=True, stat = 'probability')
+    plt.tight_layout()
+    plt.savefig(figfile)
+    joblib.dump(fig, figfile + ".fig")
+    plt.close(fig)
+
