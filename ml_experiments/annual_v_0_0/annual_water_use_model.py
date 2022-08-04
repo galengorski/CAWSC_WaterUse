@@ -418,12 +418,13 @@ if make_prediction:
 shap.partial_dependence_plot('BuildingAreaSqFt_sum', gb.predict, X_test, ice=
 False, model_expected_value=True, feature_expected_value=True)
 
+
 # X100 = shap.utils.sample(X_train, 100)
 # X500 = shap.utils.sample(X_train, 5000)
 # explainer = shap.Explainer(model.predict, X100)
-X100 = X_train[X_train['HUC2'] == 1]
+X100 = X_train[X_train['HUC2'] == 1][features]
 # X100 = shap.utils.sample(X100, 571)
-explainer = shap.Explainer(vv, X100)
+explainer = shap.Explainer(model_predict, X100)
 # explainer = shap.TreeExplainer(gb, X100)
 shap_values = explainer(X100)
 # shap.plots.waterfall(shap_values[150], max_display=14)

@@ -215,25 +215,27 @@ def complete_model_evaluate(model, estimator=None, basename="initial"):
     df_pred['tot_wu'] = df_pred['est_per_capita'] * df_pred['pop']
 
     #AWUDS
-    awuds_file = model.files_info['AWUDS_file']
-    awuds_df = pd.read_csv(awuds_file)
-    awuds_df = awuds_df[awuds_df['YEAR'] > 2000]
-    awuds_df['STATECODE'] = awuds_df['STATECODE'].astype(str).str.zfill(2)
-    awuds_df['COUNTYCODE'] = awuds_df['COUNTYCODE'].astype(str).str.zfill(3)
-    awuds_df['county_id'] = awuds_df['STATECODE'].astype(str) + awuds_df['COUNTYCODE']
-    awuds_df_ = awuds_df[['county_id', 'PS-WTotl', 'PS-DelDO', 'PS-TOPop']]
-    awuds_df_['PS-WTotl'] = awuds_df_['PS-WTotl']*1e6
-    awuds_df_['PS-DelDO'] = awuds_df_['PS-DelDO'] * 1e6
-    awuds_df_['PS-TOPop'] = awuds_df_['PS-TOPop'] * 1e3
-    awuds_df_['awuds_pc'] =  awuds_df_['PS-WTotl']/ awuds_df_['PS-TOPop']
-    awuds_county_pc =awuds_df_[['county_id', 'awuds_pc' ]].groupby(by = 'county_id').mean()
-    model_county_pc = df_pred[['county_id', 'pop', 'tot_wu']].groupby(by=['county_id']).sum()
-    model_county_pc.reset_index(inplace=True)
-    model_county_pc['county_id'] = model_county_pc['county_id'].astype(str)
-    model_county_pc['county_id'] = model_county_pc['county_id'].str.zfill(5)
-    model_county_pc['pc'] = model_county_pc['tot_wu'] / model_county_pc['pop']
-    model_county_pc = model_county_pc[['county_id', 'pc']].groupby(['county_id']).mean()
-    model_county_pc['awuds_pc'] = awuds_county_pc['awuds_pc']
+    if 0:
+        awuds_file = model.files_info['AWUDS_file']
+        awuds_df = pd.read_csv(awuds_file)
+        awuds_df = awuds_df[awuds_df['YEAR'] > 2000]
+        awuds_df['STATECODE'] = awuds_df['STATECODE'].astype(str).str.zfill(2)
+        awuds_df['COUNTYCODE'] = awuds_df['COUNTYCODE'].astype(str).str.zfill(3)
+        awuds_df['county_id'] = awuds_df['STATECODE'].astype(str) + awuds_df['COUNTYCODE']
+        awuds_df_ = awuds_df[['county_id', 'PS-WTotl', 'PS-DelDO', 'PS-TOPop']]
+        awuds_df_['PS-WTotl'] = awuds_df_['PS-WTotl']*1e6
+        awuds_df_['PS-DelDO'] = awuds_df_['PS-DelDO'] * 1e6
+        awuds_df_['PS-TOPop'] = awuds_df_['PS-TOPop'] * 1e3
+        awuds_df_['awuds_pc'] =  awuds_df_['PS-WTotl']/ awuds_df_['PS-TOPop']
+        awuds_county_pc =awuds_df_[['county_id', 'awuds_pc', 'PS-WTotl', 'PS-TOPop']].groupby(by = 'county_id').mean()
+
+        model_county_pc = df_pred[['county_id', 'pop', 'wu_rate']].groupby(by=['county_id']).sum()
+        model_county_pc.reset_index(inplace=True)
+        model_county_pc['county_id'] = model_county_pc['county_id'].astype(str)
+        model_county_pc['county_id'] = model_county_pc['county_id'].str.zfill(5)
+        model_county_pc['pc'] = model_county_pc['wu_rate'] / model_county_pc['pop']
+        model_county_pc = model_county_pc.groupby(['county_id']).mean()
+        model_county_pc['awuds_pc'] = awuds_county_pc['awuds_pc']
 
     #---------------
     # nation level
