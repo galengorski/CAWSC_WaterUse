@@ -18,7 +18,6 @@ from sklearn.pipeline import Pipeline
 from iwateruse.model import Model
 from iwateruse import targets, weights, pipelines, outliers_utils, estimators, featurize, predictions
 from iwateruse import selection
-from iwateruse.pipelines import Spipe
 from sklearn.model_selection import train_test_split
 
 warnings.filterwarnings('ignore')
@@ -27,7 +26,6 @@ xgb.set_config(verbosity=0)
 # =============================
 # Flags
 # =============================
-
 work_space = r"models\annual\m7_29_2022"
 clean_folder = False
 log_file = 'train_log.log'
@@ -53,21 +51,18 @@ files_info['usa_conus_file'] = r"C:\work\water_use\mldataset\gis\nation_gis_file
 files_info['huc2_shp_file'] = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_huc2.shp'
 files_info['state_shp_file'] = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_states.shp'
 files_info['county_shp_file'] = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_county.shp'
-files_info['prediction_file'] = os.path.abspath(
-    r"..\..\..\mldataset\ml\training\train_datasets\Annual\wu_annual_training3.csv")
 files_info['outliers_file_used'] = r"outliers_7_24_22.csv"
 files_info['AWUDS_file'] = r"C:\work\water_use\mldataset\ml\training\misc_features\awuds_all_years.csv"
+
 # =============================
 # Setup Training
 # =============================
-
 model = Model(name='annual_pc', log_file=log_file, feature_status_file=r"features_status.xlsx",
-              model_ws= work_space, clean= clean_folder)
+              model_ws=work_space, clean=clean_folder)
 figures_folder = os.path.join(model.model_ws, "figs")
 model.raw_target = 'wu_rate'
 model.target = 'per_capita'
 model.files_info = files_info
-
 datafile = r"clean_train_db.csv"
 df_train = pd.read_csv(datafile)
 model.add_training_df(df_train=df_train)
@@ -80,20 +75,12 @@ selected_features = model.load_features_selected(method='xgb_cover')
 dropped_feat = list(set(base_features).difference(selected_features))
 model.add_feature_to_skip_list(dropped_feat)
 
-# make_dataset.make_ds_per_capita_basic(model, datafile=datafile)
-# model.df_train['pop_density']  = model.df_train['pop']/model.df_train['WSA_SQKM']
-# model.df_train.loc[model.df_train['WSA_SQKM']==0, 'pop_density'] = np.NaN
-# add water use
-seed1 = 123
-seed2 = 456
-
 model.apply_func(func=targets.compute_per_capita, type='target_func', args=None)
 
 # =============================
 # Feature Engineering
 # =============================
-# apply feat changes to train/predict data
-# (1) Onehot encoding
+# make cat features int and replace missing with -999
 for catfeat in model.categorical_features:
     model.df_train.loc[model.df_train[catfeat].isna(), catfeat] = -999  # NaN
     model.df_train[catfeat] = model.df_train[catfeat].astype(int)
@@ -105,15 +92,15 @@ if apply_onehot_encoding:
     df_tr = df_tr.merge(cat_df, how='left', on='sample_id')
     model.add_feature_to_skip_list(model.categorical_features)
     model.add_training_df(df_train=df_tr)
-    del(df_tr)
-    del(cat_df)
+    del (df_tr)
+    del (cat_df)
 
 if apply_summary_encoding:
     df_trans = featurize.summary_encode(model, cols=model.categorical_features,
-                                                          quantiles = [0.25,0.5,0.75])
+                                        quantiles=[0.25, 0.5, 0.75])
     model.add_feature_to_skip_list(model.categorical_features)
     model.add_training_df(df_train=df_trans)
-    del(df_trans)
+    del (df_trans)
 
 # =============================
 # Prepare Prediction df
@@ -143,58 +130,49 @@ params_old = {
     'min_child_weight': 4,
     'gamma': 10,
     'max_delta_step': 0,
-    'seed': seed2,
+    'seed': 456,
     'importance_type': 'total_gain'
 }
 params = {'objective': 'reg:squarederror',
- 'base_score': 0.5,
- 'booster': 'gbtree',
- 'callbacks': None,
- 'colsample_bylevel': 1,
- 'colsample_bynode': 1,
- 'colsample_bytree': 0.867202783570103,
- 'early_stopping_rounds': None,
- 'enable_categorical': False,
- 'eval_metric': None,
- 'gamma': 0,
- #'gpu_id': 0,
- 'grow_policy': 'depthwise',
- 'importance_type': None,
- 'interaction_constraints': '',
- 'learning_rate': 0.12128959372061261,
- 'max_bin': 256,
- 'max_cat_to_onehot': 4,
- 'max_delta_step': 0,
- 'max_depth': 11,
- 'max_leaves': 0,
- 'min_child_weight': 4,
- 'monotone_constraints': '()',
- 'n_estimators': 300,
- 'n_jobs': -1,
- 'num_parallel_tree': 1,
- 'predictor': 'auto',
- 'random_state': 5751,
- 'reg_alpha': 10.0,
- 'reg_lambda': 10.0,
- 'sampling_method': 'uniform',
- 'scale_pos_weight': 50.0,
- 'subsample': 0.867555264259934,
- 'tree_method': 'hist',
- 'validate_parameters': 1,
- 'verbosity': 0}
+          'base_score': 0.5,
+          'booster': 'gbtree',
+          'callbacks': None,
+          'colsample_bylevel': 1,
+          'colsample_bynode': 1,
+          'colsample_bytree': 0.867202783570103,
+          'early_stopping_rounds': None,
+          'enable_categorical': False,
+          'eval_metric': None,
+          'gamma': 0,
+          # 'gpu_id': 0,
+          'grow_policy': 'depthwise',
+          'importance_type': None,
+          'interaction_constraints': '',
+          'learning_rate': 0.12128959372061261,
+          'max_bin': 256,
+          'max_cat_to_onehot': 4,
+          'max_delta_step': 0,
+          'max_depth': 11,
+          'max_leaves': 0,
+          'min_child_weight': 4,
+          'monotone_constraints': '()',
+          'n_estimators': 300,
+          'n_jobs': -1,
+          'num_parallel_tree': 1,
+          'predictor': 'auto',
+          'random_state': 5751,
+          'reg_alpha': 10.0,
+          'reg_lambda': 10.0,
+          'sampling_method': 'uniform',
+          'scale_pos_weight': 50.0,
+          'subsample': 0.867555264259934,
+          'tree_method': 'hist',
+          'validate_parameters': 1,
+          'verbosity': 0}
 
 gb = estimators.xgb_estimator(params)
-
-# if apply_onehot_encoding:
-#     # pipeline
-#     main_pipeline = pipelines.make_pipeline(model)
-#     main_pipeline.append(('estimator', gb))
-#     gb = Pipeline(main_pipeline)
-#     pgb = Spipe(pipeline = gb)
-
 features = model.features
 target = model.target
-
 
 model.log.info("\n\n ****** Data used for training & testing****")
 model.log.to_table(model.df_train[features].describe(percentiles=[0, 0.05, 0.5, 0.95, 1]), "Features", header=-1)
@@ -206,11 +184,7 @@ model.splits = {"X_train": X_train,
                 "X_test": X_test,
                 "y_train": y_train,
                 "y_test": y_test}
-# X_train, X_test, y_train, y_test = splittors.split_by_id(model, args = {'frac' : 0.7, 'seed':547, 'id_column':'sys_id' })
-# X_train, X_test, y_train, y_test = train_test_split(final_dataset[features],  final_dataset[target],
-#                                                               test_size=0.2, random_state=123)#, shuffle = False
 
-# w_train, w_test = weights.generate_weights_ones(model)
 # =============================
 # initial Model Training
 # =============================
@@ -270,7 +244,7 @@ if run_boruta:
     drop_features[keyname] = list(set(perm_confirm_features))
     with open(feat_selec_file, 'w') as convert_file:
         convert_file.write(json.dumps(drop_features))
-    del(final_dataset_)
+    del (final_dataset_)
 # =============================
 # Evaluate model after features
 # selection
@@ -365,7 +339,6 @@ if train_denoised_model:
                                                         shuffle=True,
                                                         random_state=123, stratify=dfff1['HUC2'])
 
-
     model.splits = {"X_train": X_train,
                     "X_test": X_test,
                     "y_train": y_train,
@@ -403,21 +376,16 @@ if make_prediction:
     try:
         pfeatures = model_predict.get_booster().feature_names
     except:
-       pfeatures = model_predict.steps[-1][1].get_booster().feature_names
+        pfeatures = model_predict.steps[-1][1].get_booster().feature_names
     model.df_pred['est_per_capita'] = model_predict.predict(model.df_pred[pfeatures])
 
-
-    model_diagnose.complete_model_evaluate(model, estimator = model_predict,  basename = "result_denoised")
-
-
-
+    model_diagnose.complete_model_evaluate(model, estimator=model_predict, basename="result_denoised")
 
 # =============================
 # Interpret the model
 # =============================
 shap.partial_dependence_plot('BuildingAreaSqFt_sum', gb.predict, X_test, ice=
 False, model_expected_value=True, feature_expected_value=True)
-
 
 # X100 = shap.utils.sample(X_train, 100)
 # X500 = shap.utils.sample(X_train, 5000)

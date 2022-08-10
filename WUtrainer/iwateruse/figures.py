@@ -110,6 +110,37 @@ def plot_timeseries_per_huc2(df, x, y, figfile):
     joblib.dump(fig, figfile + ".fig")
     plt.close(fig)
 
+def plot_monthly_fraction_per_huc2(df, x, y, figfile):
+    nrows = 3
+    ncols = 6
+    fig, axes = plt.subplots(ncols, nrows, figsize=(13.33, 7.5), sharex=True)
+    huc2s = df['HUC2'].unique()
+    n = 0
+
+    for h in huc2s:
+        curr_ = df[df['HUC2'] == h]
+        i = int(n / nrows)
+        j = np.mod(n, nrows)
+        n = n + 1
+        ax = axes[i][j]
+        with styles.USGSMap():
+            ax.plot(curr_['Year'], curr_['est_per_capita'], marker='o', markerfacecolor='none')
+            title = "$HUC2 = {}$".format(h)
+            ax.text(0.97, 0.75, title,
+                    verticalalignment='bottom', horizontalalignment='right',
+                    transform=ax.transAxes,
+                    color='m', fontsize=12)
+            # ax.set_ylabel('GPCD')
+            # ax.set_xlabel('Year')
+            ax.xaxis.set_ticks(np.arange(2000, 2021, 5))
+            ax.set_xticklabels(ax.get_xticks(), rotation=45)
+
+    fig.text(0.5, 0.01, 'Year', ha='center', fontsize=12)
+    fig.text(0.08, 0.5, 'Per Capita Per Day (G) ', va='center', rotation='vertical', fontsize=12)
+
+    plt.savefig(figfile)
+    joblib.dump(fig, figfile + ".fig")
+    plt.close(fig)
 
 def plot_pc_hist_per_huc2(df, figfile):
 
@@ -415,6 +446,121 @@ def plot_scatter_map(lon, lat, df, legend_column, cmap, title, figfile, log_scal
         plt.close(fig)
 
         return df_shp
+
+def plot_multiple_scatter_map(df, xcol, ycol, legend_column,
+                                            fig_info, figfile):
+
+
+    df_ = df.groupby(by=['sys_id', 'Month']).mean()
+    df_.reset_index(inplace=True)
+
+    lon = df_[xcol]
+    lat = df_[ycol]
+    df_shp = geopandas.GeoDataFrame(
+        df_, geometry=geopandas.points_from_xy(lon, lat, crs="EPSG:4326"))  # 2163
+
+    # fig = fig_info['fig']
+    # axes = fig_info['axs']
+    nrows = fig_info['nrows']
+    ncols = fig_info['ncols']
+    cmap = fig_info['cmap']
+    log_scale = fig_info['log_scale']
+    epsg = fig_info['epsg']
+    title = fig_info['title']
+    super_title = fig_info['super_title']
+
+    df_shp.to_crs(epsg=epsg, inplace=True)
+
+    fig, axes = plt.subplots(nrows=ncols, ncols=nrows, figsize=(10, 8))
+    months = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+              'August', 'September', 'October', 'November', 'December']
+    with styles.USGSMap():
+        for month in range(1, 13):
+            df_ = df_shp[df_shp['Month'] == month]
+            max_v = df_[legend_column].quantile(0.9999)
+            df_.loc[df_[legend_column]>max_v, legend_column] = max_v
+            n = month - 1
+            i = int(n / nrows)
+            j = np.mod(n, nrows)
+
+            ax = axes[i][j]
+
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="5%", pad=0.1)
+
+            if log_scale:
+                norm = matplotlib.colors.LogNorm(vmin=df_[legend_column].min(), vmax=df_[legend_column].max())
+                ax = df_.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=2, legend=True,
+                              legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
+            else:
+                norm = None
+                ax = df_.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=1, legend=True,
+                              legend_kwds={'shrink': 0.6}, cax=cax,vmin = 0.03, vmax = 0.18, norm=norm) #, vmin = 0.03, vmax = 0.18
+
+
+
+
+            cx.add_basemap(ax, crs=df_.crs.to_string(), source=cx.providers.Stamen.TonerLines, alpha=1,
+                           attribution=False)
+            cx.add_basemap(ax, crs=df_.crs.to_string(), source=cx.providers.Stamen.TonerBackground, alpha=0.1,
+                           attribution=False)
+
+            styles.heading(ax=ax, letter= months[n],
+                           heading=title,
+                           idx=0, fontsize=10)
+            styles.xlabel(ax=ax, fontsize=10, label='X (meter)')
+            styles.ylabel(ax=ax, fontsize=10, label='Y (meter)')
+            plt.tick_params(labelsize=12)
+            plt.tick_params(axis='x', labelsize=12)
+            plt.tick_params(axis='y', labelsize=12)
+            ax.get_yaxis().get_offset_text().set_position((-0.25, 0.0))
+
+        plt.suptitle(super_title,fontsize=20)
+        plt.tight_layout()
+        plt.savefig(figfile)
+        plt.close(fig)
+        return df_shp
+
+        nrows = 3
+        ncols = 6
+        fig, axes = plt.subplots(ncols, nrows, figsize=(13.33, 7.5), sharex=True)
+        huc2s = df['HUC2'].unique()
+        huc2s = np.sort(huc2s)
+        n = 0
+        for h in huc2s:
+            curr_ = df[df['HUC2'] == h]
+            curr_ = curr_.groupby(by=['HUC2', 'Year', 'Month']).mean()
+            curr_.reset_index(inplace=True)
+            curr_['date'] = curr_['Year'] + (curr_['Month'] - 0.5) / 12
+            curr_.reset_index(inplace=True)
+            i = int(n / nrows)
+            j = np.mod(n, nrows)
+            n = n + 1
+            ax = axes[i][j]
+            with styles.USGSMap():
+                ax.plot(curr_['date'], curr_['est_month_frac'])
+                title = "$HUC2 = {}$".format(h)
+                ax.text(0.97, 0.75, title,
+                        verticalalignment='bottom', horizontalalignment='right',
+                        transform=ax.transAxes,
+                        color='m', fontsize=8)
+                # ax.set_ylabel('GPCD')
+                # ax.set_xlabel('Year')
+                ax.set_ylim([0.03, 0.18])
+                ax.xaxis.set_ticks(np.arange(2000, 2021, 5))
+                ax.set_xticklabels(ax.get_xticks(), rotation=45)
+
+        fig.text(0.5, 0.01, 'Year', ha='center', fontsize=12)
+        fig.text(0.08, 0.5, 'Per Capita Per Day (G) ', va='center', rotation='vertical', fontsize=12)
+
+        plot = sns.lineplot(data=df, x='Month', y='est_month_frac', hue="HUC2", style="HUC2")
+        handles, labels = plot.axes[0].get_legend_handles_labels()
+        plot._legend.remove()
+        plot.fig.legend(handles, labels, ncol=2, loc='upper center',
+                        bbox_to_anchor=(0.5, 1.15), frameon=False)
+
+
+
 
 def residual_vs_fitted(model, estimator, figfile):
     ws = model.model_ws

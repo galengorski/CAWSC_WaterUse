@@ -154,8 +154,9 @@ class Model:
         with open(fn, 'w') as ff:
             ff.write(json.dumps(data))
 
-    def load_features_selected(self, method = 'xgb_cover'):
-        feat_selec_file = 'confirmed_selected_features.json'
+    def load_features_selected(self, method = 'xgb_cover',
+                               feat_selec_file = 'confirmed_selected_features.json'):
+
         f = open(feat_selec_file)
         feature_selection_info = json.load(f)
         f.close()

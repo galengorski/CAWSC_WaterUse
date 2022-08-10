@@ -2,6 +2,8 @@ import os
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+
 from sklearn.metrics import explained_variance_score, max_error, mean_squared_error, r2_score
 
 try:
@@ -65,7 +67,7 @@ def generat_metric_by_category(estimator, X, y_true, features, category='HUC2'):
     return all_metrics
 
 
-def complete_model_diagnose(model, estimator=None, basename="initial"):
+def complete_model_diagnose(model, estimator=None, basename="initial", monthly = False):
     """
 
     :return:
@@ -88,11 +90,16 @@ def complete_model_diagnose(model, estimator=None, basename="initial"):
     # -----------------------
     # one2one plot
     # -----------------------
-
-    heading = "Scatter Plot for Annual Water Use"
-    xlabel = "Actual Per Capita Water Use - Gallons"
-    ylabel = "Estimated Per Capita Water Use - Gallons"
-    figfile = os.path.join(fig_folder, "1_annual_1to1_{}.pdf".format(basename))
+    if monthly:
+        heading = "Scatter Plot for Monthly Water Use Fractions"
+        xlabel = "Actual Monthly Fraction - Unitless"
+        ylabel = "Estimated Monthly Fraction - Unitless"
+        figfile = os.path.join(fig_folder, "1_annual_1to1_{}.pdf".format(basename))
+    else:
+        heading = "Scatter Plot for Annual Water Use"
+        xlabel = "Actual Per Capita Water Use - Gallons"
+        ylabel = "Estimated Per Capita Water Use - Gallons"
+        figfile = os.path.join(fig_folder, "1_annual_1to1_{}.pdf".format(basename))
 
     # -----------------------
     # Model performance
@@ -125,12 +132,41 @@ def complete_model_diagnose(model, estimator=None, basename="initial"):
     figfile = os.path.join(fig_folder, "6_validation_by_huc2_{}.pdf".format(basename))
     df_shp.to_file(figfile + ".shp")
 
-    figfile = os.path.join(fig_folder, "7_map_val_error_{}.pdf".format(basename))
-    df_shp = figures.plot_scatter_map(X_test['LONG'], X_test['LAT'], err,
-                                      legend_column='per_capita', cmap='jet', title="Per Capita WU", figfile=figfile,
-                                      log_scale=False)
-    figfile = os.path.join(fig_folder, "6_map_val_error_{}.shp".format(basename))
-    df_shp.to_file(figfile)
+    legend_column = model.target
+    title = "Average Annual Water Use - Gallons per Capita per Day "
+
+    if monthly:
+
+        title = "Monthly Fraction - Unitless"
+        fig_info = {}
+        nrows = 3
+        ncols = 4
+        fig_info['nrows'] = nrows
+        fig_info['ncols'] = ncols
+
+        fig_info['cmap'] = 'jet'
+        fig_info['log_scale'] =False
+        fig_info['epsg'] = 5070
+        fig_info['title'] =  title
+        df_ = X_test.copy()
+        df_['err'] = err['monthly_fraction']
+        df_['monthly_fraction'] = y_hat
+        legend_column = 'monthly_fraction'
+
+
+        figfile = os.path.join(fig_folder, "7_map_val_error_{}.pdf".format(basename))
+        figures.plot_multiple_scatter_map(df_, xcol = 'LONG', ycol = 'LAT',
+                                          legend_column=legend_column,
+                                          fig_info = fig_info, figfile = figfile)
+
+
+    else:
+        figfile = os.path.join(fig_folder, "7_map_val_error_{}.pdf".format(basename))
+        df_shp = figures.plot_scatter_map(X_test['LONG'], X_test['LAT'], err,
+                                          legend_column=legend_column, cmap='jet', title=title, figfile=figfile,
+                                          log_scale=False)
+        figfile = os.path.join(fig_folder, "6_map_val_error_{}.shp".format(basename))
+        df_shp.to_file(figfile)
 
     # -----------------------
     # plot importance
@@ -203,6 +239,39 @@ def compute_temporal_change(model):
     all_counties = pd.concat(temp)
 
     return all_counties, all_states, all_huc2s
+
+def complete_monthly_model_eval(model, estimator=None, basename="initial"):
+    ws = model.model_ws
+    fig_folder = os.path.join(ws, "predictions")
+    if not (os.path.isdir(fig_folder)):
+        os.mkdir(fig_folder)
+    files_info = model.files_info
+    df_pred = model.df_pred
+
+    # maps of monthly fractions
+    if 0:
+        fig_info = {}
+        fig_info['super_title'] = "Estimated Monthly Fraction"
+        nrows = 3
+        ncols = 4
+        fig_info['nrows'] = nrows
+        fig_info['ncols'] = ncols
+        fig_info['cmap'] = 'jet'
+        fig_info['log_scale'] = False
+        fig_info['epsg'] = 5070
+        fig_info['title'] = ''
+        legend_column = 'est_month_frac'
+        figfile = os.path.join(fig_folder, "1_model_monthly_fractions_{}.pdf".format(basename))
+        df_shp = figures.plot_multiple_scatter_map(df_pred, xcol='LONG', ycol='LAT',
+                                          legend_column= legend_column, fig_info = fig_info,
+                                          figfile=figfile)
+
+    # maps of monthly per capita
+
+    # time series of HUC2 per capita (or fraction)
+
+
+
 
 
 def complete_model_evaluate(model, estimator=None, basename="initial"):

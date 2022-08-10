@@ -39,7 +39,7 @@ def summary_encode2(model, cols, quantiles = None):
         encoding_summary[group] = ddf_.to_dict()
     return temp, encoding_summary
 
-def summary_encode(model, cols, quantiles = None, max_target = 500, min_target = 25):
+def summary_encode(model, cols, quantiles = None, max_target = 500, min_target = 25, min_pop = 1000):
     """
 
     :param model:
@@ -50,14 +50,16 @@ def summary_encode(model, cols, quantiles = None, max_target = 500, min_target =
     df_ = model.df_train.copy()
     target = model.target
     df_['target2'] = df_[target].copy()
+    default_value = df_['target2'].mean()
     df_.loc[df_['target2']>max_target, 'target2'] = np.NAN
     df_.loc[df_['target2'] <min_target, 'target2'] = np.NAN
-    df_.loc[df_['pop'] < 1000, 'target2'] = np.NAN
+    df_.loc[df_['pop'] < min_pop, 'target2'] = np.NAN
     for feat in cols:
         for q in quantiles:
             nm = feat + "_" + str(int(q * 100))
             df2 = df_[[feat, 'target2']].groupby(feat).quantile(q)
             df2.reset_index(inplace=True)
+            df2.loc[df2['target2'].isna(), 'target2'] = default_value
             df2.rename(columns = {'target2':nm}, inplace = True)
             df_ = df_.merge(df2, how = 'left', on = feat)
     del(df_['target2'])

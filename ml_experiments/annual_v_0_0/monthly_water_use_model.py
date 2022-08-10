@@ -1,7 +1,7 @@
 # ===============****===================
 """
 Monthly Water Use Model
-Date: 7/14/2022
+Date: 8/04/2022
 """
 # ===============****===================
 import os
@@ -18,6 +18,8 @@ from iwateruse import targets, weights, pipelines, outliers_utils, estimators, f
 from iwateruse import selection
 from iwateruse import data_cleaning, report, splittors, pre_train_utils, make_dataset, figures
 from iwateruse import denoise, model_diagnose
+from sklearn.model_selection import train_test_split
+import joblib
 
 warnings.filterwarnings('ignore')
 xgb.set_config(verbosity=0)
@@ -25,53 +27,98 @@ xgb.set_config(verbosity=0)
 # =============================
 # Flags
 # ==============================
+work_space = r"models\monthly\m7_29_2022"
+clean_folder = False
+log_file = 'train_log_monthly.log'
+
+apply_onehot_encoding = False
+apply_summary_encoding = True
 train_initial_model = False
+plot_diagnosis = False
 run_boruta = False
-use_boruta_results = True
+use_boruta_results = False
 run_permutation_selection = False
 run_chi_selection = False
 run_RFECV_selection = False
-make_prediction = False
+detect_outliers = False
+train_denoised_model = False
+make_prediction = True
 interpret_model = False
 quantile_regression = False
 
 # files
-usa_conus_file = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_usa2.shp"
-huc2_shp_file = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_huc2.shp'
-state_shp_file = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_states.shp'
-county_shp_file = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_county.shp'
+files_info = {}
+files_info['usa_conus_file'] = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_usa2.shp"
+files_info['huc2_shp_file'] = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_huc2.shp'
+files_info['state_shp_file'] = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_states.shp'
+files_info['county_shp_file'] = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_county.shp'
+files_info['outliers_file_used'] = r"outliers_7_24_22.csv"
+files_info['AWUDS_file'] = r"C:\work\water_use\mldataset\ml\training\misc_features\awuds_all_years.csv"
 
 # =============================
 # Setup Training
 # =============================
-figures_folder = "figs"
-model = Model(name='Monthly_frac', log_file='train_log_monthly.log', feature_status_file=r"features_status.xlsx",
-              model_type='monthly')
+model = Model(name='Monthly_frac', log_file= log_file, feature_status_file=r"features_status.xlsx",
+              model_type='monthly', model_ws=work_space, clean = clean_folder)
+figures_folder = os.path.join(model.model_ws, "figs")
 model.raw_target = 'monthly_wu'
 model.target = 'monthly_fraction'
+model.files_info = files_info
 datafile = r"clean_train_db_monthly.csv"  # clean_train_db_backup_6_24_2022.csv
 df_train = pd.read_csv(datafile)
 model.add_training_df(df_train=df_train)
+base_features = model.features
 
-# add water use
-seed1 = 123
-seed2 = 456
+# =============================
+# Use selected features
+# =============================
+if 0:
+    selected_features = model.load_features_selected(method='xgb_total_cover',
+                                                     feat_selec_file = 'confirmed_selected_features_monthly.json')
+    dropped_feat = list(set(base_features).difference(selected_features))
+    model.add_feature_to_skip_list(dropped_feat)
 
-opts = ['monthly_fraction>0.18', 'monthly_fraction<0.03', 'simil_stat<0.7']
-model.apply_func(func=outliers_utils.drop_values, type='outliers_func', opts=opts)
-model.apply_func(func=outliers_utils.drop_na_target, type='outliers_func')
+# space for target function
 
 # =============================
 # Feature Engineering
 # =============================
-# Target summary
-tr_df, cat_df = featurize.summary_encode(model, cols=model.categorical_features)
-df_concat = pd.concat([tr_df, cat_df], axis=1)
-model.add_feature_to_skip_list(model.categorical_features)
-model.add_training_df(df_train=df_concat)
-del (tr_df);
-del (cat_df);
-del (df_concat)
+# make cat features int and replace missing with -999
+for catfeat in model.categorical_features:
+    model.df_train.loc[model.df_train[catfeat].isna(), catfeat] = -999  # NaN
+    model.df_train[catfeat] = model.df_train[catfeat].astype(int)
+
+if apply_onehot_encoding:
+    ohc = featurize.MultiOneHotEncoder(catfeatures=model.categorical_features)
+    df_tr = ohc.transform(model.df_train)
+    cat_df = model.df_train[model.categorical_features + ['sample_id']]
+    df_tr = df_tr.merge(cat_df, how='left', on='sample_id')
+    model.add_feature_to_skip_list(model.categorical_features)
+    model.add_training_df(df_train=df_tr)
+    del (df_tr)
+    del (cat_df)
+
+if apply_summary_encoding:
+    cat_feat = ['KG_climate_zone', 'HUC2',  'state_id', 'rur_urb_cnty']
+    df_trans = featurize.summary_encode(model, cols=cat_feat,
+                                        quantiles=[0.25, 0.5, 0.75],
+                                        max_target=0.18, min_target=0.03,
+                                        min_pop=0)
+    model.add_feature_to_skip_list(model.categorical_features)
+    model.add_training_df(df_train=df_trans)
+    del (df_trans)
+
+# =============================
+# Prepare Prediction df
+# =============================
+model.df_pred = model.df_train.copy()
+
+# =============================
+# Outliers
+# =============================
+opts = ['monthly_fraction>0.18', 'monthly_fraction<0.03', 'simil_stat<0.7']
+model.apply_func(func=outliers_utils.drop_values, type='outliers_func', opts=opts)
+model.apply_func(func=outliers_utils.drop_na_target, type='outliers_func')
 
 # =============================
 # Prepare the initial estimator
@@ -92,19 +139,44 @@ params = {
     'min_child_weight': 1,
     'gamma': 0,  #
     'max_delta_step': 0,
-    'seed': seed2,
+    'seed': 456,
     'importance_type': 'total_gain'  # this is used in boruta
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 gb = estimators.xgb_estimator(params)
-
-encode_cat_features = False
-if encode_cat_features:
-    # pipeline
-    main_pipeline = pipelines.make_pipeline(model)
-    main_pipeline.append(('estimator', gb))
-    gb = Pipeline(main_pipeline)
-
 features = model.features
 target = model.target
 
@@ -113,50 +185,26 @@ model.log.to_table(final_dataset[features].describe(percentiles=[0, 0.05, 0.5, 0
 model.log.to_table(final_dataset[[target]].describe(percentiles=[0, 0.05, 0.5, 0.95, 1]), "Target", header=-1)
 
 X_train, X_test, y_train, y_test = splittors.stratified_split(model, test_size=0.3, id_column='HUC2', seed=123)
-# X_train, X_test, y_train, y_test = splittors.split_by_id(model, args = {'frac' : 0.7, 'seed':547, 'id_column':'sys_id' })
-# X_train, X_test, y_train, y_test = train_test_split(final_dataset[features],  final_dataset[target],
-#                                                               test_size=0.2, random_state=123)#, shuffle = False
+
+model.splits = {"X_train": X_train,
+                "X_test": X_test,
+                "y_train": y_train,
+                "y_test": y_test}
+
+# =============================
+# initial Model Training
+# =============================
+
 if train_initial_model:
-    vv = gb.fit(X_train[features], y_train)
-    y_hat = gb.predict(X_test[features])
-    err = pd.DataFrame(y_test - y_hat)
+    trained_gb = gb.fit(X_train[features], y_train)
 
-    model_file_name = r".\models\monthly\1_initial_model.json"
+    model_file_name = os.path.join(model.model_ws, r"1_initial_model.json")
     model.log.info("\n\n Initial Model saved at ")
-    vv.save_model(model_file_name)
+    joblib.dump(trained_gb, model_file_name)
 
-    # =============================
-    # initial diagnose
-    # =============================
-    heading = "Scatter Plot for Month Water Use Fractions"
-    xlabel = "Actual Water Use Monthly Fraction - Unitless"
-    ylabel = "Estimated Water Use Monthly Fraction - Unitless"
-    figfile = os.path.join(figures_folder, "monthly_one_2_one_initial.pdf")
-    figures.one_to_one(y_test, y_hat, heading=heading, xlabel=xlabel, ylabel=ylabel, figfile=figfile)
-    model.log.info("\n\n\n ======= Initial model performance ==========")
-    df_metric = model_diagnose.generate_metrics(y_true=y_test, y_pred=y_hat)
-    model.log.info("See initial model perfromance at {}".format(figfile))
-    model.log.to_table(df_metric)
-
-    # regional performance
-    perf_df = model_diagnose.generat_metric_by_category(gb, X_test, y_test, features=features, category='HUC2')
-
-    figfile = os.path.join(figures_folder, "monthly_validation_error_map_initial.pdf")
-    figures.plot_scatter_map(X_test['LONG'], X_test['LAT'], err,
-                             legend_column='monthly_fraction', cmap='jet', title="Monthly Fractions", figfile=figfile,
-                             log_scale=False)
-
-    # plot importance
-    importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
-    for type in importance_types:
-        figfile = os.path.join(figures_folder, "annual_feature_importance_{}_v_initial.pdf".format(type))
-        if isinstance(gb, Pipeline):
-            estm = gb.named_steps["estimator"]
-            gb.named_steps["preprocess"].get_feature_names()
-        else:
-            estm = gb
-
-        figures.feature_importance(estm, max_num_feature=15, type=type, figfile=figfile)
+    #  diagnose
+    if plot_diagnosis:
+        model_diagnose.complete_model_diagnose(model, estimator=trained_gb, basename="initial", monthly=True)
 
 # =============================
 # Simplify model by dropping
@@ -166,9 +214,9 @@ drop_features = {}
 feat_selec_file = 'confirmed_selected_features_monthly.json'
 if run_boruta:
     rf = xgb.XGBRFRegressor(n_estimators=500, subsample=0.8, colsample_bynode=0.5, max_depth=7, )
-
+    gb = trained_gb
     # impute by mean for boruta
-    final_dataset_ = final_dataset.copy()
+    final_dataset_ =  model.df_train.copy()
     for feat in features:
         nanMask = final_dataset_[feat].isna()
         feat_mean = final_dataset_[feat].mean()
@@ -203,88 +251,74 @@ if run_boruta:
     drop_features[keyname] = list(set(perm_confirm_features))
     with open(feat_selec_file, 'w') as convert_file:
         convert_file.write(json.dumps(drop_features))
-
+# =============================
+# Evaluate model after features
+# selection
+# =============================
 if use_boruta_results:
-    # produced by runing "run_boruta"
-    confirmed_features = ['Year', 'pop_density', 'gini', 'n_industry', 'median_income',
-                          'median_h_year', 'HUC2_50', 'HUC2_75', 'LAT', 'LONG', 'county_id_5',
-                          'county_id_25', 'county_id_50', 'county_id_75', 'county_id_95',
-                          'awuds_pop_cnt', 'zill_nhouse', 'LotSizeSquareFeet_sum',
-                          'YearBuilt_mean', 'BuildingAreaSqFt_sum', 'TaxAmount_mean',
-                          'NoOfStories_mean', 'bdg_ftp_count', 'bdg_gt_2median', 'bdg_lt_2median',
-                          'bdg_lt_4median', 'av_house_age', 'n_houses', 'average_income',
-                          'state_id_5', 'state_id_25', 'state_id_50', 'state_id_95', 'Commercial',
-                          'Domestic', 'Urban_Misc', 'Production', 'Water', 'WSA_SQKM',
-                          'KG_climate_zone_5', 'KG_climate_zone_75', 'KG_climate_zone_95',
-                          'prc_n_lt_ninth_gr', 'prc_n_ninth_to_twelth_gr', 'prc_n_hs_grad',
-                          'prc_n_bachelors', 'prc_n_masters_phd', 'pop', 'cii_frac', 'etr', 'pr',
-                          'pr_cumdev', 'tmmn', 'tmmx']
 
-    features_to_drop = set(features).difference(confirmed_features)
-    model.add_feature_to_skip_list(list(features_to_drop))
-    features = model.features
+    model.log.info(" *** Evaluate Selection using file : {}".format(feat_selec_file))
+    f = open(feat_selec_file)
+    feature_selection_info = json.load(f)
+    f.close()
 
-    vv = gb.fit(X_train[features], y_train)
-    y_hat = gb.predict(X_test[features])
-    err = pd.DataFrame(y_test - y_hat)
-
-    model_file_name = r".\models\monthly\2_model_after_dropping_unimportant_features.json"
-    model.log.info("\n\n Initial Model saved at ")
-    vv.save_model(model_file_name)
-
-    # =============================
-    # model diagnose after droping unimportant features
-    # =============================
-    heading = "Scatter Plot for Month Water Use Fractions"
-    xlabel = "Actual Water Use Monthly Fraction - Unitless"
-    ylabel = "Estimated Water Use Monthly Fraction - Unitless"
-    figfile = os.path.join(figures_folder, "monthly_one_2_one_after_boruta.pdf")
-    figures.one_to_one(y_test, y_hat, heading=heading, xlabel=xlabel, ylabel=ylabel, figfile=figfile)
-    model.log.info("\n\n\n ======= model performance ==========")
-    df_metric = model_diagnose.generate_metrics(y_true=y_test, y_pred=y_hat)
-    model.log.info("See initial model perfromance at {}".format(figfile))
-    model.log.to_table(df_metric)
-
-    # regional performance
-    perf_df = model_diagnose.generat_metric_by_category(gb, X_test, y_test, features=features, category='HUC2')
-
-    figfile = os.path.join(figures_folder, "monthly_validation_error_map_boruta.pdf")
-    figures.plot_scatter_map(X_test['LONG'], X_test['LAT'], err,
-                             legend_column='monthly_fraction', cmap='jet', title="Monthly Fractions", figfile=figfile,
-                             log_scale=False)
-
-    # plot importance
-    importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
-    for type in importance_types:
-        figfile = os.path.join(figures_folder, "annual_feature_importance_{}_v_boruta.pdf".format(type))
-        if isinstance(gb, Pipeline):
-            estm = gb.named_steps["estimator"]
-            gb.named_steps["preprocess"].get_feature_names()
+    selection_method = sorted(list(feature_selection_info.keys()))
+    selection_eval_results = []
+    for method in selection_method:
+        print("Evaluating selection method {}".format(method))
+        curr_features = feature_selection_info[method]
+        if "permut" in method:
+            model_type = 'xgb'
+            imp_metric = 'r2'
         else:
-            estm = gb
+            parts = method.split("_")
+            model_type = parts[0]
+            if len(parts) > 2:
+                imp_metric = "_".join(parts[1:])
+            else:
+                imp_metric = parts[1]
 
-        figures.feature_importance(estm, max_num_feature=15, type=type, figfile=figfile)
+        vv = gb.fit(X_train[curr_features], y_train)
+        y_hat = vv.predict(X_test[curr_features])
+        err = pd.DataFrame(y_test - y_hat)
+        df_metric = model_diagnose.generate_metrics(y_true=y_test, y_pred=y_hat)
+        df_metric['model'] = model_type
+        df_metric['importance_metrix'] = imp_metric
+        df_metric['nfeatures'] = len(curr_features)
+        selection_eval_results.append(df_metric.copy())
+    selection_eval_results = pd.concat(selection_eval_results)
+    model.log.to_table(df=selection_eval_results, title="Evaluation of feature selection ",
+                       header=len(selection_eval_results))
+    selection_eval_results.to_csv(r"results\feature_selection_summary_monthly.csv")
 
-if run_permutation_selection:
-    scoring = ['r2']  # , 'neg_mean_absolute_percentage_error', 'neg_mean_squared_error']
-    feature_importance = selection.permutation_selection(X_test[features], y_test, estimator=gb, scoring=scoring,
-                                                         n_repeats=10, features=features)
-    metrics = feature_importance['metric'].unique()
-    for m in metrics:
-        curr_ = feature_importance[feature_importance['metric'].isin([m])]
+# =============================
+# Outliers Detection ...
+# =============================
+if detect_outliers:
+    dataset = model.df_train.copy()
 
-if run_chi_selection:
-    from sklearn.feature_selection import chi2
+    f = open(feat_selec_file)
+    feature_selection_info = json.load(f)
+    f.close()
+    features_to_use = feature_selection_info['rf_gain']
 
-    chi_test_df = selection.chi_square_test(X=final_dataset[features], y=final_dataset[target], nbins=20)
+    mis_mse =  (1.0/100.0)**2.0
+    df_results = denoise.purify(dataset, target='monthly_fraction', features=features_to_use, col_id='sample_id',
+                                max_iterations=400, estimator=gb, score='neg_root_mean_squared_error',
+                                min_signal_ratio=0.17, min_mse=mis_mse)
 
-if run_RFECV_selection:
-    from sklearn.feature_selection import RFE, RFECV
 
-    selector = RFECV(vv, verbose=10, scoring='r2')
-    selector.fit(final_dataset[features], final_dataset[target])
-    features_selected = selector.get_feature_names_out()
-    feature_rank = selector.ranking_
+if make_prediction:
+
+    model_file_name = os.path.join(model.model_ws, r"1_initial_model.json")
+    model_predict = joblib.load(model_file_name)
+    try:
+        pfeatures = model_predict.get_booster().feature_names
+    except:
+        pfeatures = model_predict.steps[-1][1].get_booster().feature_names
+    model.df_pred['est_month_frac'] = model_predict.predict(model.df_pred[pfeatures])
+
+    model_diagnose.complete_monthly_model_eval(model, estimator=model_predict, basename="init")
 
 # =============================
 # Interpret the model
