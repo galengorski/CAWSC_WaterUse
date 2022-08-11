@@ -179,6 +179,7 @@ def purify(df, **kwargs):
     error_quantile = 0.90
     min_rel_error = 0.05
     for iter in range(N):
+        print("Iteration Number {}".format(iter))
         # remove outliers from  signal
 
         new_score, new_df, df_move, signal_model, error_upper_threshold, err_up_rel = propose_sample_removal(df_signal, features,

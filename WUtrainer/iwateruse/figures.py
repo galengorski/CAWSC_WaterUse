@@ -521,6 +521,7 @@ def plot_multiple_scatter_map(df, xcol, ycol, legend_column,
         plt.close(fig)
         return df_shp
 
+        #Monthly fraction time series
         nrows = 3
         ncols = 6
         fig, axes = plt.subplots(ncols, nrows, figsize=(13.33, 7.5), sharex=True)
@@ -552,12 +553,45 @@ def plot_multiple_scatter_map(df, xcol, ycol, legend_column,
 
         fig.text(0.5, 0.01, 'Year', ha='center', fontsize=12)
         fig.text(0.08, 0.5, 'Per Capita Per Day (G) ', va='center', rotation='vertical', fontsize=12)
+        plt.suptitle(super_title, fontsize=20)
 
-        plot = sns.lineplot(data=df, x='Month', y='est_month_frac', hue="HUC2", style="HUC2")
-        handles, labels = plot.axes[0].get_legend_handles_labels()
-        plot._legend.remove()
-        plot.fig.legend(handles, labels, ncol=2, loc='upper center',
-                        bbox_to_anchor=(0.5, 1.15), frameon=False)
+        #----
+
+        nrows = 3
+        ncols = 6
+        fig, axes = plt.subplots(ncols, nrows, figsize=(7.69, 7.39), sharex=True)
+        huc2s = df['HUC2'].unique()
+        huc2s = np.sort(huc2s)
+        n = 0
+        for h in huc2s:
+            curr_ = df[df['HUC2'] == h]
+            curr_.reset_index(inplace=True)
+            i = int(n / nrows)
+            j = np.mod(n, nrows)
+            n = n + 1
+            ax = axes[i][j]
+            with styles.USGSMap():
+                sns.boxplot(ax= ax, data = curr_, x = 'Month', y = 'est_month_frac', showfliers = False,
+                            linewidth= 1)
+                title = "HUC2 = {}".format(h)
+                ax.text(0.99, 0.85, title,
+                        verticalalignment='bottom', horizontalalignment='right',
+                        transform=ax.transAxes,
+                        color='b', fontsize=7)
+                ax.set_ylabel('')
+                ax.set_xlabel('')
+                ax.set_ylim([0.03, 0.19])
+                ax.xaxis.set_ticks(np.arange(0, 12, 1))
+                ax.set_xticklabels(ax.get_xticks()+1, rotation=90)
+                ax.xaxis.set_tick_params(labelsize=8)
+                ax.yaxis.set_tick_params(labelsize=8)
+
+        fig.text(0.5, 0.02, 'Month', ha='center', fontsize=11)
+        fig.text(0.04, 0.5, 'Monthly Water Use Fraction', va='center', rotation='vertical', fontsize=11)
+        plt.suptitle("Average Monthly Fraction", fontsize=16)
+
+
+
 
 
 

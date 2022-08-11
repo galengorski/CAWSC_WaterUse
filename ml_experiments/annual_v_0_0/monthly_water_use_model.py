@@ -41,8 +41,8 @@ run_permutation_selection = False
 run_chi_selection = False
 run_RFECV_selection = False
 detect_outliers = False
-train_denoised_model = False
-make_prediction = True
+train_denoised_model = True
+make_prediction = False
 interpret_model = False
 quantile_regression = False
 
@@ -52,7 +52,7 @@ files_info['usa_conus_file'] = r"C:\work\water_use\mldataset\gis\nation_gis_file
 files_info['huc2_shp_file'] = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_huc2.shp'
 files_info['state_shp_file'] = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_states.shp'
 files_info['county_shp_file'] = r'C:\work\water_use\mldataset\gis\nation_gis_files\conus_county.shp'
-files_info['outliers_file_used'] = r"outliers_7_24_22.csv"
+files_info['outliers_file_used'] = r"monthly_outliers.csv"
 files_info['AWUDS_file'] = r"C:\work\water_use\mldataset\ml\training\misc_features\awuds_all_years.csv"
 
 # =============================
@@ -72,7 +72,7 @@ base_features = model.features
 # =============================
 # Use selected features
 # =============================
-if 0:
+if 1:
     selected_features = model.load_features_selected(method='xgb_total_cover',
                                                      feat_selec_file = 'confirmed_selected_features_monthly.json')
     dropped_feat = list(set(base_features).difference(selected_features))
@@ -116,7 +116,8 @@ model.df_pred = model.df_train.copy()
 # =============================
 # Outliers
 # =============================
-opts = ['monthly_fraction>0.18', 'monthly_fraction<0.03', 'simil_stat<0.7']
+#opts = ['monthly_fraction>0.18', 'monthly_fraction<0.03', 'simil_stat<0.7']
+opts = ['monthly_fraction>0.2', 'monthly_fraction<0.01', 'simil_stat<0.3']
 model.apply_func(func=outliers_utils.drop_values, type='outliers_func', opts=opts)
 model.apply_func(func=outliers_utils.drop_na_target, type='outliers_func')
 
@@ -300,12 +301,69 @@ if detect_outliers:
     f = open(feat_selec_file)
     feature_selection_info = json.load(f)
     f.close()
-    features_to_use = feature_selection_info['rf_gain']
+    features_to_use = model.features
 
     mis_mse =  (1.0/100.0)**2.0
     df_results = denoise.purify(dataset, target='monthly_fraction', features=features_to_use, col_id='sample_id',
                                 max_iterations=400, estimator=gb, score='neg_root_mean_squared_error',
                                 min_signal_ratio=0.17, min_mse=mis_mse)
+
+# =============================
+# Train denoised model
+# =============================
+if train_denoised_model:
+    model.log.info("**** Train model with denoised data ...")
+    model.log.info("**** Outliers file name : {}".format(files_info['outliers_file_used']))
+    weight_threshold = 0.05
+    model.log.info("**** Weight Threshold value: {}".format(weight_threshold))
+    dfff = model.df_train.copy()
+    outlier_info = pd.read_csv(files_info['outliers_file_used'])
+    ids = []
+    for col in outlier_info.columns:
+        if col.isdigit():
+            ids.append(col)
+
+    outlier_info['signal_ratio'] = outlier_info[ids].sum(axis=1) / len(ids)
+    oo = outlier_info[outlier_info['iter'] > 30]
+    w = oo[ids].mean(axis=0)
+    w = w.reset_index().rename(columns={'index': 'sample_id', 0: 'weight'})
+    w['sample_id'] = w['sample_id'].astype(int)
+    dfff = dfff.merge(w, how='left', on='sample_id')
+    dfff1 = dfff[dfff['weight'] > weight_threshold]
+    dfff1['weight'] = 1.0
+    model.log.to_table(dfff1, title='Denoised Data set')
+
+    X_train, X_test, y_train, y_test = train_test_split(dfff1, dfff1[target], test_size=0.3,
+                                                        shuffle=True,
+                                                        random_state=123, stratify=dfff1['HUC2'])
+
+    model.splits = {"X_train": X_train,
+                    "X_test": X_test,
+                    "y_train": y_train,
+                    "y_test": y_test}
+
+    # --- use all features
+    train_with_weights = False
+    if train_with_weights:
+        w_train = X_train['weight'].values
+        w_test = X_test['weight'].values
+        gb.fit(X_train[features], y_train, sample_weight=w_train)
+    else:
+        gb.fit(X_train[features], y_train)
+    y_hat = gb.predict(X_test[features])
+    df_metric = model_diagnose.generate_metrics(y_true=y_test, y_pred=y_hat)
+    df_metric.to_csv(os.path.join(model.model_ws, 'metric_denoised_all_features.csv'), index=False)
+    model.log.to_table(df_metric, title="Metrics of denoised model with selected features")
+
+    # diagnose model
+    model_diagnose.complete_model_diagnose(model, estimator=gb, basename="denoised")
+
+    # save model
+    model_file_name = os.path.join(model.model_ws, "denoised_model_with_selected_features.json")
+    model.log.info("\n\n Initial Model saved at {}".format(model_file_name))
+    joblib.dump(gb, model_file_name)
+    v = 1
+
 
 
 if make_prediction:
