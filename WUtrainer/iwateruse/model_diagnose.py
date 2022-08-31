@@ -91,14 +91,14 @@ def complete_model_diagnose(model, estimator=None, basename="initial", monthly =
     # one2one plot
     # -----------------------
     if monthly:
-        heading = "Scatter Plot for Monthly Water Use Fractions"
+        heading = "Estimated and Actual Monthly Water Use Fractions"
         xlabel = "Actual Monthly Fraction - Unitless"
         ylabel = "Estimated Monthly Fraction - Unitless"
         figfile = os.path.join(fig_folder, "1_annual_1to1_{}.pdf".format(basename))
     else:
-        heading = "Scatter Plot for Annual Water Use"
-        xlabel = "Actual Per Capita Water Use - Gallons"
-        ylabel = "Estimated Per Capita Water Use - Gallons"
+        heading = "Estimated and Actual Annual Water Use"
+        xlabel = "Actual Per Capita Water Use - Gallons Per Capita Per Day"
+        ylabel = "Estimated Per Capita Water Use - Gallons Per Capita Per Day"
         figfile = os.path.join(fig_folder, "1_annual_1to1_{}.pdf".format(basename))
 
     # -----------------------
@@ -132,27 +132,23 @@ def complete_model_diagnose(model, estimator=None, basename="initial", monthly =
     figfile = os.path.join(fig_folder, "6_validation_by_huc2_{}.pdf".format(basename))
     df_shp.to_file(figfile + ".shp")
 
-    legend_column = model.target
-    title = "Average Annual Water Use - Gallons per Capita per Day "
-
     if monthly:
-
-        title = "Monthly Fraction - Unitless"
+        # title = "Monthly Fraction - Unitless"
         fig_info = {}
         nrows = 3
         ncols = 4
         fig_info['nrows'] = nrows
         fig_info['ncols'] = ncols
-
         fig_info['cmap'] = 'jet'
         fig_info['log_scale'] =False
         fig_info['epsg'] = 5070
-        fig_info['title'] =  title
         df_ = X_test.copy()
         df_['err'] = err['monthly_fraction']
         df_['monthly_fraction'] = y_hat
-        legend_column = 'monthly_fraction'
-
+        legend_column = 'err'
+        fig_info['super_title'] = "Validation Error for Estimated Monthly Fraction"
+        fig_info['vmax'] = 0.18
+        fig_info['vmin'] = 0.03
 
         figfile = os.path.join(fig_folder, "7_map_val_error_{}.pdf".format(basename))
         figures.plot_multiple_scatter_map(df_, xcol = 'LONG', ycol = 'LAT',
@@ -161,6 +157,8 @@ def complete_model_diagnose(model, estimator=None, basename="initial", monthly =
 
 
     else:
+        legend_column = model.target
+        title = "Average Annual Water Use - Gallons per Capita per Day "
         figfile = os.path.join(fig_folder, "7_map_val_error_{}.pdf".format(basename))
         df_shp = figures.plot_scatter_map(X_test['LONG'], X_test['LAT'], err,
                                           legend_column=legend_column, cmap='jet', title=title, figfile=figfile,
@@ -249,26 +247,30 @@ def complete_monthly_model_eval(model, estimator=None, basename="initial"):
     df_pred = model.df_pred
 
     # maps of monthly fractions
-    if 0:
-        fig_info = {}
-        fig_info['super_title'] = "Estimated Monthly Fraction"
-        nrows = 3
-        ncols = 4
-        fig_info['nrows'] = nrows
-        fig_info['ncols'] = ncols
-        fig_info['cmap'] = 'jet'
-        fig_info['log_scale'] = False
-        fig_info['epsg'] = 5070
-        fig_info['title'] = ''
-        legend_column = 'est_month_frac'
-        figfile = os.path.join(fig_folder, "1_model_monthly_fractions_{}.pdf".format(basename))
-        df_shp = figures.plot_multiple_scatter_map(df_pred, xcol='LONG', ycol='LAT',
-                                          legend_column= legend_column, fig_info = fig_info,
-                                          figfile=figfile)
+
+    fig_info = {}
+    fig_info['super_title'] = "Estimated Monthly Water Use Fractions"
+    nrows = 3
+    ncols = 4
+    fig_info['nrows'] = nrows
+    fig_info['ncols'] = ncols
+    fig_info['cmap'] = 'jet'
+    fig_info['log_scale'] = False
+    fig_info['epsg'] = 5070
+    fig_info['title'] = ''
+    legend_column = 'est_month_frac'
+    figfile = os.path.join(fig_folder, "1_model_monthly_fractions_{}.pdf".format(basename))
+    df_shp = figures.plot_multiple_scatter_map(df_pred, xcol='LONG', ycol='LAT',
+                                      legend_column= legend_column, fig_info = fig_info,
+                                      figfile=figfile)
 
     # maps of monthly per capita
+    figfile = os.path.join(fig_folder, "2_boxplot_by_huc2_{}.pdf".format(basename))
+    figures.plot_box_plot_for_monthly_fractions(df_pred, figfile = figfile)
 
     # time series of HUC2 per capita (or fraction)
+    figfile = os.path.join(fig_folder, "3_average_MF_timeseries_by_huc2_{}.pdf".format(basename))
+    figures.plot_timeseries_monthly_frac(df_pred, figfile = figfile)
 
 
 

@@ -56,7 +56,7 @@ def summary_encode(model, cols, quantiles = None, max_target = 500, min_target =
     df_.loc[df_['pop'] < min_pop, 'target2'] = np.NAN
     for feat in cols:
         for q in quantiles:
-            nm = feat + "_" + str(int(q * 100))
+            nm = feat + "_" + "smc_"+str(int(q * 100))
             df2 = df_[[feat, 'target2']].groupby(feat).quantile(q)
             df2.reset_index(inplace=True)
             df2.loc[df2['target2'].isna(), 'target2'] = default_value

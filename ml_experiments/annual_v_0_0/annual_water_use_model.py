@@ -17,8 +17,9 @@ import joblib
 from sklearn.pipeline import Pipeline
 from iwateruse.model import Model
 from iwateruse import targets, weights, pipelines, outliers_utils, estimators, featurize, predictions
-from iwateruse import selection
+from iwateruse import selection, interpret
 from sklearn.model_selection import train_test_split
+import copy
 
 warnings.filterwarnings('ignore')
 xgb.set_config(verbosity=0)
@@ -30,19 +31,24 @@ work_space = r"models\annual\m7_29_2022"
 clean_folder = False
 log_file = 'train_log.log'
 
+# features
 apply_onehot_encoding = False
 apply_summary_encoding = True
-train_initial_model = True
+include_all_features = False
+
+train_initial_model = False
+train_model_no_encoding = False
+train_denoised_model = False
 plot_diagnosis = False
+
 run_boruta = False
 use_boruta_results = False
 run_permutation_selection = False
 run_chi_selection = False
 run_RFECV_selection = False
 detect_outliers = False
-train_denoised_model = True
-make_prediction = True
-interpret_model = False
+make_prediction = False
+interpret_model = True
 quantile_regression = False
 
 # files
@@ -68,12 +74,19 @@ df_train = pd.read_csv(datafile)
 model.add_training_df(df_train=df_train)
 base_features = model.features
 
+#model.light_copy(model)
+
+model.features_info = {}
+model.features_info['all_base_features'] = model.features
+
 # =============================
 # Use selected features
 # =============================
 selected_features = model.load_features_selected(method='xgb_cover')
 dropped_feat = list(set(base_features).difference(selected_features))
 model.add_feature_to_skip_list(dropped_feat)
+model.features_info['selected_features'] = model.features
+
 
 model.apply_func(func=targets.compute_per_capita, type='target_func', args=None)
 
@@ -84,24 +97,35 @@ model.apply_func(func=targets.compute_per_capita, type='target_func', args=None)
 for catfeat in model.categorical_features:
     model.df_train.loc[model.df_train[catfeat].isna(), catfeat] = -999  # NaN
     model.df_train[catfeat] = model.df_train[catfeat].astype(int)
+model.add_feature_to_skip_list(model.categorical_features)
+model.features_info['cat_features'] = model.categorical_features
 
-if apply_onehot_encoding:
-    ohc = featurize.MultiOneHotEncoder(catfeatures=model.categorical_features)
-    df_tr = ohc.transform(model.df_train)
-    cat_df = model.df_train[model.categorical_features + ['sample_id']]
-    df_tr = df_tr.merge(cat_df, how='left', on='sample_id')
-    model.add_feature_to_skip_list(model.categorical_features)
-    model.add_training_df(df_train=df_tr)
-    del (df_tr)
-    del (cat_df)
+# apply onehot encoding
+cols_before_encoding = model.df_train.columns
+ohc = featurize.MultiOneHotEncoder(catfeatures=model.categorical_features)
+df_tr = ohc.transform(model.df_train)
+cat_df = model.df_train[model.categorical_features + ['sample_id']]
+df_tr = df_tr.merge(cat_df, how='left', on='sample_id')
+model.add_feature_to_skip_list(model.categorical_features)
+model.add_training_df(df_train=df_tr)
+cols_after_encoding = df_tr.columns
+ohc_features = set(cols_after_encoding).difference(cols_before_encoding)
+model.features_info['ohc_features'] = list(ohc_features)
+del (df_tr)
+del (cat_df)
 
-if apply_summary_encoding:
-    df_trans = featurize.summary_encode(model, cols=model.categorical_features,
-                                        quantiles=[0.25, 0.5, 0.75])
-    model.add_feature_to_skip_list(model.categorical_features)
-    model.add_training_df(df_train=df_trans)
-    del (df_trans)
+# summary encoding
+cols_before_encoding = model.df_train.columns
+df_trans = featurize.summary_encode(model, cols=model.categorical_features,
+                                    quantiles=[0.25, 0.5, 0.75])
+model.add_feature_to_skip_list(model.categorical_features)
+model.add_training_df(df_train=df_trans)
+cols_after_encoding = model.df_train.columns
+summary_tragte_features = set(cols_after_encoding).difference(cols_before_encoding)
+del (df_trans)
+model.features_info['summary_tragte_features'] = list(summary_tragte_features)
 
+model.get_model_options()
 # =============================
 # Prepare Prediction df
 # =============================
@@ -186,8 +210,26 @@ model.splits = {"X_train": X_train,
                 "y_test": y_test}
 
 # =============================
+#  Model Training
+# =============================
+available_model_options = ['all_full_NoEncoding_xgb', 'all_full_ohc_xgb', 'all_full_smc_xgb', 'all_denoised_NoEncoding_xgb', 'all_denoised_ohc_xgb', 'all_denoised_smc_xgb', 'reduced_full_NoEncoding_xgb', 'reduced_full_ohc_xgb', 'reduced_full_smc_xgb', 'reduced_denoised_NoEncoding_xgb', 'reduced_denoised_ohc_xgb', 'reduced_denoised_smc_xgb'])
+
+models_to_train = []
+
+for mmodel in models_to_train:
+    vvvv = 1
+    #get features
+    #add features to model
+    # fit model
+    # save model
+    # light
+
+# =============================
 # initial Model Training
 # =============================
+
+
+
 
 if train_initial_model:
     trained_gb = gb.fit(X_train[features], y_train)
@@ -198,6 +240,16 @@ if train_initial_model:
 
     #  diagnose
     model_diagnose.complete_model_diagnose(model, estimator=trained_gb, basename="initial")
+
+if train_model_no_encoding:
+    trained_gb = gb.fit(X_train[features], y_train)
+
+    model_file_name = os.path.join(model.model_ws, r"1_initial_model_no_encoding.json")
+    model.log.info("\n\n Initial Model saved at ")
+    joblib.dump(trained_gb, model_file_name)
+
+    #  diagnose
+    model_diagnose.complete_model_diagnose(model, estimator=trained_gb, basename="initial_no_encoding")
 
 # =============================
 # Simplify model by dropping
@@ -384,32 +436,38 @@ if make_prediction:
 # =============================
 # Interpret the model
 # =============================
-shap.partial_dependence_plot('BuildingAreaSqFt_sum', gb.predict, X_test, ice=
-False, model_expected_value=True, feature_expected_value=True)
+if interpret_model:
+    interp_folder = os.path.join(model.model_ws, "interp")
+    if not(os.path.isdir(interp_folder)):
+        os.mkdir(interp_folder)
 
-# X100 = shap.utils.sample(X_train, 100)
-# X500 = shap.utils.sample(X_train, 5000)
-# explainer = shap.Explainer(model.predict, X100)
-X100 = X_train[X_train['HUC2'] == 1][features]
-# X100 = shap.utils.sample(X100, 571)
-explainer = shap.Explainer(model_predict, X100)
-# explainer = shap.TreeExplainer(gb, X100)
-shap_values = explainer(X100)
-# shap.plots.waterfall(shap_values[150], max_display=14)
-# shap.summary_plot(shap_values, X100)
-shap.plots.beeswarm(shap_values, max_display=14)
-shap.plots.scatter(shap_values[:, "etr"], color=shap_values)
-# PDPs
-from sklearn.inspection import PartialDependenceDisplay
+    # =============================
+    # PDPs plots
+    # =============================
+    #model_file_name = os.path.join(model.model_ws, r"1_initial_model.json")
+    model_file_name = os.path.join(model.model_ws, r"1_initial_model_no_encoding.json")
+    #model_file_name = os.path.join(model.model_ws, r"denoised_model_with_selected_features.json")
+    model_predict = joblib.load(model_file_name)
+    try:
+        pfeatures = model_predict.get_booster().feature_names
+    except:
+        pfeatures = model_predict.steps[-1][1].get_booster().feature_names
+    basename = 'initial_with_encoding'
+    if 0:
+        fn = os.path.join(interp_folder, 'interp_partial_dep_plots_{}.pdf'.format(basename))
+        interpret.pdp_plots(estimator=model_predict, df = model.df_train, fn = fn, features=pfeatures)
 
-common_params = {
-    "subsample": 50,
-    "n_jobs": -1,
-    "grid_resolution": 20,
-    "random_state": 0,
-}
-interp_feat = ['bdg_lt_2median']
-PartialDependenceDisplay.from_estimator(gb, X_test, interp_feat)
+    ffeat = ['median_income', 'average_income', 'prc_n_bachelors', 'prc_n_masters_phd', 'prc_n_associates']
+    fn = os.path.join(interp_folder, 'interp_by_huc2_partial_dep_plots_{}.pdf'.format(basename))
+    interpret.pdp_plots_by_huc2(estimator = model_predict, df = model.df_train , fn = fn, all_features= pfeatures,
+                                interp_feat=ffeat,  huc2=[2,18,11])
+
+    # =============================
+    # SHAP plots for each HUC2
+    # =============================
+    fn = os.path.join(interp_folder, 'interp_shap_values_{}.pdf'.format(basename))
+    interpret.shap_plots(model, estimator = model_predict, fn = fn, features = pfeatures, data_frac = 0.5)
+    ccc = 1
 
 # =============================
 # Quantile regression

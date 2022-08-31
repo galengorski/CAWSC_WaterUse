@@ -41,8 +41,8 @@ run_permutation_selection = False
 run_chi_selection = False
 run_RFECV_selection = False
 detect_outliers = False
-train_denoised_model = True
-make_prediction = False
+train_denoised_model = False
+make_prediction = True
 interpret_model = False
 quantile_regression = False
 
@@ -99,7 +99,7 @@ if apply_onehot_encoding:
     del (cat_df)
 
 if apply_summary_encoding:
-    cat_feat = ['KG_climate_zone', 'HUC2',  'state_id', 'rur_urb_cnty']
+    cat_feat = ['KG_climate_zone', 'HUC2'] #'state_id', 'rur_urb_cnty'
     df_trans = featurize.summary_encode(model, cols=cat_feat,
                                         quantiles=[0.25, 0.5, 0.75],
                                         max_target=0.18, min_target=0.03,
@@ -314,20 +314,11 @@ if detect_outliers:
 if train_denoised_model:
     model.log.info("**** Train model with denoised data ...")
     model.log.info("**** Outliers file name : {}".format(files_info['outliers_file_used']))
-    weight_threshold = 0.05
+    weight_threshold = 0.1
     model.log.info("**** Weight Threshold value: {}".format(weight_threshold))
     dfff = model.df_train.copy()
-    outlier_info = pd.read_csv(files_info['outliers_file_used'])
-    ids = []
-    for col in outlier_info.columns:
-        if col.isdigit():
-            ids.append(col)
 
-    outlier_info['signal_ratio'] = outlier_info[ids].sum(axis=1) / len(ids)
-    oo = outlier_info[outlier_info['iter'] > 30]
-    w = oo[ids].mean(axis=0)
-    w = w.reset_index().rename(columns={'index': 'sample_id', 0: 'weight'})
-    w['sample_id'] = w['sample_id'].astype(int)
+    w = pd.read_csv(r"monthly_weights_weights.csv")
     dfff = dfff.merge(w, how='left', on='sample_id')
     dfff1 = dfff[dfff['weight'] > weight_threshold]
     dfff1['weight'] = 1.0
@@ -356,7 +347,8 @@ if train_denoised_model:
     model.log.to_table(df_metric, title="Metrics of denoised model with selected features")
 
     # diagnose model
-    model_diagnose.complete_model_diagnose(model, estimator=gb, basename="denoised")
+    model_diagnose.complete_model_diagnose(model, estimator=gb, basename="denoised",
+                                           monthly=True)
 
     # save model
     model_file_name = os.path.join(model.model_ws, "denoised_model_with_selected_features.json")
@@ -366,17 +358,22 @@ if train_denoised_model:
 
 
 
+
+
 if make_prediction:
-
-    model_file_name = os.path.join(model.model_ws, r"1_initial_model.json")
-    model_predict = joblib.load(model_file_name)
-    try:
-        pfeatures = model_predict.get_booster().feature_names
-    except:
-        pfeatures = model_predict.steps[-1][1].get_booster().feature_names
-    model.df_pred['est_month_frac'] = model_predict.predict(model.df_pred[pfeatures])
-
-    model_diagnose.complete_monthly_model_eval(model, estimator=model_predict, basename="init")
+    saved_models = [r"1_initial_model.json",  r"denoised_model_with_selected_features.json"]
+    basenames = ['denoised'] #'intial',
+    for im, mm in enumerate(saved_models):
+        model_file_name = os.path.join(model.model_ws,mm )
+        model_predict = joblib.load(model_file_name)
+        try:
+            pfeatures = model_predict.get_booster().feature_names
+        except:
+            pfeatures = model_predict.steps[-1][1].get_booster().feature_names
+        model.df_pred['est_month_frac'] = model_predict.predict(model.df_pred[pfeatures])
+        model_diagnose.complete_monthly_model_eval(model, estimator=model_predict,
+                                                   basename=basenames[im])
+        vvv = 1
 
 # =============================
 # Interpret the model

@@ -78,6 +78,7 @@ class Model:
                            'add_features_func', 'pre_train_func', 'split_func']
 
         self.steps = []
+        self.model_options = []
 
     def apply_func(self, func=None, type=None, **kwargs):
 
@@ -150,6 +151,17 @@ class Model:
             msg = msg + feat + ","
         self.log.info(msg)
 
+    def set_features(self, features):
+        new_drops = list(set(self.dropped_features).difference(set(features)))
+        #new_skips = list(set(self._features_to_skip).difference(set(features)))
+        self.dropped_features = new_drops
+        msg = "The folowing features are added to skip list: "
+        for feat in features:
+            msg = msg + feat + ","
+        self.log.info(msg)
+
+
+
     def dict_to_file(self, data, fn):
         with open(fn, 'w') as ff:
             ff.write(json.dumps(data))
@@ -162,4 +174,46 @@ class Model:
         f.close()
         self.features_selected = feature_selection_info[method]
         return self.features_selected
+
+    def get_model_options(self):
+        "featuresIncluded_EncodingType_SamplesUsed_model_ML"
+        if len(self.model_options)==0:
+            features_options = ['all', 'reduced']
+            samples_options = ['full', 'denoised']
+            encoding_options = ['NoEncoding', 'ohc', 'smc']
+            ml_options = ['xgb']
+            # ---> "all_NoEncoding_full_xgb" means all featuresare used, no ecoding, all samples, use xgb
+            models_options = []
+            model_features = {}
+            features_info = self.features_info
+            for f in features_options:
+                for s in samples_options:
+                    for e in encoding_options:
+                        for m in ml_options:
+                            curr_feats = []
+                            model_name = "{}_{}_{}_{}".format(f, s, e, m)
+                            models_options.append(model_name)
+
+                            if f in ['all']:
+                                curr_feats = curr_feats + features_info['all_base_features']
+                                if e in ['ohc']:
+                                    curr_feats = curr_feats + features_info['ohc_features']
+                                    curr_feats = list(set(curr_feats).difference(set(features_info['cat_features'])))
+                                elif e in ['smc']:
+                                    curr_feats = curr_feats + features_info['summary_tragte_features']
+                                    curr_feats = list(set(curr_feats).difference(set(features_info['cat_features'])))
+                                model_features[model_name] = curr_feats
+
+                            elif f in ['reduced']:
+                                curr_feats = features_info['selected_features']
+                                if e in ['ohc']:
+                                    curr_feats = curr_feats  + features_info['ohc_features']
+                                    curr_feats = list(set(curr_feats).difference(set(features_info['cat_features'])))
+                                elif e in ['smc']:
+                                    curr_feats = curr_feats + features_info['summary_tragte_features']
+                                    curr_feats = list(set(curr_feats).difference(set(features_info['cat_features'])))
+                                model_features[model_name] = curr_feats
+
+            self.models_features = model_features
+        return self.models_features
 

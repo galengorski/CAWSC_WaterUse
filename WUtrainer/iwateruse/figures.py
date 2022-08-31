@@ -299,14 +299,15 @@ def plot_huc2_map(shp_file, usa_map, info_df, legend_column, log_scale=False, ep
     shp_df = shp_df[['HUC2', 'geometry']]
     shp_df = shp_df.merge(info_df, how='left', on='HUC2')
 
-    if log_scale:
-        norm = matplotlib.colors.LogNorm(vmin=shp_df[legend_column].min(), vmax=shp_df[legend_column].max())
-    else:
-        norm = None
-
     with styles.USGSMap():
-        ax = shp_df.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
-                         legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
+        if log_scale:
+            norm = matplotlib.colors.LogNorm(vmin=shp_df[legend_column].min(), vmax=shp_df[legend_column].max())
+            ax = shp_df.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
+                             legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
+        else:
+            ax = shp_df.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
+                             legend_kwds={'shrink': 0.6}, cax=cax)
+
         usa_bkg.plot(ax=ax, facecolor="none", edgecolor='k', linewidth=0.5)
 
         styles.heading(ax=ax,
@@ -342,12 +343,16 @@ def plot_county_map(shp_file, usa_map, info_df, legend_column, log_scale=False, 
 
     if log_scale:
         norm = matplotlib.colors.LogNorm(vmin=shp_df[legend_column].min(), vmax=shp_df[legend_column].max())
-    else:
-        norm = None
+
 
     with styles.USGSMap():
-        ax = shp_df.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
-                         legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
+        if log_scale:
+            ax = shp_df.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
+                             legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
+        else:
+            ax = shp_df.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
+                             legend_kwds={'shrink': 0.6}, cax=cax)
+
         usa_bkg.plot(ax=ax, facecolor="none", edgecolor='k', linewidth=0.5)
 
         styles.heading(ax=ax,
@@ -383,12 +388,16 @@ def plot_state_map(shp_file, usa_map, info_df, legend_column, log_scale=False, e
 
     if log_scale:
         norm = matplotlib.colors.LogNorm(vmin=shp_df[legend_column].min()-1, vmax=shp_df[legend_column].max()+1)
-    else:
-        norm = None
+
 
     with styles.USGSMap():
-        ax = shp_df.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
-                         legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
+        if log_scale:
+            ax = shp_df.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
+                             legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
+        else:
+            ax = shp_df.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
+                             legend_kwds={'shrink': 0.6}, cax=cax)
+
         usa_bkg.plot(ax=ax, facecolor="none", edgecolor='k', linewidth=0.5)
 
         styles.heading(ax=ax,
@@ -422,12 +431,16 @@ def plot_scatter_map(lon, lat, df, legend_column, cmap, title, figfile, log_scal
                    'orientation': "horizontal"}
     if log_scale:
         norm = matplotlib.colors.LogNorm(vmin=df_shp[legend_column].min(), vmax=df_shp[legend_column].max())
-    else:
-        norm = None
+
 
     with styles.USGSMap():
-        ax = df_shp.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
-                         legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
+        if log_scale:
+            ax = df_shp.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
+                             legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
+        else:
+            ax = df_shp.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=5, legend=True,
+                             legend_kwds={'shrink': 0.6}, cax=cax)
+
         cx.add_basemap(ax, crs=df_shp.crs.to_string(), source=cx.providers.Stamen.TonerLines, alpha=1,
                        attribution=False)
         cx.add_basemap(ax, crs=df_shp.crs.to_string(), source=cx.providers.Stamen.TonerBackground, alpha=0.1,
@@ -443,6 +456,7 @@ def plot_scatter_map(lon, lat, df, legend_column, cmap, title, figfile, log_scal
         plt.tight_layout()
 
         plt.savefig(figfile)
+        joblib.dump(fig, figfile + ".fig")
         plt.close(fig)
 
         return df_shp
@@ -466,19 +480,19 @@ def plot_multiple_scatter_map(df, xcol, ycol, legend_column,
     cmap = fig_info['cmap']
     log_scale = fig_info['log_scale']
     epsg = fig_info['epsg']
-    title = fig_info['title']
     super_title = fig_info['super_title']
-
     df_shp.to_crs(epsg=epsg, inplace=True)
 
     fig, axes = plt.subplots(nrows=ncols, ncols=nrows, figsize=(10, 8))
     months = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
               'August', 'September', 'October', 'November', 'December']
+    vmax = df_shp[legend_column].max()
+    vmin = df_shp[legend_column].min()
     with styles.USGSMap():
         for month in range(1, 13):
-            df_ = df_shp[df_shp['Month'] == month]
-            max_v = df_[legend_column].quantile(0.9999)
-            df_.loc[df_[legend_column]>max_v, legend_column] = max_v
+            df_ = df_shp[df_shp['Month'] == month].copy()
+            # max_v = df_[legend_column].quantile(0.99)
+            # df_.loc[df_[legend_column]>max_v, legend_column] = max_v
             n = month - 1
             i = int(n / nrows)
             j = np.mod(n, nrows)
@@ -489,16 +503,13 @@ def plot_multiple_scatter_map(df, xcol, ycol, legend_column,
             cax = divider.append_axes("right", size="5%", pad=0.1)
 
             if log_scale:
-                norm = matplotlib.colors.LogNorm(vmin=df_[legend_column].min(), vmax=df_[legend_column].max())
+                norm = matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax)
                 ax = df_.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=2, legend=True,
                               legend_kwds={'shrink': 0.6}, cax=cax, norm=norm)
             else:
-                norm = None
                 ax = df_.plot(ax=ax, column=legend_column, alpha=1, cmap=cmap, markersize=1, legend=True,
-                              legend_kwds={'shrink': 0.6}, cax=cax,vmin = 0.03, vmax = 0.18, norm=norm) #, vmin = 0.03, vmax = 0.18
-
-
-
+                              legend_kwds={'shrink': 0.6}, cax=cax,
+                              vmin=vmin, vmax=vmax) #, vmin = 0.03, vmax = 0.18
 
             cx.add_basemap(ax, crs=df_.crs.to_string(), source=cx.providers.Stamen.TonerLines, alpha=1,
                            attribution=False)
@@ -506,7 +517,7 @@ def plot_multiple_scatter_map(df, xcol, ycol, legend_column,
                            attribution=False)
 
             styles.heading(ax=ax, letter= months[n],
-                           heading=title,
+                           heading='',
                            idx=0, fontsize=10)
             styles.xlabel(ax=ax, fontsize=10, label='X (meter)')
             styles.ylabel(ax=ax, fontsize=10, label='Y (meter)')
@@ -518,81 +529,89 @@ def plot_multiple_scatter_map(df, xcol, ycol, legend_column,
         plt.suptitle(super_title,fontsize=20)
         plt.tight_layout()
         plt.savefig(figfile)
+        joblib.dump(fig, figfile + ".fig")
         plt.close(fig)
         return df_shp
 
-        #Monthly fraction time series
-        nrows = 3
-        ncols = 6
-        fig, axes = plt.subplots(ncols, nrows, figsize=(13.33, 7.5), sharex=True)
-        huc2s = df['HUC2'].unique()
-        huc2s = np.sort(huc2s)
-        n = 0
-        for h in huc2s:
-            curr_ = df[df['HUC2'] == h]
-            curr_ = curr_.groupby(by=['HUC2', 'Year', 'Month']).mean()
-            curr_.reset_index(inplace=True)
-            curr_['date'] = curr_['Year'] + (curr_['Month'] - 0.5) / 12
-            curr_.reset_index(inplace=True)
-            i = int(n / nrows)
-            j = np.mod(n, nrows)
-            n = n + 1
-            ax = axes[i][j]
-            with styles.USGSMap():
-                ax.plot(curr_['date'], curr_['est_month_frac'])
-                title = "$HUC2 = {}$".format(h)
-                ax.text(0.97, 0.75, title,
-                        verticalalignment='bottom', horizontalalignment='right',
-                        transform=ax.transAxes,
-                        color='m', fontsize=8)
-                # ax.set_ylabel('GPCD')
-                # ax.set_xlabel('Year')
-                ax.set_ylim([0.03, 0.18])
-                ax.xaxis.set_ticks(np.arange(2000, 2021, 5))
-                ax.set_xticklabels(ax.get_xticks(), rotation=45)
 
-        fig.text(0.5, 0.01, 'Year', ha='center', fontsize=12)
-        fig.text(0.08, 0.5, 'Per Capita Per Day (G) ', va='center', rotation='vertical', fontsize=12)
-        plt.suptitle(super_title, fontsize=20)
+def plot_box_plot_for_monthly_fractions(df, figfile):
+    nrows = 3
+    ncols = 6
+    fig, axes = plt.subplots(ncols, nrows, figsize=(7.69, 7.39), sharex=True)
+    huc2s = df['HUC2'].unique()
+    huc2s = np.sort(huc2s)
+    n = 0
+    for h in huc2s:
+        curr_ = df[df['HUC2'] == h]
+        curr_.reset_index(inplace=True)
+        i = int(n / nrows)
+        j = np.mod(n, nrows)
+        n = n + 1
+        ax = axes[i][j]
+        with styles.USGSMap():
+            sns.boxplot(ax=ax, data=curr_, x='Month', y='est_month_frac', showfliers=False,
+                        linewidth=1)
+            title = "HUC2 = {}".format(h)
+            ax.text(0.99, 0.85, title,
+                    verticalalignment='bottom', horizontalalignment='right',
+                    transform=ax.transAxes,
+                    color='b', fontsize=7)
+            ax.set_ylabel('')
+            ax.set_xlabel('')
+            ax.set_ylim([0.03, 0.19])
+            ax.xaxis.set_ticks(np.arange(0, 12, 1))
+            ax.set_xticklabels(ax.get_xticks() + 1, rotation=90)
+            ax.xaxis.set_tick_params(labelsize=8)
+            ax.yaxis.set_tick_params(labelsize=8)
 
-        #----
+    fig.text(0.5, 0.02, 'Month', ha='center', fontsize=11)
+    fig.text(0.04, 0.5, 'Monthly Water Use Fraction', va='center', rotation='vertical', fontsize=11)
+    plt.suptitle("Average Monthly Fraction", fontsize=16)
 
-        nrows = 3
-        ncols = 6
-        fig, axes = plt.subplots(ncols, nrows, figsize=(7.69, 7.39), sharex=True)
-        huc2s = df['HUC2'].unique()
-        huc2s = np.sort(huc2s)
-        n = 0
-        for h in huc2s:
-            curr_ = df[df['HUC2'] == h]
-            curr_.reset_index(inplace=True)
-            i = int(n / nrows)
-            j = np.mod(n, nrows)
-            n = n + 1
-            ax = axes[i][j]
-            with styles.USGSMap():
-                sns.boxplot(ax= ax, data = curr_, x = 'Month', y = 'est_month_frac', showfliers = False,
-                            linewidth= 1)
-                title = "HUC2 = {}".format(h)
-                ax.text(0.99, 0.85, title,
-                        verticalalignment='bottom', horizontalalignment='right',
-                        transform=ax.transAxes,
-                        color='b', fontsize=7)
-                ax.set_ylabel('')
-                ax.set_xlabel('')
-                ax.set_ylim([0.03, 0.19])
-                ax.xaxis.set_ticks(np.arange(0, 12, 1))
-                ax.set_xticklabels(ax.get_xticks()+1, rotation=90)
-                ax.xaxis.set_tick_params(labelsize=8)
-                ax.yaxis.set_tick_params(labelsize=8)
-
-        fig.text(0.5, 0.02, 'Month', ha='center', fontsize=11)
-        fig.text(0.04, 0.5, 'Monthly Water Use Fraction', va='center', rotation='vertical', fontsize=11)
-        plt.suptitle("Average Monthly Fraction", fontsize=16)
+    plt.savefig(figfile)
+    joblib.dump(fig, figfile + ".fig")
+    plt.close(fig)
 
 
 
+def plot_timeseries_monthly_frac(df, figfile):
+    # Monthly fraction time series
+    super_title = "Temporal Change of HUC2 Averaged \n Water Use Monthly Fractions"
+    df_ = df.groupby(by=['sys_id', 'Month']).mean()
+    df_.reset_index(inplace=True)
+    nrows = 3
+    ncols = 6
+    fig, axes = plt.subplots(ncols, nrows, figsize=(13.33, 7.5), sharex=True)
+    huc2s = df['HUC2'].unique()
+    huc2s = np.sort(huc2s)
+    n = 0
+    for h in huc2s:
+        curr_ = df[df['HUC2'] == h]
+        curr_ = curr_.groupby(by=['HUC2', 'Year', 'Month']).mean()
+        curr_.reset_index(inplace=True)
+        curr_['date'] = curr_['Year'] + (curr_['Month'] - 0.5) / 12
+        curr_.reset_index(inplace=True)
+        i = int(n / nrows)
+        j = np.mod(n, nrows)
+        n = n + 1
+        ax = axes[i][j]
+        with styles.USGSMap():
+            ax.plot(curr_['date'], curr_['est_month_frac'])
+            title = "$HUC2 = {}$".format(h)
+            ax.text(0.97, 0.75, title,
+                    verticalalignment='bottom', horizontalalignment='right',
+                    transform=ax.transAxes,
+                    color='m', fontsize=8)
+            ax.set_ylim([0.03, 0.18])
+            ax.xaxis.set_ticks(np.arange(2000, 2021, 5))
+            ax.set_xticklabels(ax.get_xticks(), rotation=45)
 
+    fig.text(0.5, 0.01, 'Year', ha='center', fontsize=12)
+    fig.text(0.08, 0.5, 'Per Capita Per Day (G) ', va='center', rotation='vertical', fontsize=12)
+    plt.suptitle(super_title, fontsize=20)
+    plt.savefig(figfile)
+    joblib.dump(fig, figfile + ".fig")
+    plt.close(fig)
 
 
 
