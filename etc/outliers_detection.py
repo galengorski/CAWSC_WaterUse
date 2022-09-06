@@ -2,7 +2,8 @@ import os, sys
 import numpy as np
 import pandas as pd
 
-def filter1 (X, y):
+
+def filter1(X, y):
 
     """
 
@@ -22,8 +23,7 @@ def drop_abnormal_percapita_wu(X, y, thresh_max, thresh_min):
     return X, y
 
 
-
-def get_monthly_frac(df, var_col = '', date_col = 'Date', month_col = None):
+def get_monthly_frac(df, var_col="", date_col="Date", month_col=None):
     """
 
     :param df: pandas dataframe with data to calculate average monthly fractions
@@ -33,11 +33,11 @@ def get_monthly_frac(df, var_col = '', date_col = 'Date', month_col = None):
     :return:
     """
 
-    if not(month_col is None):
-        mon_mean = df.groupby(by = [month_col]).mean()
-        mon_frac = mon_mean[var_col]/mon_mean[var_col].sum()
-        return (mon_mean,mon_frac)
-    temp_date = date_col+ "_temp"
+    if not (month_col is None):
+        mon_mean = df.groupby(by=[month_col]).mean()
+        mon_frac = mon_mean[var_col] / mon_mean[var_col].sum()
+        return (mon_mean, mon_frac)
+    temp_date = date_col + "_temp"
     temp_mon = date_col + "_mon"
     df[temp_date] = pd.to_datetime(df[date_col])
     df[temp_mon] = df[temp_date].dt.month
@@ -46,7 +46,8 @@ def get_monthly_frac(df, var_col = '', date_col = 'Date', month_col = None):
     mon_frac = mon_mean[var_col] / mon_mean[var_col].sum()
     return (mon_mean, mon_frac)
 
-def sign_correlation(x,y):
+
+def sign_correlation(x, y):
     """
     Find sign correlation
     :param x:
@@ -63,7 +64,7 @@ def sign_correlation(x,y):
     ysign[ydf >= 0] = 1.0
     ysign[ydf < 0] = -1.0
 
-    corr = np.nansum(xsign*ysign)/len(xsign)
+    corr = np.nansum(xsign * ysign) / len(xsign)
 
     return corr
 
@@ -79,16 +80,17 @@ def is_similair(x, y):
 
     """
 
-    xis_increasing = (np.diff(x)>0)
-    yis_increasing = np.diff(y)>0
+    xis_increasing = np.diff(x) > 0
+    yis_increasing = np.diff(y) > 0
 
-    sign_similarity = np.sum(xis_increasing == yis_increasing)/ len(x)
+    sign_similarity = np.sum(xis_increasing == yis_increasing) / len(x)
 
-    Xrel_change =  np.diff(x)/np.sum(x)
+    Xrel_change = np.diff(x) / np.sum(x)
     Yrel_change = np.diff(y) / np.sum(y)
 
-    magnitude_similarity = np.mean(Xrel_change/Yrel_change)
+    magnitude_similarity = np.mean(Xrel_change / Yrel_change)
     return sign_similarity
+
 
 def flag_monthly_wu_abnormal_fac(df, sys_id, year, month, wu):
 
@@ -110,31 +112,43 @@ def flag_monthly_wu_abnormal_fac(df, sys_id, year, month, wu):
         mon, fr = m.strip().split()
         mon_frac[im] = [int(mon), float(fr)]
 
-    df['frac'] = df[' monthly_wu_G']/df['annual_wu_G']
-    mon_frac = pd.DataFrame(mon_frac, columns=['Month', 'standard_fraction'])
-    df = df.merge(mon_frac, on='Month', how='left')
+    df["frac"] = df[" monthly_wu_G"] / df["annual_wu_G"]
+    mon_frac = pd.DataFrame(mon_frac, columns=["Month", "standard_fraction"])
+    df = df.merge(mon_frac, on="Month", how="left")
 
     def seasonality_test(_df):
-        #ddf = _df[[month, 'frac']]
+        # ddf = _df[[month, 'frac']]
         _df.sort_values(by=month, inplace=True)
-        #cor = sign_correlation(_df['frac'].values, _df['standard_fraction'].values)
-        cor = is_similair(_df['frac'].values, _df['standard_fraction'].values)
+        # cor = sign_correlation(_df['frac'].values, _df['standard_fraction'].values)
+        cor = is_similair(_df["frac"].values, _df["standard_fraction"].values)
         return cor
 
-    df2 = df.groupby(by = [sys_id, year]).apply(seasonality_test)
+    df2 = df.groupby(by=[sys_id, year]).apply(seasonality_test)
     x = 1
 
-if 0 :
+
+if 0:
     x = np.array([1, 5, 7, 9, 2])
     y = np.array([2, 6, 9, 15, 3])
-    sign_correlation(x,y)
+    sign_correlation(x, y)
 
-    swud = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\SWUDS_v17.csv",
-                       encoding='cp1252')
+    swud = pd.read_csv(
+        r"C:\work\water_use\mldataset\ml\training\targets\monthly_annually\SWUDS_v17.csv",
+        encoding="cp1252",
+    )
 
-    monthly_swud = pd.read_csv(r"C:\work\water_use\recycle_bin\monthly_swud.csv")
-    flag_monthly_wu_abnormal_fac(monthly_swud, sys_id ='WSA_AGIDF' , year = 'YEAR',
-                                 month = 'Month', wu = 'monthly_wu_G')
+    monthly_swud = pd.read_csv(
+        r"C:\work\water_use\recycle_bin\monthly_swud.csv"
+    )
+    flag_monthly_wu_abnormal_fac(
+        monthly_swud,
+        sys_id="WSA_AGIDF",
+        year="YEAR",
+        month="Month",
+        wu="monthly_wu_G",
+    )
 
-    df = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\features\monthly_climate.csv")
+    df = pd.read_csv(
+        r"C:\work\water_use\mldataset\ml\training\features\monthly_climate.csv"
+    )
     x = 1

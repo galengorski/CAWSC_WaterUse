@@ -11,10 +11,9 @@ import plotly.tools as plotly_tools
 import plotly.graph_objs as go
 
 
-
-class Hreport():
+class Hreport:
     def __init__(self):
-        self.filename  = "wu.html"
+        self.filename = "wu.html"
         self.sections = []
         pass
 
@@ -30,17 +29,20 @@ class Hreport():
         """
         self.sections.append(section)
 
-    def add_break_line(self, section, options = {}):
-        pass
-    def add_text(self, section, text, options = {}):
-        pass
-    def add_figure(self, section, figObj, options = {}):
-        pass
-    def add_table(self, section, df, options = {}):
-        pass
-    def from_html(self, fname):
-        pass
-    def to_html(self, fname):
+    def add_break_line(self, section, options={}):
         pass
 
-    
+    def add_text(self, section, text, options={}):
+        pass
+
+    def add_figure(self, section, figObj, options={}):
+        pass
+
+    def add_table(self, section, df, options={}):
+        pass
+
+    def from_html(self, fname):
+        pass
+
+    def to_html(self, fname):
+        pass

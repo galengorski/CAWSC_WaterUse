@@ -7,6 +7,7 @@ import time
 import pickle
 import requests
 import numpy as np
+
 try:
     from simplejson.errors import JSONDecodeError
 except ImportError:
@@ -30,7 +31,7 @@ def load_pickle(f):
     -------
         dict : dictionary of features
     """
-    with open(f, 'rb') as foo:
+    with open(f, "rb") as foo:
         data = pickle.load(foo)
     return data
 
@@ -64,26 +65,29 @@ if __name__ == "__main__":
     restart = True
     ws = os.path.abspath(os.path.dirname(__file__))
     if ray is not None:
-        ray.init(address='auto')
+        ray.init(address="auto")
 
     strt = time.time()
     allhuc2 = ["{:02d}".format(h) for h in range(22, 23)]
     for huc2 in allhuc2:
         start_time = time.time()
 
-        huc12_shapes = os.path.join(ws, 'huc12_export', 'huc2_{}.shp'.format(huc2))
-        pickle_file = os.path.join(ws, "huc12_output_shapefiles",
-                                   "huc{}.pickle".format(huc2))
-        out_shapes = os.path.join(ws, "huc12_output_shapefiles",
-                                  "huc{}_censusdc.shp".format(huc2))
-        out_path = os.path.join(ws, "huc12_output", 'huc{}'.format(huc2))
+        huc12_shapes = os.path.join(
+            ws, "huc12_export", "huc2_{}.shp".format(huc2)
+        )
+        pickle_file = os.path.join(
+            ws, "huc12_output_shapefiles", "huc{}.pickle".format(huc2)
+        )
+        out_shapes = os.path.join(
+            ws, "huc12_output_shapefiles", "huc{}_censusdc.shp".format(huc2)
+        )
+        out_path = os.path.join(ws, "huc12_output", "huc{}".format(huc2))
 
-        api_key = os.path.join(ws, 'api_key.dat')
+        api_key = os.path.join(ws, "api_key.dat")
         with open(api_key) as foo:
             api_key = foo.readline().strip()
 
-        cfilter = create_filter(huc12_shapes, {"huc2" : [huc2]},
-                                'huc12')
+        cfilter = create_filter(huc12_shapes, {"huc2": [huc2]}, "huc12")
 
         chunksize = 25
         if huc2 == "04":
@@ -106,24 +110,32 @@ if __name__ == "__main__":
 
             chunk0 += chunksize
 
-            ts = CensusTimeSeries(huc12_shapes, api_key, field="huc12", filter=nfilter)
+            ts = CensusTimeSeries(
+                huc12_shapes, api_key, field="huc12", filter=nfilter
+            )
             # years = ts.available_years[0:2] + ts.available_years[8:]
-            years = (2015, )
+            years = (2015,)
 
             for feature in nfilter:
-                df = ts.get_timeseries(feature, verbose=2, multithread=True,
-                                       thread_pool=16, multiproc=False,
-                                       years=years)
+                df = ts.get_timeseries(
+                    feature,
+                    verbose=2,
+                    multithread=True,
+                    thread_pool=16,
+                    multiproc=False,
+                    years=years,
+                )
 
-                #df.to_csv(os.path.join(out_path, "{}_yearly.csv".format(feature)),
+                # df.to_csv(os.path.join(out_path, "{}_yearly.csv".format(feature)),
                 #          index=False)
-                if 'population' not in list(df):
-                    df['population'] = [np.nan] * len(df)
-                temp = GeoFeatures.compiled_feature(2015, ts.get_shape(feature),
-                                                    feature, df=df)
+                if "population" not in list(df):
+                    df["population"] = [np.nan] * len(df)
+                temp = GeoFeatures.compiled_feature(
+                    2015, ts.get_shape(feature), feature, df=df
+                )
                 geofeats[feature] = temp
 
-                #try:
+                # try:
                 #    df2 = CensusTimeSeries.interpolate(df,
                 #                                       min_extrapolate=1989,
                 #                                       max_extrapolate=2021,
@@ -131,7 +143,7 @@ if __name__ == "__main__":
                 #                                       discretization='daily')
                 #    df2.to_csv(os.path.join(out_path, "{}.csv".format(feature)),
                 #               index=False)
-                #except:
+                # except:
                 #    pass
 
             if restart:
@@ -143,10 +155,12 @@ if __name__ == "__main__":
         geojson_to_shapefile(out_shapes, geofeats)
 
         prjname = out_shapes[:-4] + ".prj"
-        with open(prjname, 'w') as prj:
-            prj.write('GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",'
-                      'SPHEROID["WGS_1984",6378137.0,298.257223563]],'
-                      'PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]]')
+        with open(prjname, "w") as prj:
+            prj.write(
+                'GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",'
+                'SPHEROID["WGS_1984",6378137.0,298.257223563]],'
+                'PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]]'
+            )
 
         end_time = time.time()
         print(end_time - start_time)

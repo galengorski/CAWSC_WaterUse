@@ -5,8 +5,9 @@ class AcsVariables(object):
     """
     Small listing of common census variable names for querying data
     """
-    population = 'B01003_001E'
-    households = 'B11001_001E'
+
+    population = "B01003_001E"
+    households = "B11001_001E"
     households2 = "B19001_001E"
     income_lt_10k = "B19001_002E"
     income_10K_15k = "B19001_003E"
@@ -38,8 +39,9 @@ class AcsVariables(object):
     median_h_year = "B25036_001E"
 
 
-AcsHR = {v: k for k, v in AcsVariables.__dict__.items()
-         if not k.startswith("__")}
+AcsHR = {
+    v: k for k, v in AcsVariables.__dict__.items() if not k.startswith("__")
+}
 
 
 class Acs1(CensusBase):
@@ -59,11 +61,20 @@ class Acs1(CensusBase):
         https://api.census.gov/data/key_signup.html)
 
     """
-    def __init__(self, features, year, apikey):
-        super(Acs1, self).__init__(features, year, apikey, 'acs1')
 
-    def get_data(self, level='finest', variables=(), retry=100, verbose=True,
-                 multiproc=False, multithread=False, thread_pool=4):
+    def __init__(self, features, year, apikey):
+        super(Acs1, self).__init__(features, year, apikey, "acs1")
+
+    def get_data(
+        self,
+        level="finest",
+        variables=(),
+        retry=100,
+        verbose=True,
+        multiproc=False,
+        multithread=False,
+        thread_pool=4,
+    ):
         """
         Method to get data from the Acs1 servers and set it to feature
         properties!
@@ -89,11 +100,15 @@ class Acs1(CensusBase):
             number of CPU threads to use during multithread operations
 
         """
-        super(Acs1, self).get_data(level=level, variables=variables,
-                                   retry=retry, verbose=verbose,
-                                   multiproc=multiproc,
-                                   multithread=multithread,
-                                   thread_pool=thread_pool)
+        super(Acs1, self).get_data(
+            level=level,
+            variables=variables,
+            retry=retry,
+            verbose=verbose,
+            multiproc=multiproc,
+            multithread=multithread,
+            thread_pool=thread_pool,
+        )
 
 
 class Acs5(CensusBase):
@@ -113,11 +128,20 @@ class Acs5(CensusBase):
         https://api.census.gov/data/key_signup.html)
 
     """
-    def __init__(self, features, year, apikey):
-        super(Acs5, self).__init__(features, year, apikey, 'acs5')
 
-    def get_data(self, level='finest', variables=(), retry=100, verbose=True,
-                 multiproc=False, multithread=False, thread_pool=4):
+    def __init__(self, features, year, apikey):
+        super(Acs5, self).__init__(features, year, apikey, "acs5")
+
+    def get_data(
+        self,
+        level="finest",
+        variables=(),
+        retry=100,
+        verbose=True,
+        multiproc=False,
+        multithread=False,
+        thread_pool=4,
+    ):
         """
         Method to get data from the Acs5 servers and set it to feature
         properties!
@@ -142,8 +166,12 @@ class Acs5(CensusBase):
         thread_pool : int
             number of CPU threads to use during multithread operations
         """
-        super(Acs5, self).get_data(level=level, variables=variables,
-                                   retry=retry, verbose=verbose,
-                                   multiproc=multiproc,
-                                   multithread=multithread,
-                                   thread_pool=thread_pool)
+        super(Acs5, self).get_data(
+            level=level,
+            variables=variables,
+            retry=retry,
+            verbose=verbose,
+            multiproc=multiproc,
+            multithread=multithread,
+            thread_pool=thread_pool,
+        )

@@ -22,49 +22,56 @@ def _IGNORE():
     from ..datacollector.acs import AcsVariables
     from ..datacollector.dec import Sf3Variables, Sf3Variables1990
 
-    return (TigerWebVariables.mtfcc,
-            TigerWebVariables.oid,
-            TigerWebVariables.geoid,
-            TigerWebVariables.state,
-            TigerWebVariables.county,
-            TigerWebVariables.cousub,
-            TigerWebVariables.tract,
-            TigerWebVariables.blkgrp,
-            TigerWebVariables.basename,
-            TigerWebVariables.name,
-            TigerWebVariables.lsadc,
-            TigerWebVariables.funcstat,
-            TigerWebVariables.arealand,
-            TigerWebVariables.areawater,
-            TigerWebVariables.stgeometry,
-            TigerWebVariables.centlat,
-            TigerWebVariables.centlon,
-            TigerWebVariables.intptlat,
-            TigerWebVariables.intptlon,
-            TigerWebVariables.objectid,
-            TigerWebVariables.population,
-            AcsVariables.median_income,
-            Sf3Variables1990.median_income,
-            Sf3Variables.median_income,
-            'pop_density')
+    return (
+        TigerWebVariables.mtfcc,
+        TigerWebVariables.oid,
+        TigerWebVariables.geoid,
+        TigerWebVariables.state,
+        TigerWebVariables.county,
+        TigerWebVariables.cousub,
+        TigerWebVariables.tract,
+        TigerWebVariables.blkgrp,
+        TigerWebVariables.basename,
+        TigerWebVariables.name,
+        TigerWebVariables.lsadc,
+        TigerWebVariables.funcstat,
+        TigerWebVariables.arealand,
+        TigerWebVariables.areawater,
+        TigerWebVariables.stgeometry,
+        TigerWebVariables.centlat,
+        TigerWebVariables.centlon,
+        TigerWebVariables.intptlat,
+        TigerWebVariables.intptlon,
+        TigerWebVariables.objectid,
+        TigerWebVariables.population,
+        AcsVariables.median_income,
+        Sf3Variables1990.median_income,
+        Sf3Variables.median_income,
+        "pop_density",
+    )
 
 
 def _AVERAGE():
     from ..datacollector.acs import AcsVariables
     from ..datacollector.dec import Sf3Variables, Sf3Variables1990
-    return (AcsVariables.median_income,
-            Sf3Variables1990.median_income,
-            Sf3Variables.median_income,
-            'pop_density')
+
+    return (
+        AcsVariables.median_income,
+        Sf3Variables1990.median_income,
+        Sf3Variables.median_income,
+        "pop_density",
+    )
 
 
 def _POPULATION():
     from ..datacollector.acs import AcsVariables
     from ..datacollector.dec import Sf3Variables, Sf3Variables1990
 
-    return (Sf3Variables.population,
-            AcsVariables.population,
-            Sf3Variables1990.population)
+    return (
+        Sf3Variables.population,
+        AcsVariables.population,
+        Sf3Variables1990.population,
+    )
 
 
 class GeoFeatures(object):
@@ -78,6 +85,7 @@ class GeoFeatures(object):
         list of geoJSON features
 
     """
+
     def __init__(self, features, name=None):
 
         self.__name = name
@@ -140,8 +148,14 @@ class GeoFeatures(object):
     def intersected_features(self):
         return copy.deepcopy(self._ifeatures)
 
-    def intersect(self, polygons, verbose=False, multiproc=False,
-                  multithread=False, thread_pool=4):
+    def intersect(
+        self,
+        polygons,
+        verbose=False,
+        multiproc=False,
+        multithread=False,
+        thread_pool=4,
+    ):
         """
         Intersection method that creates a new dictionary of geoJSON
         features. input polygons must be provided in WGS84 (decimal lat lon.)
@@ -172,7 +186,7 @@ class GeoFeatures(object):
 
         elif isinstance(polygons, list):
             if isinstance(polygons[0], shapefile.Shape):
-                flag = 'shapefile'
+                flag = "shapefile"
 
             elif isinstance(polygons[0], Polygon):
                 flag = "shapely"
@@ -184,31 +198,41 @@ class GeoFeatures(object):
                     if isinstance(polygons[0][0][0], (float, np.float_, int)):
                         pass
                     elif isinstance(polygons[0][0][0], (list, tuple)):
-                        raise IndexError('Polygons must be in a 2 or 3 '
-                                         'dimensional list')
+                        raise IndexError(
+                            "Polygons must be in a 2 or 3 " "dimensional list"
+                        )
                     else:
-                        raise ValueError("Polygon indicies must be float or "
-                                         "int type values")
+                        raise ValueError(
+                            "Polygon indicies must be float or "
+                            "int type values"
+                        )
                 else:
                     raise IndexError(
-                        'Polygons must be in a 2 or 3 dimensional list')
+                        "Polygons must be in a 2 or 3 dimensional list"
+                    )
 
                 flag = "list"
 
             elif isinstance(polygons[0], geojson.Feature):
-                flag = 'geojson'
+                flag = "geojson"
 
         elif isinstance(polygons, shapefile.Shape):
-            polygons = [polygons, ]
+            polygons = [
+                polygons,
+            ]
             flag = "shapefile"
 
         elif isinstance(polygons, (Polygon, MultiPolygon)):
-            polygons = [polygons, ]
+            polygons = [
+                polygons,
+            ]
             flag = "shapely"
 
         elif isinstance(polygons, (geojson.Feature)):
-            polygons = [polygons, ]
-            flag = 'geojson'
+            polygons = [
+                polygons,
+            ]
+            flag = "geojson"
 
         else:
             raise TypeError("{}: not yet supported".format(type(polygons)))
@@ -217,10 +241,12 @@ class GeoFeatures(object):
             t = []
             for shape in polygons:
 
-                shape_type = shape.__geo_interface__['type']
+                shape_type = shape.__geo_interface__["type"]
                 coords = shape.points
                 if shape_type.lower() == "polygon":
-                    t.append(Polygon(coords),)
+                    t.append(
+                        Polygon(coords),
+                    )
 
                 elif shape_type.lower() == "multipolygon":
                     parts = list(shape.parts)
@@ -237,7 +263,8 @@ class GeoFeatures(object):
 
                 else:
                     raise NotImplementedError(
-                        "{} intersection is not supported".format(shape_type))
+                        "{} intersection is not supported".format(shape_type)
+                    )
 
             polygons = t
 
@@ -266,15 +293,17 @@ class GeoFeatures(object):
 
             polygons = t
 
-        elif flag == 'geojson':
+        elif flag == "geojson":
             # preferred data type!
             t = []
             for shape in polygons:
-                if shape.geometry.type.lower() == 'polygon':
+                if shape.geometry.type.lower() == "polygon":
                     if len(shape.geometry.coordinates) > 1:
                         # handle holes
-                        p = Polygon(shape.geometry.coordinates[0],
-                                    shape.geometry.coordinates[1:])
+                        p = Polygon(
+                            shape.geometry.coordinates[0],
+                            shape.geometry.coordinates[1:],
+                        )
                     else:
                         p = Polygon(shape.geometry.coordinates[0])
 
@@ -284,16 +313,17 @@ class GeoFeatures(object):
                     for coords in shape.geometry.coordinates:
                         if len(coords) > 1:
                             # handle holes
-                            p = Polygon(coords[0],
-                                        coords[1:])
+                            p = Polygon(coords[0], coords[1:])
                         else:
                             p = Polygon(coords[0])
 
                         t.append(p)
 
                 else:
-                    raise TypeError('Only multipolygon and polygon '
-                                    'features are supported')
+                    raise TypeError(
+                        "Only multipolygon and polygon "
+                        "features are supported"
+                    )
 
             polygons = t
 
@@ -305,15 +335,22 @@ class GeoFeatures(object):
         for p in polygons:
             if not p.is_valid:
                 if verbose:
-                    print("Repairing Geometry {}".format(self.__name), ":",
-                          explain_validity(p))
+                    print(
+                        "Repairing Geometry {}".format(self.__name),
+                        ":",
+                        explain_validity(p),
+                    )
                 p = p.buffer(0.0)
                 if isinstance(p, MultiPolygon):
                     p = list(p)
                 else:
-                    p = [p,]
+                    p = [
+                        p,
+                    ]
             else:
-                p = [p,]
+                p = [
+                    p,
+                ]
 
             for poly in p:
                 t.append(poly)
@@ -337,11 +374,15 @@ class GeoFeatures(object):
                     shapely_features = [self._shapely_features[i] for i in ixs]
 
                 for feature in shapely_features:
-                    actor = multiproc_intersection.remote(self.IGNORE,
-                                                          self.POPULATION,
-                                                          fid, polygon,
-                                                          feature.ix,
-                                                          feature, n)
+                    actor = multiproc_intersection.remote(
+                        self.IGNORE,
+                        self.POPULATION,
+                        fid,
+                        polygon,
+                        feature.ix,
+                        feature,
+                        n,
+                    )
                     actors.append(actor)
                     n += 1
 
@@ -353,7 +394,8 @@ class GeoFeatures(object):
                         n, m, geofeature = record
                         if self._ifeatures is None:
                             self._ifeatures = {
-                                "{}_{}".format(n, m): geofeature}
+                                "{}_{}".format(n, m): geofeature
+                            }
                         else:
                             self._ifeatures["{}_{}".format(n, m)] = geofeature
 
@@ -370,9 +412,10 @@ class GeoFeatures(object):
                     shapely_features = [self._shapely_features[i] for i in ixs]
 
                 for feature in shapely_features:
-                    x = threading.Thread(target=self.__threaded_intersection,
-                                         args=(polygon, feature.ix,
-                                               feature, n, container))
+                    x = threading.Thread(
+                        target=self.__threaded_intersection,
+                        args=(polygon, feature.ix, feature, n, container),
+                    )
                     thread_list.append(x)
                     n += 1
 
@@ -438,7 +481,9 @@ class GeoFeatures(object):
                     pass
 
         else:
-            p = [a, ]
+            p = [
+                a,
+            ]
 
         m = 0
         for a in p:
@@ -469,8 +514,9 @@ class GeoFeatures(object):
             xy = [(i[0], i[1]) for i in xy]
 
             geopolygon = geojson.Polygon([xy])
-            geofeature = geojson.Feature(geometry=geopolygon,
-                                         properties=adj_properties)
+            geofeature = geojson.Feature(
+                geometry=geopolygon, properties=adj_properties
+            )
 
             if self._ifeatures is None:
                 self._ifeatures = {"{}_{}".format(n, m): geofeature}
@@ -528,7 +574,9 @@ class GeoFeatures(object):
                         if prop in d:
                             d[prop].append(value)
                         else:
-                            d[prop] = [value, ]
+                            d[prop] = [
+                                value,
+                            ]
                 else:
                     if prop in d:
                         d[prop] += value
@@ -540,25 +588,34 @@ class GeoFeatures(object):
                 d[prop] = np.nanmean(d[prop])
 
         outdic = dict()
-        outdic["year"] = [year, ]
+        outdic["year"] = [
+            year,
+        ]
         if hr_dict is not None:
             keys = list(d.keys())
             for key in keys:
                 try:
                     new_key = hr_dict[key]
-                    outdic[new_key] = [d[key], ]
+                    outdic[new_key] = [
+                        d[key],
+                    ]
                 except KeyError:
-                    outdic[key] = [d[key], ]
+                    outdic[key] = [
+                        d[key],
+                    ]
         else:
             for key, value in d.items():
-                outdic[key] = [value, ]
+                outdic[key] = [
+                    value,
+                ]
 
         df = pd.DataFrame.from_dict(outdic)
         return df
 
     @staticmethod
-    def compiled_feature(year, polygon, feature_name, df=None, features=None,
-                         hr_dict=None):
+    def compiled_feature(
+        year, polygon, feature_name, df=None, features=None, hr_dict=None
+    ):
         """
         Method to compile intersected features attributes with a supplied
         polygon and create a new geoJSON feature
@@ -590,8 +647,9 @@ class GeoFeatures(object):
 
         """
         if df is None and features is None:
-            raise AssertionError("User must supply a dataframe or "
-                                 "geoJSON features")
+            raise AssertionError(
+                "User must supply a dataframe or " "geoJSON features"
+            )
         elif df is None:
             df = GeoFeatures.features_to_dataframe(year, features, hr_dict)
         else:
@@ -605,14 +663,18 @@ class GeoFeatures(object):
                     if isinstance(polygon[0][0][0], (float, np.float_, int)):
                         pass
                     elif isinstance(polygon[0][0][0], (list, tuple)):
-                        raise IndexError('Polygons must be in a 2 or 3 '
-                                         'dimensional list')
+                        raise IndexError(
+                            "Polygons must be in a 2 or 3 " "dimensional list"
+                        )
                     else:
-                        raise ValueError("Polygon indicies must be float or "
-                                         "int type values")
+                        raise ValueError(
+                            "Polygon indicies must be float or "
+                            "int type values"
+                        )
                 else:
                     raise IndexError(
-                        'Polygons must be in a 2 or 3 dimensional list')
+                        "Polygons must be in a 2 or 3 dimensional list"
+                    )
 
                 if len(polygon) > 1:
                     t = []
@@ -627,7 +689,7 @@ class GeoFeatures(object):
                 raise NotImplementedError(err)
 
         elif isinstance(polygon, shapefile.Shape):
-            shape_type = polygon.__geo_interface__['type']
+            shape_type = polygon.__geo_interface__["type"]
             coords = polygon.points
             if shape_type.lower() == "polygon":
                 polygon = geojson.Polygon([coords])
@@ -660,7 +722,7 @@ class GeoFeatures(object):
                     if isinstance(geom, Polygon):
                         x, y = geom.exterior.xy
                         coords = list(zip(x, y))
-                        t.append((coords, ))
+                        t.append((coords,))
 
                 polygon = geojson.MultiPolygon(polygon)
 
@@ -669,8 +731,10 @@ class GeoFeatures(object):
                 polygon = polygon.geometry
 
         else:
-            err = "Input type not yet implemented: Method currently " \
-                  "supports (Shapely, Shapefile.shape, and lists of verticies"
+            err = (
+                "Input type not yet implemented: Method currently "
+                "supports (Shapely, Shapefile.shape, and lists of verticies"
+            )
             raise NotImplementedError(err)
 
         cols = list(df)
@@ -687,8 +751,9 @@ class GeoFeatures(object):
 
 
 @ray.remote
-def multiproc_intersection(IGNORE, POPULATION, features, polygon, ix,
-                           feature, n):
+def multiproc_intersection(
+    IGNORE, POPULATION, features, polygon, ix, feature, n
+):
     """
     Multithreaded intersection operation handler
 
@@ -732,7 +797,9 @@ def multiproc_intersection(IGNORE, POPULATION, features, polygon, ix,
                 pass
 
     else:
-        p = [a, ]
+        p = [
+            a,
+        ]
 
     m = 0
     for a in p:
@@ -763,8 +830,9 @@ def multiproc_intersection(IGNORE, POPULATION, features, polygon, ix,
         xy = [(i[0], i[1]) for i in xy]
 
         geopolygon = geojson.Polygon([xy])
-        geofeature = geojson.Feature(geometry=geopolygon,
-                                     properties=adj_properties)
+        geofeature = geojson.Feature(
+            geometry=geopolygon, properties=adj_properties
+        )
 
         out.append([n, m, geofeature])
         m += 1

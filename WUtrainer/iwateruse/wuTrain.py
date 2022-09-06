@@ -8,14 +8,15 @@ import featurize
 from sklearn.pipeline import Pipeline
 from xgboost import XGBRegressor
 
+
 class Learner(object):
-    def __init__(self, data, features, target, logfile = 'wu_log'):
+    def __init__(self, data, features, target, logfile="wu_log"):
 
         if os.path.isfile(logfile):
             os.remove(logfile)
         self.logfile = logfile
         self.loger = Logger(filename=logfile)
-        self.loger.add_info_msg(msg = "Initialize Machine Learning ...")
+        self.loger.add_info_msg(msg="Initialize Machine Learning ...")
         self.X = data[features]  # m * n
         self.y = data[target]  # m * 1
 
@@ -25,10 +26,8 @@ class Learner(object):
         self.target_transfrorms = []
 
         # defualt estimator
-        self.estimator = ('xgboost', XGBRegressor())
+        self.estimator = ("xgboost", XGBRegressor())
         self.parameters = {}  # todo: add defualt model params
-
-
 
     def remove_outliers(self):
         #
@@ -144,11 +143,11 @@ class Learner(object):
         if len(feat_chain) > 0:
             for func in feat_chain:
                 self.X = func(self.X)
-                print("  ..... Function {} is implemented".format(func.__name__))
+                print(
+                    "  ..... Function {} is implemented".format(func.__name__)
+                )
 
-
-
-    def add_model(self, model=('xgbrg', XGBRegressor()), parameters={}):
+    def add_model(self, model=("xgbrg", XGBRegressor()), parameters={}):
         """
 
         :param model: tuple (model name, model object)
@@ -175,24 +174,30 @@ if __name__ == "__main__":
     # training
 
     # 5) Hyper-parameter tuning
-    features = ['population', 'median_income', 'pop_density', 'pr', 'pet', 'tmmn', 'tmmx']
-    name = 'keras'
-    model = ''
+    features = [
+        "population",
+        "median_income",
+        "pop_density",
+        "pr",
+        "pet",
+        "tmmn",
+        "tmmx",
+    ]
+    name = "keras"
+    model = ""
     model_param = {}
 
     # initialize learner
-    wi_case = Learner(data, features=features, target='wu_rate')
+    wi_case = Learner(data, features=features, target="wu_rate")
 
     # add more features
     wi_case.feature_engineering(feat_chain=[])
 
     # choose ML estimator, defualt is xgboost
-    wi_case.add_model(model=('keras', XGBRegressor()),
-                      parameters={})
+    wi_case.add_model(model=("keras", XGBRegressor()), parameters={})
 
     ## --------------------Transform Example ----------------------------
     from sklearn.base import BaseEstimator, TransformerMixin
-
 
     class TranFunc(BaseEstimator, TransformerMixin):
         def __init__(self):
@@ -206,18 +211,19 @@ if __name__ == "__main__":
             X_.X2 = X_.X2 + 1
             return X_
 
-
     ## ---------------------------------------------------------------------
 
-    wi_case.add_feature_transform(transform=('shift', TranFunc()),
-                                  parameters={'scale': 0})
+    wi_case.add_feature_transform(
+        transform=("shift", TranFunc()), parameters={"scale": 0}
+    )
 
     ## -------------- Target transform --------------------------------
 
     from sklearn.compose import TransformedTargetRegressor
 
-    tt = TransformedTargetRegressor(regressor=XGBRegressor(),
-                                    func=np.log, inverse_func=np.exp)
+    tt = TransformedTargetRegressor(
+        regressor=XGBRegressor(), func=np.log, inverse_func=np.exp
+    )
 
     ## -----------------------------------------------------------------
     wi_case.add_target_transform(func=np.log, inverse_func=np.exp)

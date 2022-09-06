@@ -25,28 +25,29 @@ class TigerWebVariables(object):
     """
     Tigerweb variable names for querying data
     """
-    mtfcc = 'MTFCC'
-    oid = 'OID'
-    geoid = 'GEOID'
-    state = 'STATE'
-    county = 'COUNTY'
-    cousub = 'COUSUB'
-    tract = 'TRACT'
-    blkgrp = 'BLKGRP'
-    block = 'BLOCK'
-    basename = 'BASENAME'
-    name = 'NAME'
-    lsadc = 'LSADC'
-    funcstat = 'FUNCSTAT'
-    arealand = 'AREALAND'
-    areawater = 'AREAWATER'
-    stgeometry = 'STGEOMETRY'
-    centlat = 'CENTLAT'
-    centlon = 'CENTLON'
-    intptlat = 'INTPTLAT'
-    intptlon = 'INTPTLON'
-    objectid = 'OBJECTID'
-    population = 'POP100'
+
+    mtfcc = "MTFCC"
+    oid = "OID"
+    geoid = "GEOID"
+    state = "STATE"
+    county = "COUNTY"
+    cousub = "COUSUB"
+    tract = "TRACT"
+    blkgrp = "BLKGRP"
+    block = "BLOCK"
+    basename = "BASENAME"
+    name = "NAME"
+    lsadc = "LSADC"
+    funcstat = "FUNCSTAT"
+    arealand = "AREALAND"
+    areawater = "AREAWATER"
+    stgeometry = "STGEOMETRY"
+    centlat = "CENTLAT"
+    centlon = "CENTLON"
+    intptlat = "INTPTLAT"
+    intptlon = "INTPTLON"
+    objectid = "OBJECTID"
+    population = "POP100"
 
 
 class TigerWebBase(object):
@@ -66,13 +67,15 @@ class TigerWebBase(object):
         default is () which grabs all polygons
 
     """
+
     def __init__(self, shp, field, geotype, filter):
         if not os.path.isfile(shp):
             raise FileNotFoundError("{} not a valid file path".format(shp))
         prj = shp[:-4] + ".prj"
         if not os.path.isfile(prj):
-            raise FileNotFoundError("{}: projection file not found"
-                                    .format(prj))
+            raise FileNotFoundError(
+                "{}: projection file not found".format(prj)
+            )
 
         self._geotype = geotype
         self._shpname = shp
@@ -87,9 +90,11 @@ class TigerWebBase(object):
         self.prj = pycrs.load.from_file(self._prjname)
 
         if self.prj.name != "GCS_WGS_1984":
-            raise AssertionError("Census data Collector only supports "
-                                 "GCS_WGS_1984 projection as input, please "
-                                 "re-project your shapefile")
+            raise AssertionError(
+                "Census data Collector only supports "
+                "GCS_WGS_1984 projection as input, please "
+                "re-project your shapefile"
+            )
 
         self._wkid = None
         self._shapes = {}
@@ -102,8 +107,9 @@ class TigerWebBase(object):
         if filter:
             if isinstance(filter, (int, str, float)):
                 filter = (filter,)
-            filter = tuple([i.lower() if isinstance(i, str) else
-                            i for i in filter])
+            filter = tuple(
+                [i.lower() if isinstance(i, str) else i for i in filter]
+            )
 
         self._filter = filter
 
@@ -119,14 +125,16 @@ class TigerWebBase(object):
         if self._wkid is None:
             df = get_wkt_wkid_table()
             iloc = df.index[
-                df['name'].str.lower() == self.prj.name.lower()].values
+                df["name"].str.lower() == self.prj.name.lower()
+            ].values
             if len(iloc) == 1:
-                wkid = df.loc[iloc, 'wkid'].values[0]
+                wkid = df.loc[iloc, "wkid"].values[0]
                 self._wkid = int(wkid)
 
             else:
-                raise Exception("Can't find a matching esri wkid "
-                                "for current projection")
+                raise Exception(
+                    "Can't find a matching esri wkid " "for current projection"
+                )
 
         return self._wkid
 
@@ -163,7 +171,7 @@ class TigerWebBase(object):
             dict : {name: [vertices]}
         """
         if not self._albers_shapes:
-            self.__geojson_to_albers_geojson('shapes')
+            self.__geojson_to_albers_geojson("shapes")
 
         return copy.deepcopy(self._albers_shapes)
 
@@ -178,7 +186,7 @@ class TigerWebBase(object):
         """
         if not self._features:
             print("Warning, no features in feature dict,")
-            print('Please run get_data() to get TigerWeb features')
+            print("Please run get_data() to get TigerWeb features")
 
         return copy.deepcopy(self._features)
 
@@ -193,7 +201,7 @@ class TigerWebBase(object):
             dict : {name: geoJSON objects}
         """
         if not self._albers_features:
-            self.__geojson_to_albers_geojson('features')
+            self.__geojson_to_albers_geojson("features")
 
         return copy.deepcopy(self._albers_features)
 
@@ -243,7 +251,7 @@ class TigerWebBase(object):
             geoJSON object
         """
         if not self._albers_features:
-            self.__geojson_to_albers_geojson('features')
+            self.__geojson_to_albers_geojson("features")
 
         if name not in self._albers_features:
             name = str(name)
@@ -285,7 +293,7 @@ class TigerWebBase(object):
             geoJSON feature
         """
         if not self.albers_shapes:
-            self.__geojson_to_albers_geojson('shapes')
+            self.__geojson_to_albers_geojson("shapes")
 
         if name not in self._shapes:
             raise KeyError("Name: {} not present in shapes dict".format(name))
@@ -323,13 +331,15 @@ class TigerWebBase(object):
         -------
         str : json geometry string
         """
-        d = {"geometryType": "esriGeometryPoint",
-             'x': point[0],
-             'y': point[1],
-             "spatialReference": {}}
+        d = {
+            "geometryType": "esriGeometryPoint",
+            "x": point[0],
+            "y": point[1],
+            "spatialReference": {},
+        }
 
         if isinstance(self.esri_wkid, int):
-            d['spatialReference'] = {"wkid": self.esri_wkid}
+            d["spatialReference"] = {"wkid": self.esri_wkid}
         else:
             raise TypeError("wkid must be a well known id number string")
 
@@ -352,9 +362,11 @@ class TigerWebBase(object):
         -------
         str : json geometry string
         """
-        d = {"geometryType": "esriGeometryPolygon",
-             "rings": [],
-             "spatialReference": {}}
+        d = {
+            "geometryType": "esriGeometryPolygon",
+            "rings": [],
+            "spatialReference": {},
+        }
         ring = []
         for pts in polygon:
             if isinstance(pts, tuple):
@@ -371,13 +383,14 @@ class TigerWebBase(object):
                 ring.append(pts)
 
             else:
-                raise AssertionError("Each point must consist of only "
-                                     "two coordinates")
+                raise AssertionError(
+                    "Each point must consist of only " "two coordinates"
+                )
 
         d["rings"].append(ring)
 
         if isinstance(self.esri_wkid, int):
-            d['spatialReference'] = {"wkid": self.esri_wkid}
+            d["spatialReference"] = {"wkid": self.esri_wkid}
         else:
             raise TypeError("wkid must be a well known id number string")
 
@@ -386,7 +399,7 @@ class TigerWebBase(object):
         s = s.replace(" ", "")
         return s
 
-    def __geojson_to_albers_geojson(self, which='features'):
+    def __geojson_to_albers_geojson(self, which="features"):
         """
         Method to convert data in the features or shapes dict to
         albers projection and set the albers_features or albers_shapes
@@ -401,7 +414,7 @@ class TigerWebBase(object):
         -------
             None
         """
-        if which == 'features':
+        if which == "features":
             data = self.features
         elif which == "shapes":
             data = self.shapes
@@ -413,14 +426,16 @@ class TigerWebBase(object):
             if isinstance(features, list):
                 alb_features = []
                 for feature in features:
-                    geofeat = lat_lon_geojson_to_albers_geojson(feature,
-                                                                precision=100.)
+                    geofeat = lat_lon_geojson_to_albers_geojson(
+                        feature, precision=100.0
+                    )
                     alb_features.append(geofeat)
                 alb_data[name] = alb_features
 
             else:
-                geofeat = lat_lon_geojson_to_albers_geojson(features,
-                                                            precision=100.)
+                geofeat = lat_lon_geojson_to_albers_geojson(
+                    features, precision=100.0
+                )
                 alb_data[name] = geofeat
 
         if which == "features":
@@ -430,8 +445,17 @@ class TigerWebBase(object):
         else:
             raise Exception("Code shoudn't have made it here")
 
-    def get_data(self, year, level='finest', outfields=(), verbose=True,
-                 multiproc=False, multithread=False, thread_pool=4, retry=100):
+    def get_data(
+        self,
+        year,
+        level="finest",
+        outfields=(),
+        verbose=True,
+        multiproc=False,
+        multithread=False,
+        thread_pool=4,
+        retry=100,
+    ):
         """
         Method to pull data feature data from tigerweb
 
@@ -463,7 +487,7 @@ class TigerWebBase(object):
         level = level.lower()
 
         lut = None
-        if level == 'finest':
+        if level == "finest":
             for level in TigerWebMapServer.levels:
                 lut = TigerWebMapServer.__dict__[level]
                 if year in lut:
@@ -480,8 +504,11 @@ class TigerWebBase(object):
                     lut = None
 
         if lut is None:
-            raise KeyError("No TigerWeb server could be found for {} and {}"
-                           .format(year, level))
+            raise KeyError(
+                "No TigerWeb server could be found for {} and {}".format(
+                    year, level
+                )
+            )
 
         if level == "county_subdivision":
             base = TigerWebMapServer.lcdbase[year]
@@ -490,19 +517,19 @@ class TigerWebBase(object):
         else:
             base = TigerWebMapServer.base[year]
 
-        mapserver = lut[year]['mapserver']
+        mapserver = lut[year]["mapserver"]
 
-        if self._geotype == 'point':
-            geotype = 'esriGeometryPoint'
+        if self._geotype == "point":
+            geotype = "esriGeometryPoint"
         else:
-            geotype = 'esriGeometryPolygon'
+            geotype = "esriGeometryPolygon"
 
         if outfields:
             if isinstance(outfields, str):
                 outfields = (outfields,)
-            outfields = ','.join(outfields).upper()
+            outfields = ",".join(outfields).upper()
         else:
-            outfields = lut[year]['outFields']
+            outfields = lut[year]["outFields"]
 
         if "GEOID" not in outfields:
             outfields += ",GEOID"
@@ -516,10 +543,16 @@ class TigerWebBase(object):
             actors = []
             for key, esri_json in self._esri_json.items():
 
-                actor = multiproc_request_data.remote(key, base, mapserver,
-                                                      esri_json, geotype,
-                                                      outfields, verbose,
-                                                      retry)
+                actor = multiproc_request_data.remote(
+                    key,
+                    base,
+                    mapserver,
+                    esri_json,
+                    geotype,
+                    outfields,
+                    verbose,
+                    retry,
+                )
                 actors.append(actor)
 
             output = ray.get(actors)
@@ -536,10 +569,20 @@ class TigerWebBase(object):
             container = threading.BoundedSemaphore(thread_pool)
             for key, esri_json in self._esri_json.items():
 
-                x = threading.Thread(target=self.threaded_request_data,
-                                     args=(key, base, mapserver, esri_json,
-                                           geotype, outfields, verbose,
-                                           retry, container))
+                x = threading.Thread(
+                    target=self.threaded_request_data,
+                    args=(
+                        key,
+                        base,
+                        mapserver,
+                        esri_json,
+                        geotype,
+                        outfields,
+                        verbose,
+                        retry,
+                        container,
+                    ),
+                )
                 thread_list.append(x)
 
             for thread in thread_list:
@@ -550,8 +593,16 @@ class TigerWebBase(object):
         else:
             for key, esri_json in self._esri_json.items():
 
-                self.__request_data(key, base, mapserver, esri_json, geotype,
-                                    outfields, verbose, retry)
+                self.__request_data(
+                    key,
+                    base,
+                    mapserver,
+                    esri_json,
+                    geotype,
+                    outfields,
+                    verbose,
+                    retry,
+                )
 
         # cleanup duplicate features after query!
         for key, features in self._features.items():
@@ -569,8 +620,17 @@ class TigerWebBase(object):
 
             self._features[key] = features
 
-    def __request_data(self, key, base, mapserver, esri_json, geotype,
-                       outfields, verbose, retry):
+    def __request_data(
+        self,
+        key,
+        base,
+        mapserver,
+        esri_json,
+        geotype,
+        outfields,
+        verbose,
+        retry,
+    ):
         """
         Request data method for serial and multithread applications
 
@@ -598,33 +658,34 @@ class TigerWebBase(object):
 
         """
         s = requests.session()
-        url = '/'.join([base, str(mapserver), "query?"])
+        url = "/".join([base, str(mapserver), "query?"])
 
-        s.params = {'where': '',
-                    'text': '',
-                    'objectIds': '',
-                    'geometry': esri_json,
-                    'geometryType': geotype,
-                    'inSR': '',
-                    'spatialRel': 'esriSpatialRelIntersects',
-                    'relationParam': '',
-                    'outFields': outfields,
-                    'returnGeometry': True,
-                    'returnTrueCurves': False,
-                    'maxAllowableOffset': '',
-                    'geometryPrecision': '',
-                    'outSR': '',
-                    'returnIdsOnly': False,
-                    'returnCountOnly': False,
-                    'orderByFields': '',
-                    'groupByFieldsForStatistics': '',
-                    'outStatistics': '',
-                    'returnZ': False,
-                    'returnM': False,
-                    'gdbVersion': '',
-                    'returnDistinctValues': False,
-                    'f': 'geojson',
-                    }
+        s.params = {
+            "where": "",
+            "text": "",
+            "objectIds": "",
+            "geometry": esri_json,
+            "geometryType": geotype,
+            "inSR": "",
+            "spatialRel": "esriSpatialRelIntersects",
+            "relationParam": "",
+            "outFields": outfields,
+            "returnGeometry": True,
+            "returnTrueCurves": False,
+            "maxAllowableOffset": "",
+            "geometryPrecision": "",
+            "outSR": "",
+            "returnIdsOnly": False,
+            "returnCountOnly": False,
+            "orderByFields": "",
+            "groupByFieldsForStatistics": "",
+            "outStatistics": "",
+            "returnZ": False,
+            "returnM": False,
+            "gdbVersion": "",
+            "returnDistinctValues": False,
+            "f": "geojson",
+        }
         start = 0
         done = False
         features = []
@@ -632,13 +693,17 @@ class TigerWebBase(object):
 
         while not done:
             try:
-                r = s.get(url, params={'resultOffset': start,
-                                       'resultRecordCount': 32})
+                r = s.get(
+                    url,
+                    params={"resultOffset": start, "resultRecordCount": 32},
+                )
                 r.raise_for_status()
-            except (requests.exceptions.HTTPError,
-                    requests.exceptions.ConnectionError,
-                    requests.exceptions.ChunkedEncodingError,
-                    requests.exceptions.ReadTimeout) as e:
+            except (
+                requests.exceptions.HTTPError,
+                requests.exceptions.ConnectionError,
+                requests.exceptions.ChunkedEncodingError,
+                requests.exceptions.ReadTimeout,
+            ) as e:
                 n += 1
                 if verbose:
                     print("ConnectionError: retry number {}".format(n))
@@ -650,21 +715,32 @@ class TigerWebBase(object):
 
             # print(r.text)
             counties = geojson.loads(r.text)
-            newfeats = counties.__geo_interface__['features']
+            newfeats = counties.__geo_interface__["features"]
             if newfeats:
                 features.extend(newfeats)
                 # crs = counties.__geo_interface__['crs']
                 start += len(newfeats)
                 if verbose:
-                    print("Received", len(newfeats), "entries,",
-                          start, "total")
+                    print(
+                        "Received", len(newfeats), "entries,", start, "total"
+                    )
             else:
                 done = True
 
         self._features[key] = features
 
-    def threaded_request_data(self, key, base, mapserver, esri_json, geotype,
-                              outfields, verbose, retry, container):
+    def threaded_request_data(
+        self,
+        key,
+        base,
+        mapserver,
+        esri_json,
+        geotype,
+        outfields,
+        verbose,
+        retry,
+        container,
+    ):
         """
         Multithread handler method to request data from the TigerWeb server
 
@@ -690,14 +766,16 @@ class TigerWebBase(object):
 
         """
         container.acquire()
-        self.__request_data(key, base, mapserver, esri_json, geotype,
-                            outfields, verbose, retry)
+        self.__request_data(
+            key, base, mapserver, esri_json, geotype, outfields, verbose, retry
+        )
         container.release()
 
 
 @ray.remote
-def multiproc_request_data(key, base, mapserver, esri_json, geotype,
-                           outfields, verbose, retry):
+def multiproc_request_data(
+    key, base, mapserver, esri_json, geotype, outfields, verbose, retry
+):
     """
     Ray multiprocessing handler method to request data from the TigerWeb server
 
@@ -722,33 +800,34 @@ def multiproc_request_data(key, base, mapserver, esri_json, geotype,
 
     """
     s = requests.session()
-    url = '/'.join([base, str(mapserver), "query?"])
+    url = "/".join([base, str(mapserver), "query?"])
 
-    s.params = {'where': '',
-                'text': '',
-                'objectIds': '',
-                'geometry': esri_json,
-                'geometryType': geotype,
-                'inSR': '',
-                'spatialRel': 'esriSpatialRelIntersects',
-                'relationParam': '',
-                'outFields': outfields,
-                'returnGeometry': True,
-                'returnTrueCurves': False,
-                'maxAllowableOffset': '',
-                'geometryPrecision': '',
-                'outSR': '',
-                'returnIdsOnly': False,
-                'returnCountOnly': False,
-                'orderByFields': '',
-                'groupByFieldsForStatistics': '',
-                'outStatistics': '',
-                'returnZ': False,
-                'returnM': False,
-                'gdbVersion': '',
-                'returnDistinctValues': False,
-                'f': 'geojson',
-                }
+    s.params = {
+        "where": "",
+        "text": "",
+        "objectIds": "",
+        "geometry": esri_json,
+        "geometryType": geotype,
+        "inSR": "",
+        "spatialRel": "esriSpatialRelIntersects",
+        "relationParam": "",
+        "outFields": outfields,
+        "returnGeometry": True,
+        "returnTrueCurves": False,
+        "maxAllowableOffset": "",
+        "geometryPrecision": "",
+        "outSR": "",
+        "returnIdsOnly": False,
+        "returnCountOnly": False,
+        "orderByFields": "",
+        "groupByFieldsForStatistics": "",
+        "outStatistics": "",
+        "returnZ": False,
+        "returnM": False,
+        "gdbVersion": "",
+        "returnDistinctValues": False,
+        "f": "geojson",
+    }
     start = 0
     done = False
     features = []
@@ -756,13 +835,16 @@ def multiproc_request_data(key, base, mapserver, esri_json, geotype,
     n = 0
     while not done:
         try:
-            r = s.get(url, params={'resultOffset': start,
-                                   'resultRecordCount': 32})
+            r = s.get(
+                url, params={"resultOffset": start, "resultRecordCount": 32}
+            )
             r.raise_for_status()
-        except (requests.exceptions.HTTPError,
-                requests.exceptions.ConnectionError,
-                requests.exceptions.ChunkedEncodingError,
-                requests.exceptions.ReadTimeout) as e:
+        except (
+            requests.exceptions.HTTPError,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.ChunkedEncodingError,
+            requests.exceptions.ReadTimeout,
+        ) as e:
             n += 1
             if verbose:
                 print("ConnectionError: retry number {}".format(n))
@@ -773,14 +855,13 @@ def multiproc_request_data(key, base, mapserver, esri_json, geotype,
                 continue
 
         counties = geojson.loads(r.text)
-        newfeats = counties.__geo_interface__['features']
+        newfeats = counties.__geo_interface__["features"]
         if newfeats:
             features.extend(newfeats)
             # crs = counties.__geo_interface__['crs']
             start += len(newfeats)
             if verbose:
-                print("Received", len(newfeats), "entries,",
-                      start, "total")
+                print("Received", len(newfeats), "entries,", start, "total")
         else:
             done = True
 
@@ -804,6 +885,7 @@ class TigerWebPoint(TigerWebBase):
         tuple of names or polygon numbers to pull from
         default is () which grabs all polygons
     """
+
     def __init__(self, shp, field=None, radius=0, filter=()):
         if isinstance(radius, str) or radius > 0:
             super(TigerWebPoint, self).__init__(shp, field, "polygon", filter)
@@ -830,8 +912,11 @@ class TigerWebPoint(TigerWebBase):
             None
         """
         if self.sf.shapeType not in (1, 11, 21):
-            raise TypeError('Shapetype: {}, is not a valid point'
-                            .format(self.sf.shapeTypeName))
+            raise TypeError(
+                "Shapetype: {}, is not a valid point".format(
+                    self.sf.shapeTypeName
+                )
+            )
 
         named = False
         fidx = 0
@@ -894,8 +979,11 @@ class TigerWebPoint(TigerWebBase):
 
         """
         if self.sf.shapeType not in (1, 11, 21):
-            raise TypeError('Shapetype: {}, is not a valid point'
-                            .format(self.sf.shapeTypeName))
+            raise TypeError(
+                "Shapetype: {}, is not a valid point".format(
+                    self.sf.shapeTypeName
+                )
+            )
 
         named = False
         fidx = 0
@@ -945,8 +1033,9 @@ class TigerWebPolygon(TigerWebBase):
         default is () which grabs all polygons
 
     """
+
     def __init__(self, shp, field=None, filter=()):
-        super(TigerWebPolygon, self).__init__(shp, field, 'polygon', filter)
+        super(TigerWebPolygon, self).__init__(shp, field, "polygon", filter)
 
         self._get_polygons()
         self.sf.close()
@@ -961,8 +1050,11 @@ class TigerWebPolygon(TigerWebBase):
             None
         """
         if self.sf.shapeType not in (5, 15, 25):
-            raise TypeError('Shapetype: {}, is not a valid polygon'
-                            .format(self.sf.shapeTypeName))
+            raise TypeError(
+                "Shapetype: {}, is not a valid polygon".format(
+                    self.sf.shapeTypeName
+                )
+            )
 
         named = False
         fidx = 0
@@ -981,9 +1073,13 @@ class TigerWebPolygon(TigerWebBase):
             if len(shape.points) > 20:
                 # get the bbox to do the tigerweb data pull
                 bbox = shape.bbox
-                points = [(bbox[0], bbox[1]), (bbox[2], bbox[1]),
-                          (bbox[2], bbox[3]), (bbox[0], bbox[3]),
-                          (bbox[0], bbox[1])]
+                points = [
+                    (bbox[0], bbox[1]),
+                    (bbox[2], bbox[1]),
+                    (bbox[2], bbox[3]),
+                    (bbox[0], bbox[3]),
+                    (bbox[0], bbox[1]),
+                ]
                 esri_json = self.polygon_to_esri_json(points)
             else:
                 esri_json = self.polygon_to_esri_json(shape.points)
@@ -1002,10 +1098,10 @@ class TigerWebPolygon(TigerWebBase):
             self._esri_json[name] = esri_json
 
             geofeat = shape.__geo_interface__
-            if geofeat['type'].lower() == "polygon":
-                poly = geojson.Polygon(geofeat['coordinates'])
+            if geofeat["type"].lower() == "polygon":
+                poly = geojson.Polygon(geofeat["coordinates"])
             else:
-                poly = geojson.MultiPolygon(geofeat['coordinates'])
+                poly = geojson.MultiPolygon(geofeat["coordinates"])
 
             geofeat = geojson.Feature(geometry=poly)
 
@@ -1030,6 +1126,7 @@ class TigerWeb(object):
         default is () which grabs all polygons
 
     """
+
     def __new__(cls, shp, field=None, radius=0, filter=()):
         with shapefile.Reader(shp) as sf:
             shapetype = sf.shapeType
@@ -1040,5 +1137,8 @@ class TigerWeb(object):
         elif shapetype in (5, 15, 25):
             return TigerWebPolygon(shp, field, filter)
         else:
-            raise TypeError('Shapetype: {}, is not a valid point or polygon'
-                            .format(shapename))
+            raise TypeError(
+                "Shapetype: {}, is not a valid point or polygon".format(
+                    shapename
+                )
+            )

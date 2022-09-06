@@ -28,15 +28,17 @@ def make_pipeline(model):
 
     # Transformation of categorical features
     categorical_transformer = OneHotEncoder(handle_unknown="ignore")
-    summary_encoding = ce.quantile_encoder.SummaryEncoder(cols=categorical_features,
-                                                          quantiles=(0.05, 0.25, 0.75, 0.5, 0.95))
+    summary_encoding = ce.quantile_encoder.SummaryEncoder(
+        cols=categorical_features, quantiles=(0.05, 0.25, 0.75, 0.5, 0.95)
+    )
     preprocessor = ColumnTransformer(
-        remainder='passthrough',
+        remainder="passthrough",
         transformers=[
             ("cat", categorical_transformer, categorical_features),
             # ('Target encoding', summary_encoding, categorical_features)
-        ])
-    main_pipeline.append(('preprocessor', preprocessor))
+        ],
+    )
+    main_pipeline.append(("preprocessor", preprocessor))
     return main_pipeline
 
 
@@ -50,17 +52,23 @@ class Spipe(object):
         self.pipeline = pipeline
 
         if len(pipeline.steps) != 2:
-            raise ValueError("Only two steps are allowed: preprocessor ans estimator")
+            raise ValueError(
+                "Only two steps are allowed: preprocessor ans estimator"
+            )
 
         try:
-            self.preprocessor = pipeline['preprocessor']
+            self.preprocessor = pipeline["preprocessor"]
         except:
-            raise ValueError(" The pipeline must have a first step called 'preprocessor'")
+            raise ValueError(
+                " The pipeline must have a first step called 'preprocessor'"
+            )
 
         try:
-            self.estimator = pipeline['estimator']
+            self.estimator = pipeline["estimator"]
         except:
-            raise ValueError(" The pipeline must have a first step called 'estimator'")
+            raise ValueError(
+                " The pipeline must have a first step called 'estimator'"
+            )
 
         self.df_in = None
         self.df_out = None
@@ -72,12 +80,11 @@ class Spipe(object):
         self.trained_model = est_obj
         return self.trained_model
 
-
     def predict(self, X):
         col1 = X.columns[0]
         y_dummy = X[[col1]].copy() * np.NAN
-        y_dummy.rename(columns = {col1:'0'}, inplace = True)
-        X_ = self.preprocess(X, y = y_dummy)
+        y_dummy.rename(columns={col1: "0"}, inplace=True)
+        X_ = self.preprocess(X, y=y_dummy)
         yhat = self.trained_model.predict(X_)
         return yhat
 
@@ -96,7 +103,7 @@ class Spipe(object):
         cols = X_.columns
         for col in cols:
             if "remainder" in col:
-                ncol = col.replace("remainder__", '')
-                X_.rename(columns = {col:ncol}, inplace = True)
+                ncol = col.replace("remainder__", "")
+                X_.rename(columns={col: ncol}, inplace=True)
         self.X_transf = X_
         return X_

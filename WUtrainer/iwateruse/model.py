@@ -1,35 +1,41 @@
-import os, sys,shutil
+import os, sys, shutil
 import pandas as pd
 from . import report
 import json
 
 
 class Model:
-    def __init__(self, name='exp1', df_train=None, feature_status_file=None, log_file=None, model_type = 'annual',
-                 model_ws = "model_1", clean = False):
-
+    def __init__(
+        self,
+        name="exp1",
+        df_train=None,
+        feature_status_file=None,
+        log_file=None,
+        model_type="annual",
+        model_ws="model_1",
+        clean=False,
+    ):
 
         self.name = name
         self.model_type = model_type.strip().lower()
-        self.model_ws= model_ws
+        self.model_ws = model_ws
 
         if os.path.isdir(self.model_ws):
             if clean:
                 print("...>  remove {}".format(self.model_ws))
                 shutil.rmtree(model_ws)
                 os.mkdir(self.model_ws)
-                os.mkdir(os.path.join(self.model_ws, 'figs'))
+                os.mkdir(os.path.join(self.model_ws, "figs"))
         else:
             os.mkdir(self.model_ws)
-            os.mkdir(os.path.join(self.model_ws, 'figs'))
-
+            os.mkdir(os.path.join(self.model_ws, "figs"))
 
         if log_file is None:
-            self.log_file = os.path.join(self.model_ws, 'train_log.log')
+            self.log_file = os.path.join(self.model_ws, "train_log.log")
         else:
             self.log_file = os.path.join(self.model_ws, log_file)
 
-        if model_type.lower()=='annual':
+        if model_type.lower() == "annual":
             title = "Annual Water Use"
         else:
             title = "Monthly Water Use"
@@ -39,20 +45,21 @@ class Model:
             self.log.info("initialize ...")
             self.log.info("Model Name: {}".format(name))
         else:
-            self.log = report.Logger(self.log_file, title='++')
+            self.log = report.Logger(self.log_file, title="++")
             self.log.info("appending log file ...")
             self.log.info("Model Name: {}".format(name))
 
-
         if not (df_train is None):
-            #self.df_train_bk = df_train.copy()
+            # self.df_train_bk = df_train.copy()
             self.df_train = df_train.copy()
-            self.log.to_table(df_train, title="Raw Training Dataset", header=10)
+            self.log.to_table(
+                df_train, title="Raw Training Dataset", header=10
+            )
             summary = self.df_train.describe()
             self.log.to_table(summary, title="Raw Training Data Summary")
 
-        self.raw_target = ''
-        self.target = ''
+        self.raw_target = ""
+        self.target = ""
         self._features = []
         self._features_selected = []
         self.dropped_features = []
@@ -74,8 +81,13 @@ class Model:
         else:
             self.get_feature_status(fn=feature_status_file)
 
-        self.func_types = ['target_func', 'outliers_func',
-                           'add_features_func', 'pre_train_func', 'split_func']
+        self.func_types = [
+            "target_func",
+            "outliers_func",
+            "add_features_func",
+            "pre_train_func",
+            "split_func",
+        ]
 
         self.steps = []
         self.model_options = []
@@ -87,39 +99,59 @@ class Model:
 
     def get_feature_status(self, fn):
         self.feature_status_file = fn
-        self.feature_status = pd.read_excel(fn, sheet_name='annual')
+        self.feature_status = pd.read_excel(fn, sheet_name="annual")
 
-        if self.model_type == 'annual':
-            not_features = self.feature_status[self.feature_status['Not_Feature'] == 1]['Feature_name'].values.tolist()
-            skip_features = self.feature_status[self.feature_status['Skip'] == 1]['Feature_name'].values.tolist()
-            self._features_to_skip = self._features_to_skip + not_features + skip_features
+        if self.model_type == "annual":
+            not_features = self.feature_status[
+                self.feature_status["Not_Feature"] == 1
+            ]["Feature_name"].values.tolist()
+            skip_features = self.feature_status[
+                self.feature_status["Skip"] == 1
+            ]["Feature_name"].values.tolist()
+            self._features_to_skip = (
+                self._features_to_skip + not_features + skip_features
+            )
 
-            cat_feat = self.feature_status[self.feature_status['Type'].isin(['categorical'])][
-                'Feature_name'].values.tolist()
+            cat_feat = self.feature_status[
+                self.feature_status["Type"].isin(["categorical"])
+            ]["Feature_name"].values.tolist()
             self._categorical_features = []
             for feat in cat_feat:
                 if feat in self._features_to_skip:
                     continue
                 self._categorical_features.append(feat)
         else:
-            not_features = self.feature_status[self.feature_status['Not_Feature'] == 1]['Feature_name'].values.tolist()
-            skip_features = self.feature_status[self.feature_status['Skip'] == 1]['Feature_name'].values.tolist()
-            skip_features = skip_features+ self.feature_status[self.feature_status['monthly Skip'] == 1]['Feature_name'].values.tolist()
-            self._features_to_skip = list(set(self._features_to_skip + not_features + skip_features))
+            not_features = self.feature_status[
+                self.feature_status["Not_Feature"] == 1
+            ]["Feature_name"].values.tolist()
+            skip_features = self.feature_status[
+                self.feature_status["Skip"] == 1
+            ]["Feature_name"].values.tolist()
+            skip_features = (
+                skip_features
+                + self.feature_status[
+                    self.feature_status["monthly Skip"] == 1
+                ]["Feature_name"].values.tolist()
+            )
+            self._features_to_skip = list(
+                set(self._features_to_skip + not_features + skip_features)
+            )
 
-            cat_feat = self.feature_status[self.feature_status['Type'].isin(['categorical'])][
-                'Feature_name'].values.tolist()
+            cat_feat = self.feature_status[
+                self.feature_status["Type"].isin(["categorical"])
+            ]["Feature_name"].values.tolist()
             self._categorical_features = []
             for feat in cat_feat:
                 if feat in self._features_to_skip:
                     continue
                 self._categorical_features.append(feat)
 
-
     @property
     def features(self):
         features = []
-        not_features = self._features_to_skip + [self.target] + [self.raw_target]
+        not_features = (
+            self._features_to_skip + [self.target] + [self.raw_target]
+        )
         for col in self.df_train.columns:
             if col in not_features:
                 continue
@@ -142,7 +174,6 @@ class Model:
         summary = self.df_train.describe()
         self.log.to_table(summary, title="Raw Training Data Summary")
 
-
     def add_feature_to_skip_list(self, features):
         self.dropped_features = self.dropped_features + features
         self._features_to_skip = list(set(self._features_to_skip + features))
@@ -152,22 +183,42 @@ class Model:
         self.log.info(msg)
 
     def set_features(self, features):
-        new_drops = list(set(self.dropped_features).difference(set(features)))
-        #new_skips = list(set(self._features_to_skip).difference(set(features)))
-        self.dropped_features = new_drops
-        msg = "The folowing features are added to skip list: "
-        for feat in features:
+        """
+        update all features
+        :param features:
+        :return:
+        """
+        all_features = self.df_train.columns
+        new_skip = list(set(all_features).difference(set(features)))
+        self._features_to_skip = new_skip
+        msg = "The following features are added to skip list: "
+        for feat in new_skip:
             msg = msg + feat + ","
         self.log.info(msg)
 
+    def add_features(self, features):
+        """
+        Add a set of features to the existing features list
+        :param features:
+        :return:
+        """
 
+        all_features = self.df_train.columns
+        feat_not_database = list(set(features).difference(set(all_features)))
+        if len(feat_not_database)>1:
+            raise ValueError("Some of added features are not in the dabase")
+        new_skip = list(set(self._features_to_skip).difference(features))
+        self._features_to_skip = new_skip
 
     def dict_to_file(self, data, fn):
-        with open(fn, 'w') as ff:
+        with open(fn, "w") as ff:
             ff.write(json.dumps(data))
 
-    def load_features_selected(self, method = 'xgb_cover',
-                               feat_selec_file = 'confirmed_selected_features.json'):
+    def load_features_selected(
+        self,
+        method="xgb_cover",
+        feat_selec_file="confirmed_selected_features.json",
+    ):
 
         f = open(feat_selec_file)
         feature_selection_info = json.load(f)
@@ -177,11 +228,11 @@ class Model:
 
     def get_model_options(self):
         "featuresIncluded_EncodingType_SamplesUsed_model_ML"
-        if len(self.model_options)==0:
-            features_options = ['all', 'reduced']
-            samples_options = ['full', 'denoised']
-            encoding_options = ['NoEncoding', 'ohc', 'smc']
-            ml_options = ['xgb']
+        if len(self.model_options) == 0:
+            features_options = ["all", "reduced"]
+            samples_options = ["full", "denoised"]
+            encoding_options = ["NoEncoding", "ohc", "smc"]
+            ml_options = ["xgb"]
             # ---> "all_NoEncoding_full_xgb" means all featuresare used, no ecoding, all samples, use xgb
             models_options = []
             model_features = {}
@@ -194,26 +245,60 @@ class Model:
                             model_name = "{}_{}_{}_{}".format(f, s, e, m)
                             models_options.append(model_name)
 
-                            if f in ['all']:
-                                curr_feats = curr_feats + features_info['all_base_features']
-                                if e in ['ohc']:
-                                    curr_feats = curr_feats + features_info['ohc_features']
-                                    curr_feats = list(set(curr_feats).difference(set(features_info['cat_features'])))
-                                elif e in ['smc']:
-                                    curr_feats = curr_feats + features_info['summary_tragte_features']
-                                    curr_feats = list(set(curr_feats).difference(set(features_info['cat_features'])))
+                            if f in ["all"]:
+                                curr_feats = (
+                                    curr_feats
+                                    + features_info["all_base_features"]
+                                )
+                                if e in ["ohc"]:
+                                    curr_feats = (
+                                        curr_feats
+                                        + features_info["ohc_features"]
+                                    )
+                                    curr_feats = list(
+                                        set(curr_feats).difference(
+                                            set(features_info["cat_features"])
+                                        )
+                                    )
+                                elif e in ["smc"]:
+                                    curr_feats = (
+                                        curr_feats
+                                        + features_info[
+                                            "summary_tragte_features"
+                                        ]
+                                    )
+                                    curr_feats = list(
+                                        set(curr_feats).difference(
+                                            set(features_info["cat_features"])
+                                        )
+                                    )
                                 model_features[model_name] = curr_feats
 
-                            elif f in ['reduced']:
-                                curr_feats = features_info['selected_features']
-                                if e in ['ohc']:
-                                    curr_feats = curr_feats  + features_info['ohc_features']
-                                    curr_feats = list(set(curr_feats).difference(set(features_info['cat_features'])))
-                                elif e in ['smc']:
-                                    curr_feats = curr_feats + features_info['summary_tragte_features']
-                                    curr_feats = list(set(curr_feats).difference(set(features_info['cat_features'])))
+                            elif f in ["reduced"]:
+                                curr_feats = features_info["selected_features"]
+                                if e in ["ohc"]:
+                                    curr_feats = (
+                                        curr_feats
+                                        + features_info["ohc_features"]
+                                    )
+                                    curr_feats = list(
+                                        set(curr_feats).difference(
+                                            set(features_info["cat_features"])
+                                        )
+                                    )
+                                elif e in ["smc"]:
+                                    curr_feats = (
+                                        curr_feats
+                                        + features_info[
+                                            "summary_tragte_features"
+                                        ]
+                                    )
+                                    curr_feats = list(
+                                        set(curr_feats).difference(
+                                            set(features_info["cat_features"])
+                                        )
+                                    )
                                 model_features[model_name] = curr_feats
 
             self.models_features = model_features
         return self.models_features
-

@@ -5,6 +5,7 @@ from plotly.io import to_html
 # todo: this module is defunct. Plans are to make this a wrapper that can
 # todo: "snap" together ReportSections and provide read/write capabilities
 
+
 class Report(object):
     """
     Class to handle reporting for Machine learning processing
@@ -19,8 +20,9 @@ class Report(object):
     def __init__(self, name=""):
 
         self._name = name
-        self._metadata = {"title":
-                          "Machine Learning report for {}".format(name)}
+        self._metadata = {
+            "title": "Machine Learning report for {}".format(name)
+        }
         self.__idf = None
 
     @property
@@ -52,9 +54,9 @@ class Report(object):
             self.__idf = df
             table = self._df_to_metadata_table(df)
             scatter = self._df_to_metadata_scatter(df, "lines+markers")
-            self._metadata[0] = dict(title="Initial data",
-                                     table=table,
-                                     scatter=scatter)
+            self._metadata[0] = dict(
+                title="Initial data", table=table, scatter=scatter
+            )
 
         else:
             raise AttributeError("Initial dataframe cannot be reset!")
@@ -72,13 +74,9 @@ class Report(object):
             dict
 
         """
-        header = dict(values=list(df),
-                      font=dict(size=10),
-                      align="left")
-        cells=dict(values=[df[k].tolist() for k in df.columns],
-                   align="left")
-        d = dict(header=header,
-                 cells=cells)
+        header = dict(values=list(df), font=dict(size=10), align="left")
+        cells = dict(values=[df[k].tolist() for k in df.columns], align="left")
+        d = dict(header=header, cells=cells)
         return d
 
     def _df_to_metadata_scatter(self, df, mode="markers"):
@@ -98,9 +96,9 @@ class Report(object):
         cols = [i for i in list(df) if i.lower() != "date"]
 
         for ix, col in enumerate(cols):
-            t = dict(x=df.date.tolist(), y=df[col].tolist(),
-                     name=col,
-                     mode=mode)
+            t = dict(
+                x=df.date.tolist(), y=df[col].tolist(), name=col, mode=mode
+            )
             d[ix] = t
 
         return d
@@ -121,13 +119,12 @@ class Report(object):
             spc = []
             nitems = len(metadata) - 1
             for ptype, meta in metadata.items():
-                if ptype == 'title':
+                if ptype == "title":
                     continue
 
                 else:
                     if nitems == 1:
-                        spc.append(dict(type=ptype,
-                                        colspan=2))
+                        spc.append(dict(type=ptype, colspan=2))
                         spc.append(None)
 
                     else:
@@ -155,12 +152,15 @@ class Report(object):
                         continue
                     else:
                         if ptype == "table":
-                            titles.append("{} of {}".format(ptype,
-                                                            metadata['title']))
+                            titles.append(
+                                "{} of {}".format(ptype, metadata["title"])
+                            )
                         else:
-                            titles.append("{} plot of {}".format(
-                                ptype,
-                                metadata['title']))
+                            titles.append(
+                                "{} plot of {}".format(
+                                    ptype, metadata["title"]
+                                )
+                            )
 
         return titles
 
@@ -177,8 +177,9 @@ class Report(object):
         spec = self._get_report_spec()
         subplot_titles = self._get_report_titles()
 
-        fig = make_subplots(rows=nrow, cols=2, specs=spec,
-                            subplot_titles=subplot_titles)
+        fig = make_subplots(
+            rows=nrow, cols=2, specs=spec, subplot_titles=subplot_titles
+        )
 
         for k, metadata in self._metadata.items():
             if k == "title":
@@ -186,7 +187,7 @@ class Report(object):
 
             itm = 1
             for ptype, meta in metadata.items():
-                if ptype == 'title':
+                if ptype == "title":
                     continue
                 else:
                     if ptype == "table":
@@ -199,24 +200,27 @@ class Report(object):
                         trace = None
 
                 if isinstance(trace, list):
-                    fig.add_traces(trace, rows=k+1, cols=itm)
+                    fig.add_traces(trace, rows=k + 1, cols=itm)
 
                 elif trace is not None:
-                    fig.add_trace(trace, row=k+1, col=itm)
+                    fig.add_trace(trace, row=k + 1, col=itm)
 
                 else:
                     raise NotImplementedError()
 
                 itm += 1
 
-        fig.update_layout(height=height,
-                          title_text=self._metadata['title'])
-        x = 'cdn'
+        fig.update_layout(height=height, title_text=self._metadata["title"])
+        x = "cdn"
         html = to_html(fig, include_plotlyjs=True, full_html=True)
-        html = """<h1>{}</h1>\n<h2>Example section 1 </h2>\n<p>Here is some text that can be used for describing the data!</p>\n{}\n<h2>Example section 2</h2>""".format(self.metadata['title'], html)
+        html = """<h1>{}</h1>\n<h2>Example section 1 </h2>\n<p>Here is some text that can be used for describing the data!</p>\n{}\n<h2>Example section 2</h2>""".format(
+            self.metadata["title"], html
+        )
         html2 = to_html(fig, include_plotlyjs=False, full_html=True)
         html += "\n{}\n".format(html2)
-        with open('reporting_class_development_with_sections.html', 'w') as foo:
+        with open(
+            "reporting_class_development_with_sections.html", "w"
+        ) as foo:
             foo.write(html)
 
         fig.write_html(f)
@@ -227,5 +231,3 @@ class Report(object):
 
         """
         return
-
-

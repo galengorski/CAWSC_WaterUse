@@ -75,7 +75,7 @@ def _baseflow_low_pass_filter(arr, beta, enforce):
     qdt = np.zeros((arr.size + 10,), dtype=float)
     qbf = np.zeros((arr.size + 10,), dtype=float)
 
-    y = (1. + beta) / 2.
+    y = (1.0 + beta) / 2.0
 
     for ix in range(qdt.size):
         if ix == 0:
@@ -99,7 +99,7 @@ def _baseflow_low_pass_filter(arr, beta, enforce):
     return qbf[10:]
 
 
-def sliding_density(df, nn=3, fp_distance=0.):
+def sliding_density(df, nn=3, fp_distance=0.0):
     """
     User method to apply a density fiter to time series
     data. Uses local distances to flag outliers
@@ -130,8 +130,8 @@ def sliding_density(df, nn=3, fp_distance=0.):
 
     # set our window index stops
     if nn % 2 == 0:
-        high = int(nn/2)
-        low = int(nn/2)
+        high = int(nn / 2)
+        low = int(nn / 2)
     else:
         high = int((nn + 1) / 2)
         low = int(((nn - 1) / 2))
@@ -141,12 +141,12 @@ def sliding_density(df, nn=3, fp_distance=0.):
     for ix in range(lrange, hrange):
         xo = darr[ix]
 
-        for ixx in range(ix-low, ix+high+1):
+        for ixx in range(ix - low, ix + high + 1):
             if ixx == ix:
                 continue
             else:
                 xp = darr[ixx]
-                xarr = list(darr[ix-low: ix+high+1])
+                xarr = list(darr[ix - low : ix + high + 1])
                 xarr.remove(xo)
                 xarr.remove(xp)
                 xarr = np.array(xarr)
@@ -156,7 +156,7 @@ def sliding_density(df, nn=3, fp_distance=0.):
                 if d0 > d1:
                     # check xp vs. nearest neighbor in xarr
                     dn = np.min(np.abs(xarr - xp))
-                    if dn < d1 and d0/d1 < fp_distance:
+                    if dn < d1 and d0 / d1 < fp_distance:
                         flags[ixx] -= 1
                     else:
                         flags[ixx] += 1
@@ -166,9 +166,9 @@ def sliding_density(df, nn=3, fp_distance=0.):
     flags[flags > 1] = 1
     flags[flags <= 0] = 0
 
-    df['outlier'] = flags[nn:inn]
-    df0 = df[df['outlier'] == 1]
-    df1 = df[df['outlier'] == 0]
+    df["outlier"] = flags[nn:inn]
+    df0 = df[df["outlier"] == 1]
+    df1 = df[df["outlier"] == 0]
 
     return df1, df0
 
@@ -205,7 +205,7 @@ def moving_window(df, window=0.0192, order=2, plot=False):
     win_start = 0
     win_end = window
     win_dyears = []
-    while win_start < 1.:
+    while win_start < 1.0:
         td = df[(df.dyear >= win_start) & (df.dyear < win_end)]
         win_dyear = (win_start + win_end) / 2
         mean = np.mean(td.mgal.values)
@@ -232,21 +232,23 @@ def moving_window(df, window=0.0192, order=2, plot=False):
     outliers = pd.DataFrame.from_dict(outliers)
     data = pd.DataFrame.from_dict(data)
 
-    stats = pd.DataFrame.from_dict({'dyear': win_dyears,
-                                    'mean': means,
-                                    'h_bound': std_ups,
-                                    'l_bound': std_dns})
+    stats = pd.DataFrame.from_dict(
+        {
+            "dyear": win_dyears,
+            "mean": means,
+            "h_bound": std_ups,
+            "l_bound": std_dns,
+        }
+    )
 
     if plot:
-        plt.plot(data.dyear.values, data.mgal.values, 'bo')
-        plt.plot(outliers.dyear.values, outliers.mgal.values, 'ro')
-        plt.plot(win_dyears, means, 'k-')
-        plt.plot(win_dyears, std_ups, 'k--')
-        plt.plot(win_dyears, std_dns, 'k--')
-        plt.xlabel('mgal pumped')
-        plt.ylabel('scaled year')
+        plt.plot(data.dyear.values, data.mgal.values, "bo")
+        plt.plot(outliers.dyear.values, outliers.mgal.values, "ro")
+        plt.plot(win_dyears, means, "k-")
+        plt.plot(win_dyears, std_ups, "k--")
+        plt.plot(win_dyears, std_dns, "k--")
+        plt.xlabel("mgal pumped")
+        plt.ylabel("scaled year")
         plt.show()
 
     return data, outliers, stats
-
-

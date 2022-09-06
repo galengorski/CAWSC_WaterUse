@@ -15,7 +15,7 @@
 # ---
 
 # %% [markdown]
-# # Annual Water Use 
+# # Annual Water Use
 
 # %%
 
@@ -50,7 +50,7 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 # %matplotlib ipympl
 import warnings
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 xgb.set_config(verbosity=0)
 
 # %%
@@ -59,30 +59,45 @@ from iwateruse import targets, weights, pipelines, outliers_utils, estimators
 
 
 # %%
-raw_train_df = pd.read_csv(r"C:\work\water_use\ml_experiments\annual_v_0_0\clean_train_db.csv")
-model = Model(name='annual_pc', df_train= raw_train_df, feature_status_file= r"features_status.xlsx")
+raw_train_df = pd.read_csv(
+    r"C:\work\water_use\ml_experiments\annual_v_0_0\clean_train_db.csv"
+)
+model = Model(
+    name="annual_pc",
+    df_train=raw_train_df,
+    feature_status_file=r"features_status.xlsx",
+)
 
 
-#model.df_train = model.df_train_bk.copy()
-model.raw_target = 'wu_rate'
-model.target = 'per_capita'
-#model.categorical_features = []  # KG_climate_zone', 'HUC2', 'state_id', 'Ecode_num', 'county_id'
+# model.df_train = model.df_train_bk.copy()
+model.raw_target = "wu_rate"
+model.target = "per_capita"
+# model.categorical_features = []  # KG_climate_zone', 'HUC2', 'state_id', 'Ecode_num', 'county_id'
 
 
 pc_50_swud = pd.read_csv(r"spatial_pc_statistics_apply_max_min_pc.csv")
 annual_wu = pd.read_csv(r"annual_wu.csv")
-annual_wu['wu_rate_mean'] = annual_wu[['annual_wu_G_swuds', 'annual_wu_G_nonswuds']].mean(axis=1)
-annual_wu['wu_rate_mean'] = annual_wu['wu_rate_mean'] / annual_wu['days_in_year']
-avg_wu = annual_wu[['WSA_AGIDF', 'YEAR', 'wu_rate_mean']].copy()
-avg_wu.rename(columns={'WSA_AGIDF': 'sys_id', 'YEAR': 'Year', 'wu_rate_mean': 'wu_rate'}, inplace=True)
+annual_wu["wu_rate_mean"] = annual_wu[
+    ["annual_wu_G_swuds", "annual_wu_G_nonswuds"]
+].mean(axis=1)
+annual_wu["wu_rate_mean"] = (
+    annual_wu["wu_rate_mean"] / annual_wu["days_in_year"]
+)
+avg_wu = annual_wu[["WSA_AGIDF", "YEAR", "wu_rate_mean"]].copy()
+avg_wu.rename(
+    columns={"WSA_AGIDF": "sys_id", "YEAR": "Year", "wu_rate_mean": "wu_rate"},
+    inplace=True,
+)
 
 # %%
 
 
 # add water use
-del (model.df_train['wu_rate'])
-model.df_train = model.df_train.merge(avg_wu, on=['sys_id', 'Year'], how='left')
-model.df_train_bk = model.df_train[model.df_train['wu_rate'] > 0]
+del model.df_train["wu_rate"]
+model.df_train = model.df_train.merge(
+    avg_wu, on=["sys_id", "Year"], how="left"
+)
+model.df_train_bk = model.df_train[model.df_train["wu_rate"] > 0]
 
 model.df_train = model.df_train_bk
 
@@ -91,18 +106,27 @@ if 0:
     from upscale_dataset import up_scale_data
 
     agg_rules = pd.read_csv(r"aggregation_roles.csv")
-    df_agg = up_scale_data(df=model.df_train, groupby_col=["county_id", "Year"], skip_cols=[], agg_rules=agg_rules)
+    df_agg = up_scale_data(
+        df=model.df_train,
+        groupby_col=["county_id", "Year"],
+        skip_cols=[],
+        agg_rules=agg_rules,
+    )
     model.df_train = df_agg
     model.df_train_bk = df_agg
 
 # %%
 
-model.apply_func(func=targets.compute_per_capita, type='target_func', args=None)
-model.apply_func(func=outliers_utils.outliers_func, type='outliers_func', args=None)
-model.apply_func(func=None, type='add_features_func', args=None)
+model.apply_func(
+    func=targets.compute_per_capita, type="target_func", args=None
+)
+model.apply_func(
+    func=outliers_utils.outliers_func, type="outliers_func", args=None
+)
+model.apply_func(func=None, type="add_features_func", args=None)
 
 # split
-model.apply_func(func=splittors.random_split, args={'frac': 0.7, 'seed': 123})
+model.apply_func(func=splittors.random_split, args={"frac": 0.7, "seed": 123})
 # model.apply_func(func=splittors.split_by_id,
 #                  args={'id_column': 'sys_id', 'frac': 0.7, 'seed': 123})
 # model.apply_func(func=splittors.stratified_split,
@@ -114,15 +138,14 @@ gb = estimators.xgb_estimator()
 # gb = lightGB_estimator()
 # gb = xgb_estimator_deep()
 
-main_pipeline.append(('estimator', gb))
+main_pipeline.append(("estimator", gb))
 estimator = Pipeline(main_pipeline)
 
-model.apply_func(func=pre_train_utils.pre_train, type='', args=None)
+model.apply_func(func=pre_train_utils.pre_train, type="", args=None)
 
 w_train, w_test = weights.generate_weights_ones(model)
-kwargs = {estimator.steps[-1][0] + '__sample_weight': w_train}
+kwargs = {estimator.steps[-1][0] + "__sample_weight": w_train}
 estimator.fit(model.X_train, model.y_train, **kwargs)
-
 
 
 # use purified data
@@ -138,8 +161,14 @@ ypredict = estimator.predict(model.X_test)
 accuracy = r2_score(model.y_test, ypredict, sample_weight=w_test)
 accuracy
 
-plt.scatter(model.y_test, ypredict, s=4, c=np.log10(model.X_test['pop']), cmap='jet')
-plt.plot([min(model.y_test), max(model.y_test)], [min(model.y_test), max(model.y_test)], 'r')
+plt.scatter(
+    model.y_test, ypredict, s=4, c=np.log10(model.X_test["pop"]), cmap="jet"
+)
+plt.plot(
+    [min(model.y_test), max(model.y_test)],
+    [min(model.y_test), max(model.y_test)],
+    "r",
+)
 plt.title("$R^2 = ${}".format(accuracy))
 plt.xlabel("Actual PC Water Use")
 plt.ylabel("Estimated PC Water Use")
@@ -149,25 +178,25 @@ plt.show()
 # interpolation
 from sklearn.preprocessing import PolynomialFeatures
 
-XY_train = model.X_train[['LONG', 'LAT']]
-XY_test = model.X_test[['LONG', 'LAT']]
+XY_train = model.X_train[["LONG", "LAT"]]
+XY_test = model.X_test[["LONG", "LAT"]]
 poly_reg = PolynomialFeatures(degree=3, include_bias=True)
 X_train = poly_reg.fit_transform(XY_train)
 X_test = poly_reg.transform(XY_test)
 
 xgb_params = {
-    'objective': "reg:squarederror",
+    "objective": "reg:squarederror",
     # 'tree_method': 'hist',
     # 'colsample_bytree': 0.5,
-    'learning_rate': 0.1,
-    'max_depth': 7,
+    "learning_rate": 0.1,
+    "max_depth": 7,
     # 'alpha': 5,
-    'n_estimators': 500,
+    "n_estimators": 500,
     # 'rate_drop': 0.9,
     # 'skip_drop': 0.5,
-    'subsample': 0.5,
+    "subsample": 0.5,
     # 'reg_lambda': 0,
-    'min_child_weight': 10,
+    "min_child_weight": 10,
     # 'gamma': 0,
     # 'max_delta_step': 0
 }
@@ -178,8 +207,14 @@ ypredict = gb_interpolate.predict(X_test)
 accuracy = r2_score(model.y_test, ypredict, sample_weight=w_test)
 accuracy
 
-plt.scatter(model.y_test, ypredict, s=4, c=np.log10(model.X_test['pop']), cmap='jet')
-plt.plot([min(model.y_test), max(model.y_test)], [min(model.y_test), max(model.y_test)], 'r')
+plt.scatter(
+    model.y_test, ypredict, s=4, c=np.log10(model.X_test["pop"]), cmap="jet"
+)
+plt.plot(
+    [min(model.y_test), max(model.y_test)],
+    [min(model.y_test), max(model.y_test)],
+    "r",
+)
 plt.title("$R^2 = ${}".format(accuracy))
 plt.xlabel("Actual PC Water Use")
 plt.ylabel("Estimated PC Water Use")
@@ -187,8 +222,12 @@ plt.grid()
 plt.show()
 
 plt.figure()
-plt.scatter(np.log10(y_test * X_test['pop']), np.log10(ypredict * X_test['pop']), s=4)
-accuracy = r2_score(np.log10(y_test * X_test['pop']), np.log10(ypredict * X_test['pop']))
+plt.scatter(
+    np.log10(y_test * X_test["pop"]), np.log10(ypredict * X_test["pop"]), s=4
+)
+accuracy = r2_score(
+    np.log10(y_test * X_test["pop"]), np.log10(ypredict * X_test["pop"])
+)
 # plt.plot([min(y_test*X_test['pop']), max(ypredict*X_test['pop'])], [min(y_test*X_test['pop']), max(y_test)*X_test['pop']], 'r')
 plt.title("$R^2 = ${}".format(accuracy))
 plt.xlabel("Actual PC Water Use")
@@ -200,8 +239,8 @@ plt.show()
 
 # %%
 plt.figure()
-plt.scatter(X_train['LONG'], X_train['LAT'], s=5)
-plt.scatter(X_test['LONG'], X_test['LAT'], s=5)
+plt.scatter(X_train["LONG"], X_train["LAT"], s=5)
+plt.scatter(X_test["LONG"], X_test["LAT"], s=5)
 
 # %%
 e = np.abs(y_test - ypredict)
@@ -209,7 +248,13 @@ mask = e > 150
 
 # %%
 plt.figure()
-plt.scatter(X_test[mask]['LONG'], X_test[mask]['LAT'], c=X_test[mask]['pop'], cmap='jet', s=4)
+plt.scatter(
+    X_test[mask]["LONG"],
+    X_test[mask]["LAT"],
+    c=X_test[mask]["pop"],
+    cmap="jet",
+    s=4,
+)
 plt.colorbar()
 
 # %%
@@ -240,7 +285,7 @@ from statsmodels.distributions.empirical_distribution import ECDF
 # %%
 
 # %%
-x = df['pc'].values
+x = df["pc"].values
 ec = ECDF(x)
 
 # %%
@@ -254,7 +299,11 @@ accuracy = r2_score(y_train, ytrain_predicted)
 accuracy
 
 plt.scatter(y_train, ytrain_predicted, s=4)
-plt.plot([min(y_train), max(y_train)], [min(ytrain_predicted), max(ytrain_predicted)], 'r')
+plt.plot(
+    [min(y_train), max(y_train)],
+    [min(ytrain_predicted), max(ytrain_predicted)],
+    "r",
+)
 plt.title("$R^2 = ${}".format(accuracy))
 plt.xlabel("Actual PC Water Use")
 plt.ylabel("Estimated PC Water Use")
@@ -264,7 +313,7 @@ plt.colorbar()
 plt.show()
 
 # %% [markdown]
-# ## Meaure Importance 
+# ## Meaure Importance
 
 # %%
 features = X_test.columns
@@ -298,7 +347,7 @@ feat_to_drop = feat_to_drop.tolist()
 feat_to_drop
 
 # %%
-feat_to_drop.remove('KG_climate_zone')
+feat_to_drop.remove("KG_climate_zone")
 
 # %%
 plt.figure()
@@ -318,9 +367,18 @@ from sklearn.preprocessing import KBinsDiscretizer
 
 from sklearn.decomposition import PCA
 
-pipeline = Pipeline([('disc', KBinsDiscretizer(n_bins=1000, encode='ordinal', strategy='uniform')),
-                     ('model', gb)])
-kwargs = {pipeline.steps[-1][0] + '__sample_weight': w / w}
+pipeline = Pipeline(
+    [
+        (
+            "disc",
+            KBinsDiscretizer(
+                n_bins=1000, encode="ordinal", strategy="uniform"
+            ),
+        ),
+        ("model", gb),
+    ]
+)
+kwargs = {pipeline.steps[-1][0] + "__sample_weight": w / w}
 pipeline.fit(X_train, y_train, **kwargs)
 
 plt.figure()
@@ -334,7 +392,7 @@ accuracy = r2_score(y_test, ypredict, sample_weight=w2 / w2)
 accuracy
 
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
 # plt.gca().set_yscale('log')
 # plt.gca().set_xscale('log')
 plt.title("$R^2 = ${}".format(accuracy))
@@ -349,7 +407,7 @@ plt.show()
 
 # %%
 # (A.2) transformation of categorical features
-categorical_features = ['HUC2', 'state_id', 'KG_climate_zone', 'county_id']
+categorical_features = ["HUC2", "state_id", "KG_climate_zone", "county_id"]
 categorical_transformer = OneHotEncoder(handle_unknown="ignore")
 
 # %%
@@ -370,31 +428,43 @@ categorical_transformer = OneHotEncoder(handle_unknown="ignore")
 
 # %%
 # columns to drop
-columns_to_drop = ['population', 'sys_id', 'pc']
+columns_to_drop = ["population", "sys_id", "pc"]
 df = df_train.copy()
-df['pc'] = df['wu_rate'] / df['pop']
-df = df[df['pop'] > 100]
-mask = (df['pc'] > 20) & (df['pc'] < 500)
+df["pc"] = df["wu_rate"] / df["pop"]
+df = df[df["pop"] > 100]
+mask = (df["pc"] > 20) & (df["pc"] < 500)
 df = df[mask]
 
 df = df.drop(columns_to_drop, axis=1)
 features = list(df.columns)
-features.remove('wu_rate')
+features.remove("wu_rate")
 X = df[features]
-y = df['wu_rate']
+y = df["wu_rate"]
 
 # %%
 df.columns
 
 # %%
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=123)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=123
+)
 
 # %%
 # squaredlogerror
 # squarederror
-gb = xgb.XGBRegressor(objective='reg:squarederror', colsample_bytree=0.8, learning_rate=0.1,
-                      max_depth=7, alpha=0.01, n_estimators=500, rate_drop=0.9, skip_drop=0.5, subsample=0.8,
-                      seed=123, reg_lambda=0.0)
+gb = xgb.XGBRegressor(
+    objective="reg:squarederror",
+    colsample_bytree=0.8,
+    learning_rate=0.1,
+    max_depth=7,
+    alpha=0.01,
+    n_estimators=500,
+    rate_drop=0.9,
+    skip_drop=0.5,
+    subsample=0.8,
+    seed=123,
+    reg_lambda=0.0,
+)
 
 # %%
 gb.fit(X_train, y_train)
@@ -407,9 +477,9 @@ accuracy = r2_score(y_test, ypredict)
 plt.figure()
 accuracy = int(accuracy * 100) / 100.0
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
-plt.gca().set_yscale('log')
-plt.gca().set_xscale('log')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
+plt.gca().set_yscale("log")
+plt.gca().set_xscale("log")
 plt.title("$R^2 = ${}".format(accuracy))
 plt.xlabel("Actual Water Use")
 plt.ylabel("Estimated Water Use")
@@ -417,34 +487,46 @@ plt.grid()
 plt.show()
 
 # %% [markdown]
-# ## Log water use & population 
+# ## Log water use & population
 
 # %%
 # columns to drop
-columns_to_drop = ['population', 'sys_id', 'pc']
+columns_to_drop = ["population", "sys_id", "pc"]
 df = df_train.copy()
-df = df[df['wu_rate'] > 100]
-df['pc'] = df['wu_rate'] / df['pop']
-df = df[df['pop'] > 100]
-mask = (df['pc'] > 20) & (df['pc'] < 500)
+df = df[df["wu_rate"] > 100]
+df["pc"] = df["wu_rate"] / df["pop"]
+df = df[df["pop"] > 100]
+mask = (df["pc"] > 20) & (df["pc"] < 500)
 df = df[mask]
 
 df = df.drop(columns_to_drop, axis=1)
-df['pop'] = np.log10(df['pop'])
-df['wu_rate'] = np.log10(df['wu_rate'])
+df["pop"] = np.log10(df["pop"])
+df["wu_rate"] = np.log10(df["wu_rate"])
 features = list(df.columns)
-features.remove('wu_rate')
+features.remove("wu_rate")
 
 X = df[features]
-y = df['wu_rate']
+y = df["wu_rate"]
 
 # %%
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=123)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=123
+)
 
 # %%
-gb = xgb.XGBRegressor(objective='reg:squarederror', colsample_bytree=0.8, learning_rate=0.01,
-                      max_depth=7, alpha=0.01, n_estimators=500, rate_drop=0.9, skip_drop=0.5, subsample=0.8,
-                      seed=123, reg_lambda=0.0)
+gb = xgb.XGBRegressor(
+    objective="reg:squarederror",
+    colsample_bytree=0.8,
+    learning_rate=0.01,
+    max_depth=7,
+    alpha=0.01,
+    n_estimators=500,
+    rate_drop=0.9,
+    skip_drop=0.5,
+    subsample=0.8,
+    seed=123,
+    reg_lambda=0.0,
+)
 
 # %%
 gb.fit(X_train, y_train)
@@ -457,10 +539,14 @@ accuracy
 # %%
 plt.figure()
 accuracy = int(accuracy * 100) / 100.0
-plt.scatter(10 ** y_test, 10 ** ypredict, s=4)
-plt.plot([min(10 ** y_test), max(10 ** y_test)], [min(10 ** y_test), max(10 ** y_test)], 'r')
-plt.gca().set_yscale('log')
-plt.gca().set_xscale('log')
+plt.scatter(10**y_test, 10**ypredict, s=4)
+plt.plot(
+    [min(10**y_test), max(10**y_test)],
+    [min(10**y_test), max(10**y_test)],
+    "r",
+)
+plt.gca().set_yscale("log")
+plt.gca().set_xscale("log")
 plt.title("$R^2 = ${}".format(accuracy))
 plt.xlabel("Actual Water Use")
 plt.ylabel("Estimated Water Use")
@@ -469,12 +555,12 @@ plt.show()
 
 # %%
 plt.figure()
-pc_test = (10 ** y_test) / (10 ** X_test['pop'])
-pc_predict = (10 ** ypredict) / (10 ** X_test['pop'])
+pc_test = (10**y_test) / (10 ** X_test["pop"])
+pc_predict = (10**ypredict) / (10 ** X_test["pop"])
 accuracy = r2_score(pc_test, pc_predict)
 plt.scatter(pc_test, pc_predict, s=4)
 
-plt.plot([min(pc_test), max(pc_test)], [min(pc_test), max(pc_test)], 'r')
+plt.plot([min(pc_test), max(pc_test)], [min(pc_test), max(pc_test)], "r")
 # plt.gca().set_yscale('log')
 # plt.gca().set_xscale('log')
 plt.title("$R^2 = ${}".format(accuracy))
@@ -552,8 +638,11 @@ def log_cosh_quantile(alpha):
 def original_quantile_loss(alpha, delta):
     def _original_quantile_loss(y_true, y_pred):
         x = y_true - y_pred
-        grad = (x < (alpha - 1.0) * delta) * (1.0 - alpha) - (
-                (x >= (alpha - 1.0) * delta) & (x < alpha * delta)) * x / delta - alpha * (x > alpha * delta)
+        grad = (
+            (x < (alpha - 1.0) * delta) * (1.0 - alpha)
+            - ((x >= (alpha - 1.0) * delta) & (x < alpha * delta)) * x / delta
+            - alpha * (x > alpha * delta)
+        )
         hess = ((x >= (alpha - 1.0) * delta) & (x < alpha * delta)) / delta
         return grad, hess
 
@@ -567,9 +656,19 @@ xgb_quantile_alphas = {}
 for quantile_alpha in quantile_alphas:
     # to train a quantile regression, we change the objective parameter and
     # specify the quantile value we're interested in
-    gb = xgb.XGBRegressor(objective=log_cosh_quantile(quantile_alpha), colsample_bytree=0.8, learning_rate=0.05,
-                          max_depth=5, alpha=0.01, n_estimators=500, rate_drop=0.9, skip_drop=0.5, subsample=0.8,
-                          seed=323, reg_lambda=0.01)
+    gb = xgb.XGBRegressor(
+        objective=log_cosh_quantile(quantile_alpha),
+        colsample_bytree=0.8,
+        learning_rate=0.05,
+        max_depth=5,
+        alpha=0.01,
+        n_estimators=500,
+        rate_drop=0.9,
+        skip_drop=0.5,
+        subsample=0.8,
+        seed=323,
+        reg_lambda=0.01,
+    )
     gb.fit(X_train, y_train)
     xgb_quantile_alphas[quantile_alpha] = gb
 
@@ -577,13 +676,14 @@ for quantile_alpha in quantile_alphas:
 plt.figure()
 for quantile_alpha, lgb in xgb_quantile_alphas.items():
     ypredict = lgb.predict(X_test)
-    plt.scatter(10 ** y_test, 10 ** ypredict, s=4, label="{}".format
-    (quantile_alpha))
-plt.gca().set_yscale('log')
-plt.gca().set_xscale('log')
+    plt.scatter(
+        10**y_test, 10**ypredict, s=4, label="{}".format(quantile_alpha)
+    )
+plt.gca().set_yscale("log")
+plt.gca().set_xscale("log")
 plt.legend()
-lim = [min(10 ** y_test), max(10 ** y_test)]
-plt.plot(lim, lim, 'k')
+lim = [min(10**y_test), max(10**y_test)]
+plt.plot(lim, lim, "k")
 plt.xlabel("Actual Water Use")
 plt.ylabel("Estimated Water Use")
 
@@ -601,14 +701,14 @@ plt.ylabel("Estimated Water Use")
 
 # %%
 lgb_params = {
-    'n_jobs': 1,
-    'max_depth': 8,
-    'min_data_in_leaf': 10,
-    'subsample': 0.8,
-    'n_estimators': 500,
-    'learning_rate': 0.1,
-    'colsample_bytree': 0.8,
-    'boosting_type': 'gbdt'
+    "n_jobs": 1,
+    "max_depth": 8,
+    "min_data_in_leaf": 10,
+    "subsample": 0.8,
+    "n_estimators": 500,
+    "learning_rate": 0.1,
+    "colsample_bytree": 0.8,
+    "boosting_type": "gbdt",
 }
 
 # %%
@@ -618,7 +718,9 @@ lgb_quantile_alphas = {}
 for quantile_alpha in quantile_alphas:
     # to train a quantile regression, we change the objective parameter and
     # specify the quantile value we're interested in
-    lgb = LGBMRegressor(objective='quantile', alpha=quantile_alpha, **lgb_params)
+    lgb = LGBMRegressor(
+        objective="quantile", alpha=quantile_alpha, **lgb_params
+    )
     lgb.fit(X_train, y_train)
     lgb_quantile_alphas[quantile_alpha] = lgb
 
@@ -626,13 +728,12 @@ for quantile_alpha in quantile_alphas:
 plt.figure()
 for quantile_alpha, lgb in lgb_quantile_alphas.items():
     ypredict = lgb.predict(X_test)
-    plt.scatter(y_test, ypredict, s=4, label="{}".format
-    (quantile_alpha))
+    plt.scatter(y_test, ypredict, s=4, label="{}".format(quantile_alpha))
 # plt.gca().set_yscale('log')
 # plt.gca().set_xscale('log')
 plt.legend()
 lim = [min(y_test), max(y_test)]
-plt.plot(lim, lim, 'k')
+plt.plot(lim, lim, "k")
 plt.xlabel("Actual Water Use")
 plt.ylabel("Estimated Water Use")
 
@@ -640,19 +741,27 @@ plt.ylabel("Estimated Water Use")
 # # Dimension-reduction
 
 # %%
-columns_to_drop = ['population', 'sys_id', 'wu_rate', 'pop', 'households2', 'n_employed', 'n_houses']
+columns_to_drop = [
+    "population",
+    "sys_id",
+    "wu_rate",
+    "pop",
+    "households2",
+    "n_employed",
+    "n_houses",
+]
 df = df_train.copy()
 
-df['pc'] = df['wu_rate'] / df['pop']
-df = df[df['pop'] > 100]
-mask = (df['pc'] > 20) & (df['pc'] < 500)
+df["pc"] = df["wu_rate"] / df["pop"]
+df = df[df["pop"] > 100]
+mask = (df["pc"] > 20) & (df["pc"] < 500)
 df = df[mask]
 
 df = df.drop(columns_to_drop, axis=1)
 features = list(df.columns)
-features.remove('pc')
+features.remove("pc")
 X = df[features]
-y = df['pc']
+y = df["pc"]
 
 # %%
 from sklearn.decomposition import PCA
@@ -669,7 +778,7 @@ pca.transform(X)
 
 
 # %% [markdown]
-# # Testing more ideas for estimating Per Capita 
+# # Testing more ideas for estimating Per Capita
 
 # %%
 def make_dataset(dataset=df_train, filters=[], drop_cols=[]):
@@ -681,25 +790,37 @@ def make_dataset(dataset=df_train, filters=[], drop_cols=[]):
 
 # %%
 
-columns_to_drop = ['population', 'sys_id', 'wu_rate']
+columns_to_drop = ["population", "sys_id", "wu_rate"]
 df = df_train.copy()
 
-df['pc'] = df['wu_rate'] / df['pop']
-df = df[df['pop'] > 100]
-mask = (df['pc'] > 20) & (df['pc'] < 500)
+df["pc"] = df["wu_rate"] / df["pop"]
+df = df[df["pop"] > 100]
+mask = (df["pc"] > 20) & (df["pc"] < 500)
 df = df[mask]
 
 df = df.drop(columns_to_drop, axis=1)
 features = list(df.columns)
-features.remove('pc')
+features.remove("pc")
 X = df[features]
-y = df['pc']
+y = df["pc"]
 
 # squarederror
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=123)
-gb = xgb.XGBRegressor(objective="reg:squarederror", colsample_bytree=0.8, learning_rate=0.1,
-                      max_depth=7, alpha=0.01, n_estimators=500, rate_drop=0.9, skip_drop=0.5, subsample=0.8,
-                      seed=123, reg_lambda=0.0)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=123
+)
+gb = xgb.XGBRegressor(
+    objective="reg:squarederror",
+    colsample_bytree=0.8,
+    learning_rate=0.1,
+    max_depth=7,
+    alpha=0.01,
+    n_estimators=500,
+    rate_drop=0.9,
+    skip_drop=0.5,
+    subsample=0.8,
+    seed=123,
+    reg_lambda=0.0,
+)
 
 w = np.exp(1e-2 * np.power((y_train - 200) / 10, 2.0))
 w = w / np.sum(w)
@@ -718,7 +839,7 @@ accuracy = r2_score(y_test, ypredict, sample_weight=w2 / w2)
 accuracy
 
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
 # plt.gca().set_yscale('log')
 # plt.gca().set_xscale('log')
 plt.title("$R^2 = ${}".format(accuracy))
@@ -731,38 +852,60 @@ plt.show()
 
 # %%
 
-columns_to_drop = ['population', 'sys_id', 'wu_rate']
+columns_to_drop = ["population", "sys_id", "wu_rate"]
 df = df_train.copy()
-del (df['pc_median'])
-df['pc'] = df['wu_rate'] / df['pop']
-df = df[df['pop'] > 1000]
-mask = (df['pc'] > 20) & (df['pc'] < 500)
+del df["pc_median"]
+df["pc"] = df["wu_rate"] / df["pop"]
+df = df[df["pop"] > 1000]
+mask = (df["pc"] > 20) & (df["pc"] < 500)
 df = df[mask]
 
 df = df.drop(columns_to_drop, axis=1)
 features = list(df.columns)
-features.remove('pc')
+features.remove("pc")
 X = df[features]
-y = df['pc']
+y = df["pc"]
 
-# 
+#
 plt.figure()
-v_freq = plt.hist(df['pc'].values, bins=30)
-freq = np.interp(df['pc'].values, v_freq[1][1:], v_freq[0], left=None, right=None, period=None)
-X['freq'] = freq
+v_freq = plt.hist(df["pc"].values, bins=30)
+freq = np.interp(
+    df["pc"].values,
+    v_freq[1][1:],
+    v_freq[0],
+    left=None,
+    right=None,
+    period=None,
+)
+X["freq"] = freq
 # squarederror
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=123)
-Train_freq = X_train['freq']
-Test_freq = X_test['freq']
-del (X_test['freq'])
-del (X_train['freq'])
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.25, random_state=123
+)
+Train_freq = X_train["freq"]
+Test_freq = X_test["freq"]
+del X_test["freq"]
+del X_train["freq"]
 
 # squarederror
 # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state = 123)
-gb = xgb.XGBRegressor(objective="reg:squarederror", tree_method='hist', colsample_bytree=0.8, learning_rate=0.20,
-                      max_depth=7, alpha=100, n_estimators=500, rate_drop=0.9, skip_drop=0.5, subsample=0.8,
-                      seed=123, reg_lambda=10, min_child_weight=1, gamma=10, max_delta_step=0,
-                      )
+gb = xgb.XGBRegressor(
+    objective="reg:squarederror",
+    tree_method="hist",
+    colsample_bytree=0.8,
+    learning_rate=0.20,
+    max_depth=7,
+    alpha=100,
+    n_estimators=500,
+    rate_drop=0.9,
+    skip_drop=0.5,
+    subsample=0.8,
+    seed=123,
+    reg_lambda=10,
+    min_child_weight=1,
+    gamma=10,
+    max_delta_step=0,
+)
 # gb = xgb.XGBRegressor(objective="reg:squarederror" )
 
 
@@ -781,7 +924,7 @@ accuracy = r2_score(y_test, ypredict, sample_weight=w2 / w2)
 accuracy
 
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
 # plt.gca().set_yscale('log')
 # plt.gca().set_xscale('log')
 plt.title("$R^2 = ${}".format(accuracy))
@@ -791,7 +934,7 @@ plt.grid()
 plt.show()
 
 # %% [markdown]
-# # Use Pipeline 
+# # Use Pipeline
 #
 
 # %%
@@ -800,7 +943,10 @@ plt.show()
 # (A.1) transformation of numeric features
 numeric_features = ["age", "fare"]
 numeric_transformer = Pipeline(
-    steps=[("imputer", SimpleImputer(strategy="median")), ("scaler", StandardScaler())]
+    steps=[
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler", StandardScaler()),
+    ]
 )
 
 # (A.2) transformation of categorical features
@@ -817,7 +963,10 @@ preprocessor = ColumnTransformer(
 
 #  (B.1) complete pipeline
 clf = Pipeline(
-    steps=[("preprocessor", preprocessor), ("classifier", LogisticRegression())]
+    steps=[
+        ("preprocessor", preprocessor),
+        ("classifier", LogisticRegression()),
+    ]
 )
 
 # %%
@@ -835,9 +984,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import RobustScaler
 from sklearn.decomposition import PCA
 
-pipeline = Pipeline([('robost_scaler', RobustScaler()),
-                     ('model', gb)])
-kwargs = {pipeline.steps[-1][0] + '__sample_weight': w / w}
+pipeline = Pipeline([("robost_scaler", RobustScaler()), ("model", gb)])
+kwargs = {pipeline.steps[-1][0] + "__sample_weight": w / w}
 pipeline.fit(X_train, y_train, **kwargs)
 
 plt.figure()
@@ -851,7 +999,7 @@ accuracy = r2_score(y_test, ypredict, sample_weight=w2 / w2)
 accuracy
 
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
 # plt.gca().set_yscale('log')
 # plt.gca().set_xscale('log')
 plt.title("$R^2 = ${}".format(accuracy))
@@ -867,9 +1015,8 @@ from sklearn.preprocessing import QuantileTransformer, PowerTransformer
 
 from sklearn.decomposition import PCA
 
-pipeline = Pipeline([('uniform_dist', PowerTransformer()),
-                     ('model', gb)])
-kwargs = {pipeline.steps[-1][0] + '__sample_weight': w / w}
+pipeline = Pipeline([("uniform_dist", PowerTransformer()), ("model", gb)])
+kwargs = {pipeline.steps[-1][0] + "__sample_weight": w / w}
 pipeline.fit(X_train, y_train, **kwargs)
 
 plt.figure()
@@ -883,7 +1030,7 @@ accuracy = r2_score(y_test, ypredict, sample_weight=w2 / w2)
 accuracy
 
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
 # plt.gca().set_yscale('log')
 # plt.gca().set_xscale('log')
 plt.title("$R^2 = ${}".format(accuracy))
@@ -900,9 +1047,18 @@ from sklearn.preprocessing import KBinsDiscretizer
 
 from sklearn.decomposition import PCA
 
-pipeline = Pipeline([('disc', KBinsDiscretizer(n_bins=1000, encode='ordinal', strategy='uniform')),
-                     ('model', gb)])
-kwargs = {pipeline.steps[-1][0] + '__sample_weight': w / w}
+pipeline = Pipeline(
+    [
+        (
+            "disc",
+            KBinsDiscretizer(
+                n_bins=1000, encode="ordinal", strategy="uniform"
+            ),
+        ),
+        ("model", gb),
+    ]
+)
+kwargs = {pipeline.steps[-1][0] + "__sample_weight": w / w}
 pipeline.fit(X_train, y_train, **kwargs)
 
 plt.figure()
@@ -916,7 +1072,7 @@ accuracy = r2_score(y_test, ypredict, sample_weight=w2 / w2)
 accuracy
 
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
 # plt.gca().set_yscale('log')
 # plt.gca().set_xscale('log')
 plt.title("$R^2 = ${}".format(accuracy))
@@ -936,7 +1092,9 @@ plt.show()
 # ‘total_gain’: the total gain across all splits the feature is used in.
 
 # ‘total_cover’: the total coverage across all splits the feature is used in.
-plot_importance(gb, xlabel='total_gain', importance_type='total_gain', max_num_features=10)
+plot_importance(
+    gb, xlabel="total_gain", importance_type="total_gain", max_num_features=10
+)
 from sklearn.feature_selection import SelectFromModel
 
 plt.tight_layout()
@@ -956,7 +1114,7 @@ accuracy = r2_score(y_test, ypredict, sample_weight=w2 / w2)
 accuracy
 
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
 # plt.gca().set_yscale('log')
 # plt.gca().set_xscale('log')
 plt.title("$R^2 = ${}".format(accuracy))
@@ -983,12 +1141,12 @@ gb.get_params()
 # %%
 from pycaret.regression import *
 
-columns_to_drop = ['population', 'sys_id', 'wu_rate']
+columns_to_drop = ["population", "sys_id", "wu_rate"]
 df = df_train.copy()
-del (df['pc_median'])
-df['pc'] = df['wu_rate'] / df['pop']
-df = df[df['pop'] > 1000]
-mask = (df['pc'] > 20) & (df['pc'] < 500)
+del df["pc_median"]
+df["pc"] = df["wu_rate"] / df["pop"]
+df = df[df["pop"] > 1000]
+mask = (df["pc"] > 20) & (df["pc"] < 500)
 df = df[mask]
 
 df = df.drop(columns_to_drop, axis=1)
@@ -998,12 +1156,18 @@ data_unseen = df.drop(data.index)
 data.reset_index(drop=True, inplace=True)
 data_unseen.reset_index(drop=True, inplace=True)
 
-print('Data for Modeling: ' + str(data.shape))
-print('Unseen Data For Predictions: ' + str(data_unseen.shape))
+print("Data for Modeling: " + str(data.shape))
+print("Unseen Data For Predictions: " + str(data_unseen.shape))
 
-exp0 = setup(data=data2, target='pc', train_size=0.8,
-             fold_shuffle=True, data_split_shuffle=True, session_id=123)
-xgb = create_model('xgboost', fold=3)
+exp0 = setup(
+    data=data2,
+    target="pc",
+    train_size=0.8,
+    fold_shuffle=True,
+    data_split_shuffle=True,
+    session_id=123,
+)
+xgb = create_model("xgboost", fold=3)
 tuned_ada = tune_model(xgb)
 
 # %%
@@ -1012,34 +1176,34 @@ tuned_ada = tune_model(xgb)
 tuned_ada = tune_model(xgb)
 
 # %%
-columns_to_drop = ['population', 'sys_id', 'wu_rate']
+columns_to_drop = ["population", "sys_id", "wu_rate"]
 df = df_train.copy()
 
-df['pc'] = df['wu_rate'] / df['pop']
-df = df[df['pop'] > 100]
-mask = (df['pc'] > 20) & (df['pc'] < 500)
+df["pc"] = df["wu_rate"] / df["pop"]
+df = df[df["pop"] > 100]
+mask = (df["pc"] > 20) & (df["pc"] < 500)
 df = df[mask]
 
 df = df.drop(columns_to_drop, axis=1)
 features = list(df.columns)
-features.remove('pc')
+features.remove("pc")
 X = df[features]
-y = df['pc']
+y = df["pc"]
 
 # %%
-columns_to_drop = ['population', 'sys_id', 'wu_rate']
+columns_to_drop = ["population", "sys_id", "wu_rate"]
 df = df_train.copy()
 
-df['pc'] = df['wu_rate'] / df['pop']
-df = df[df['pop'] > 100]
-mask = (df['pc'] > 20) & (df['pc'] < 500)
+df["pc"] = df["wu_rate"] / df["pop"]
+df = df[df["pop"] > 100]
+mask = (df["pc"] > 20) & (df["pc"] < 500)
 df = df[mask]
 
 df = df.drop(columns_to_drop, axis=1)
 features = list(df.columns)
-features.remove('pc')
+features.remove("pc")
 X = df[features]
-y = df['pc']
+y = df["pc"]
 
 # %%
 from sklearn.decomposition import PCA
@@ -1054,10 +1218,22 @@ X = pca.transform(X)
 
 # %%
 # squarederror
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=123)
-gb = xgb.XGBRegressor(objective='reg:"squarederror"', colsample_bytree=0.8, learning_rate=0.1,
-                      max_depth=7, alpha=0.01, n_estimators=500, rate_drop=0.9, skip_drop=0.5, subsample=0.8,
-                      seed=123, reg_lambda=0.0)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=123
+)
+gb = xgb.XGBRegressor(
+    objective='reg:"squarederror"',
+    colsample_bytree=0.8,
+    learning_rate=0.1,
+    max_depth=7,
+    alpha=0.01,
+    n_estimators=500,
+    rate_drop=0.9,
+    skip_drop=0.5,
+    subsample=0.8,
+    seed=123,
+    reg_lambda=0.0,
+)
 gb.fit(X_train, y_train)
 
 # %%
@@ -1067,7 +1243,7 @@ accuracy = r2_score(y_test, ypredict)
 accuracy
 accuracy = int(accuracy * 100) / 100.0
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
 # plt.gca().set_yscale('log')
 # plt.gca().set_xscale('log')
 plt.title("$R^2 = ${}".format(accuracy))
@@ -1086,8 +1262,8 @@ import pandas as pd
 from sklearn.preprocessing import quantile_transform
 from scipy import stats
 
-x = pd.DataFrame(np.random.rand(100), columns=['x'])
-stats.percentileofscore(x['x'], 0.47219)
+x = pd.DataFrame(np.random.rand(100), columns=["x"])
+stats.percentileofscore(x["x"], 0.47219)
 
 # %%
 
@@ -1097,35 +1273,48 @@ from scipy import stats
 # %%
 # quantile transform
 # columns to drop
-columns_to_drop = ['population', 'sys_id', 'wu_rate']
+columns_to_drop = ["population", "sys_id", "wu_rate"]
 df = df_train.copy()
 
-df['pc'] = df['wu_rate'] / df['pop']
-df = df[df['pop'] > 100]
-mask = (df['pc'] > 20) & (df['pc'] < 500)
+df["pc"] = df["wu_rate"] / df["pop"]
+df = df[df["pop"] > 100]
+mask = (df["pc"] > 20) & (df["pc"] < 500)
 df = df[mask]
-pc_max = df['pc'].max()
-pc_min = df['pc'].min()
+pc_max = df["pc"].max()
+pc_min = df["pc"].min()
 
 df = df.drop(columns_to_drop, axis=1)
-wu = quantile_transform(df['pc'].values.reshape(len(df), 1), n_quantiles=5000,
-                        random_state=0)  # , output_distribution = 'normal'
-df['pc'] = wu.flatten()
+wu = quantile_transform(
+    df["pc"].values.reshape(len(df), 1), n_quantiles=5000, random_state=0
+)  # , output_distribution = 'normal'
+df["pc"] = wu.flatten()
 features = list(df.columns)
-features.remove('pc')
+features.remove("pc")
 X = df[features]
-y = df['pc']
+y = df["pc"]
 
 # %%
 
 # %%
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=123)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=123
+)
 
 # %%
 # squarederror
-gb = xgb.XGBRegressor(objective='reg:squarederror', colsample_bytree=0.8, learning_rate=0.1,
-                      max_depth=7, alpha=0.01, n_estimators=500, rate_drop=0.9, skip_drop=0.5, subsample=0.8,
-                      seed=123, reg_lambda=0.0)
+gb = xgb.XGBRegressor(
+    objective="reg:squarederror",
+    colsample_bytree=0.8,
+    learning_rate=0.1,
+    max_depth=7,
+    alpha=0.01,
+    n_estimators=500,
+    rate_drop=0.9,
+    skip_drop=0.5,
+    subsample=0.8,
+    seed=123,
+    reg_lambda=0.0,
+)
 
 # %%
 gb.fit(X_train, y_train)
@@ -1137,7 +1326,7 @@ accuracy = r2_score(y_test, ypredict)
 accuracy
 accuracy = int(accuracy * 100) / 100.0
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
 # plt.gca().set_yscale('log')
 # plt.gca().set_xscale('log')
 plt.title("$R^2 = ${}".format(accuracy))
@@ -1158,7 +1347,7 @@ accuracy = r2_score(y_test, ypredict)
 accuracy
 accuracy = int(accuracy * 100) / 100.0
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
 plt.title("$R^2 = ${}".format(accuracy))
 plt.xlabel("Actual PC Water Use")
 plt.ylabel("Estimated PC Water Use")
@@ -1171,32 +1360,48 @@ plt.show()
 # %%
 # quantile transform
 # columns to drop
-columns_to_drop = ['population', 'sys_id', 'wu_rate']
+columns_to_drop = ["population", "sys_id", "wu_rate"]
 df = df_train.copy()
 
-df['pc'] = df['wu_rate'] / df['pop']
-df = df[df['pop'] > 100]
-mask = (df['pc'] > 20) & (df['pc'] < 500)
+df["pc"] = df["wu_rate"] / df["pop"]
+df = df[df["pop"] > 100]
+mask = (df["pc"] > 20) & (df["pc"] < 500)
 df = df[mask]
-pc_mean = df['pc'].mean()
-pc_std = df['pc'].std()
+pc_mean = df["pc"].mean()
+pc_std = df["pc"].std()
 
 df = df.drop(columns_to_drop, axis=1)
-wu = quantile_transform(df['pc'].values.reshape(len(df), 1), n_quantiles=5000,
-                        random_state=0, output_distribution='normal')  # , output_distribution = 'normal'
-df['pc'] = wu.flatten()
+wu = quantile_transform(
+    df["pc"].values.reshape(len(df), 1),
+    n_quantiles=5000,
+    random_state=0,
+    output_distribution="normal",
+)  # , output_distribution = 'normal'
+df["pc"] = wu.flatten()
 features = list(df.columns)
-features.remove('pc')
+features.remove("pc")
 X = df[features]
-y = df['pc']
+y = df["pc"]
 
 # %%
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=123)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=123
+)
 
 # %%
-gb = xgb.XGBRegressor(objective='reg:squarederror', colsample_bytree=0.8, learning_rate=0.1,
-                      max_depth=7, alpha=0.01, n_estimators=500, rate_drop=0.9, skip_drop=0.5, subsample=0.8,
-                      seed=123, reg_lambda=0.0)
+gb = xgb.XGBRegressor(
+    objective="reg:squarederror",
+    colsample_bytree=0.8,
+    learning_rate=0.1,
+    max_depth=7,
+    alpha=0.01,
+    n_estimators=500,
+    rate_drop=0.9,
+    skip_drop=0.5,
+    subsample=0.8,
+    seed=123,
+    reg_lambda=0.0,
+)
 
 # %%
 gb.fit(X_train, y_train)
@@ -1208,7 +1413,7 @@ accuracy = r2_score(y_test, ypredict)
 accuracy
 accuracy = int(accuracy * 100) / 100.0
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
 # plt.gca().set_yscale('log')
 # plt.gca().set_xscale('log')
 plt.title("$R^2 = ${}".format(accuracy))
@@ -1230,7 +1435,7 @@ accuracy = r2_score(y_test, ypredict)
 
 accuracy = int(accuracy * 100) / 100.0
 plt.scatter(y_test, ypredict, s=4)
-plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], 'r')
+plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], "r")
 
 plt.title("$R^2 = ${}".format(accuracy))
 plt.xlabel("Actual PC Water Use")

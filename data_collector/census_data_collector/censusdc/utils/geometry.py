@@ -4,7 +4,7 @@ import geojson
 
 # Constants for lon_lat_to_albers and albers_to_lon_lat
 # Developed from Snyder, 1987. USGS Professional paper 1395
-TO_RAD = np.pi / 180.
+TO_RAD = np.pi / 180.0
 SP1 = 0 * TO_RAD
 SP2 = 60 * TO_RAD
 LON_ORIG = 0 * TO_RAD
@@ -38,7 +38,7 @@ def calculate_circle(x, y, radius):
     return np.array([x, y])
 
 
-def lon_lat_to_albers(lon, lat, precision=1.):
+def lon_lat_to_albers(lon, lat, precision=1.0):
     """
     Method to convert decimal longitute and latitude to albers equal
     area projection
@@ -64,8 +64,9 @@ def lon_lat_to_albers(lon, lat, precision=1.):
         lat = np.array(lat, dtype=np.float64)
 
     if lat.shape != lon.shape:
-        raise AssertionError("The shape of the lat and lon array must be "
-                             "exactly the same")
+        raise AssertionError(
+            "The shape of the lat and lon array must be " "exactly the same"
+        )
 
     lat *= TO_RAD
     lon *= TO_RAD
@@ -84,7 +85,7 @@ def lon_lat_to_albers(lon, lat, precision=1.):
     return x, y
 
 
-def albers_to_lon_lat(x, y, precision=1.):
+def albers_to_lon_lat(x, y, precision=1.0):
     """
     Method to convert from albers equal area projection back to WGS84
     lat. lon.
@@ -110,8 +111,9 @@ def albers_to_lon_lat(x, y, precision=1.):
         y = np.array(y, dtype=np.float64)
 
     if x.shape != y.shape:
-        raise AssertionError("The shape of the lat and lon array must be "
-                             "exactly the same")
+        raise AssertionError(
+            "The shape of the lat and lon array must be " "exactly the same"
+        )
 
     x /= precision
     y /= precision
@@ -127,7 +129,7 @@ def albers_to_lon_lat(x, y, precision=1.):
     return lon, lat
 
 
-def lat_lon_geojson_to_albers_geojson(feature, invert=False, precision=1.):
+def lat_lon_geojson_to_albers_geojson(feature, invert=False, precision=1.0):
     """
     Method to convert geojson polygons and multipolygon features
     from lat lon to albers or inverse
@@ -154,11 +156,13 @@ def lat_lon_geojson_to_albers_geojson(feature, invert=False, precision=1.):
         conv_coords = []
         for coord in coords:
             if invert:
-                conv = albers_to_lon_lat(*np.array(coord).T,
-                                         precision=precision)
+                conv = albers_to_lon_lat(
+                    *np.array(coord).T, precision=precision
+                )
             else:
-                conv = lon_lat_to_albers(*np.array(coord).T,
-                                         precision=precision)
+                conv = lon_lat_to_albers(
+                    *np.array(coord).T, precision=precision
+                )
             conv_coords.append(list(zip(*conv)))
         geopoly = geojson.Polygon(conv_coords)
 
@@ -169,18 +173,21 @@ def lat_lon_geojson_to_albers_geojson(feature, invert=False, precision=1.):
             conv_coords = []
             for coord in poly:
                 if invert:
-                    conv = albers_to_lon_lat(*np.array(coord.T),
-                                             precision=precision)
+                    conv = albers_to_lon_lat(
+                        *np.array(coord.T), precision=precision
+                    )
                 else:
-                    conv = lon_lat_to_albers(*np.array(coord).T,
-                                             precision=precision)
+                    conv = lon_lat_to_albers(
+                        *np.array(coord).T, precision=precision
+                    )
                 conv_coords.append(list(zip(*conv)))
             conv_polys.append(conv_coords)
         geopoly = geojson.MultiPolygon(conv_polys)
 
     else:
-        msg = "Geometry type {}, not yet " \
-              "supported".format(feature.geometry.type)
+        msg = "Geometry type {}, not yet " "supported".format(
+            feature.geometry.type
+        )
         raise Exception(msg)
 
     geofeat = geojson.Feature(geometry=geopoly, properties=feature.properties)

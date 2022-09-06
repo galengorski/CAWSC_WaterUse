@@ -19,7 +19,7 @@ columns = (
     "sep_norm",
     "oct_norm",
     "nov_norm",
-    "dec_norm"
+    "dec_norm",
 )
 
 
@@ -45,11 +45,12 @@ def describe_modality(record):
 
 if __name__ == "__main__":
     ws = os.path.abspath(os.path.dirname(__file__))
-    norm_file = os.path.join(ws, "..", "output", "monthly",
-                             "wu_mean_spatial_2010_normalized.csv")
+    norm_file = os.path.join(
+        ws, "..", "output", "monthly", "wu_mean_spatial_2010_normalized.csv"
+    )
 
     df = pd.read_csv(norm_file)
-    df = df.fillna(value=0.)
+    df = df.fillna(value=0.0)
     amplitude = []
     peak = []
     max_mo = []
@@ -65,26 +66,33 @@ if __name__ == "__main__":
         min_mo.append(result[4])
         # modal.append(describe_modality(row))
 
-    df['max_val'] = peak
-    df['amplitude'] = amplitude
-    df['max_mo'] = np.array(max_mo)
-    df['minimum'] = minimum
-    df['min_mo'] = np.array(min_mo)
-    df['freq'] = df["max_mo"] - df["min_mo"]
+    df["max_val"] = peak
+    df["amplitude"] = amplitude
+    df["max_mo"] = np.array(max_mo)
+    df["minimum"] = minimum
+    df["min_mo"] = np.array(min_mo)
+    df["freq"] = df["max_mo"] - df["min_mo"]
     df["freq"] = df["freq"].abs()
 
     # df = df[df['tot_wu_mgd'] <= 250]
-    print(df['tot_wu_mgd'].max())
-    print(df['tot_wu_mgd'].mean())
-    df['tot_wu_norm'] = df["tot_wu_mgd"] / df['tot_wu_mgd'].max()
-    df['x_norm'] = df['x_centroid'] / df['x_centroid'].max()
-    df['y_norm'] = df['y_centroid'] / df['y_centroid'].max()
+    print(df["tot_wu_mgd"].max())
+    print(df["tot_wu_mgd"].mean())
+    df["tot_wu_norm"] = df["tot_wu_mgd"] / df["tot_wu_mgd"].max()
+    df["x_norm"] = df["x_centroid"] / df["x_centroid"].max()
+    df["y_norm"] = df["y_centroid"] / df["y_centroid"].max()
     # df['modal'] = modal
 
-    df = df[df['minimum'] > 0.]
-    fields = ['tot_wu_mgd', "pop_srv", 'amplitude',
-              'freq', "x_centroid", "y_centroid", 'minimum',
-              'max_val'] + list(columns)
+    df = df[df["minimum"] > 0.0]
+    fields = [
+        "tot_wu_mgd",
+        "pop_srv",
+        "amplitude",
+        "freq",
+        "x_centroid",
+        "y_centroid",
+        "minimum",
+        "max_val",
+    ] + list(columns)
     # fields = list(columns)
     df2 = StandardScaler().fit_transform(df[fields])
 
@@ -94,9 +102,11 @@ if __name__ == "__main__":
     km.fit(df2)
     Xt = km.transform(df2)
     labels = km.labels_
-    df['cluster'] = labels
+    df["cluster"] = labels
 
-    df.to_csv("wu_mean_spatial_2010_normalized_monthly_clustered.csv", index=False)
+    df.to_csv(
+        "wu_mean_spatial_2010_normalized_monthly_clustered.csv", index=False
+    )
     """
     for fx, f in enumerate(fields):
         for ffx, ff in enumerate(fields):

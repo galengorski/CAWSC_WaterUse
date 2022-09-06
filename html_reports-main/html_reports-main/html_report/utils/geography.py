@@ -22,6 +22,7 @@ class Features(object):
         flag for conversion from WGS84 to Albers equal area
 
     """
+
     def __init__(self, shp, field=None, strtree=False, to_albers=False):
         if not os.path.isfile(shp):
             raise FileNotFoundError("{} not a valid file path".format(shp))
@@ -39,8 +40,9 @@ class Features(object):
         self._import_shapefile()
 
         if strtree:
-            shapely_geoms = [self.get_shapely_geometry(name) for
-                             name in self.feature_names]
+            shapely_geoms = [
+                self.get_shapely_geometry(name) for name in self.feature_names
+            ]
             self.strtree = STRtree(shapely_geoms)
         else:
             self.strtree = None
@@ -141,8 +143,11 @@ class Features(object):
             None
         """
         if self.sf.shapeType not in (5, 15, 25):
-            raise TypeError('Shapetype: {}, is not a valid polygon'
-                            .format(self.sf.shapeTypeName))
+            raise TypeError(
+                "Shapetype: {}, is not a valid polygon".format(
+                    self.sf.shapeTypeName
+                )
+            )
 
         named = False
         fidx = 0
@@ -171,15 +176,16 @@ class Features(object):
                 name += 1
 
             geofeat = shape.__geo_interface__
-            if geofeat['type'].lower() == "polygon":
-                poly = geojson.Polygon(geofeat['coordinates'])
+            if geofeat["type"].lower() == "polygon":
+                poly = geojson.Polygon(geofeat["coordinates"])
             else:
-                poly = geojson.MultiPolygon(geofeat['coordinates'])
+                poly = geojson.MultiPolygon(geofeat["coordinates"])
 
             geofeat = geojson.Feature(geometry=poly, properties=properties)
 
             if self._to_albers:
-                geofeat = lat_lon_geojson_to_albers_geojson(geofeat,
-                                                            precision=100.)
+                geofeat = lat_lon_geojson_to_albers_geojson(
+                    geofeat, precision=100.0
+                )
 
             self._shapes[name] = geofeat

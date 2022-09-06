@@ -5,11 +5,13 @@ from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 import numpy as np
 import tensorflow as tf
+
 tf.random.set_seed(11)
 from numpy.random import seed
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 import matplotlib
-matplotlib.use('Qt5Agg')
+
+matplotlib.use("Qt5Agg")
 from matplotlib import pyplot as plt
 
 # # load dataset
@@ -132,7 +134,14 @@ import pandas as pd
 from datetime import datetime
 
 from iwateruse.featurize import MultiOneHotEncoder
-from iwateruse import data_cleaning, report, splittors, pre_train_utils, make_dataset, figures
+from iwateruse import (
+    data_cleaning,
+    report,
+    splittors,
+    pre_train_utils,
+    make_dataset,
+    figures,
+)
 from iwateruse import denoise, model_diagnose
 
 import matplotlib.pyplot as plt
@@ -161,7 +170,7 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 # %matplotlib ipympl
 import warnings
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 xgb.set_config(verbosity=0)
 
 # %%
@@ -175,9 +184,13 @@ from iwateruse import selection
 # Setup Training
 # =============================
 figures_folder = "figs"
-model = Model(name='annual_pc', log_file = 'train_log.log',  feature_status_file= r"features_status.xlsx")
-model.raw_target = 'wu_rate'
-model.target = 'per_capita'
+model = Model(
+    name="annual_pc",
+    log_file="train_log.log",
+    feature_status_file=r"features_status.xlsx",
+)
+model.raw_target = "wu_rate"
+model.target = "per_capita"
 
 datafile = r"C:\work\water_use\ml_experiments\annual_v_0_0\clean_train_db.csv"
 make_dataset.make_ds_per_capita_basic(model, datafile=datafile)
@@ -187,15 +200,21 @@ seed1 = 123
 seed2 = 456
 
 # %%
-model.apply_func(func=targets.compute_per_capita, type='target_func', args=None)
+model.apply_func(
+    func=targets.compute_per_capita, type="target_func", args=None
+)
 
-opts = ['pop<=100', 'per_capita>=500', 'per_capita<=25']
-model.apply_func(func=outliers_utils.drop_values, type='outliers_func', opts = opts )
-model.apply_func(func = outliers_utils.drop_na_target, type='outliers_func')
-model.apply_func(func=None, type='add_features_func', args=None)
+opts = ["pop<=100", "per_capita>=500", "per_capita<=25"]
+model.apply_func(
+    func=outliers_utils.drop_values, type="outliers_func", opts=opts
+)
+model.apply_func(func=outliers_utils.drop_na_target, type="outliers_func")
+model.apply_func(func=None, type="add_features_func", args=None)
 
 # split
-model.apply_func(func=splittors.random_split, args={'frac': 0.70, 'seed': seed1})
+model.apply_func(
+    func=splittors.random_split, args={"frac": 0.70, "seed": seed1}
+)
 
 
 # =============================
@@ -206,49 +225,64 @@ features = model.features
 target = model.target
 
 final_dataset = model.df_train
-final_dataset['id'] = final_dataset.index.values
-if 0: #todo
-    final_dataset = final_dataset.drop_duplicates(subset = ['sys_id', 'Year'], keep = 'first')
+final_dataset["id"] = final_dataset.index.values
+if 0:  # todo
+    final_dataset = final_dataset.drop_duplicates(
+        subset=["sys_id", "Year"], keep="first"
+    )
 model.log.to_table(final_dataset[features], "Features")
 model.log.to_table(final_dataset[[target]], "Target")
 if 1:
-    outlier_info = pd.read_csv(r"C:\work\water_use\ml_experiments\annual_v_0_0\Outliers_6_1.csv")
+    outlier_info = pd.read_csv(
+        r"C:\work\water_use\ml_experiments\annual_v_0_0\Outliers_6_1.csv"
+    )
     ids = []
     for col in outlier_info.columns:
         if col.isdigit():
             ids.append(col)
     if 1:
         iter = 200
-        sig_ids = outlier_info.loc[outlier_info['iter'] == iter, ids]
+        sig_ids = outlier_info.loc[outlier_info["iter"] == iter, ids]
         sig_ids = sig_ids.T
         final_dataset = final_dataset[sig_ids[iter].values == 1]
-X_train, X_test, y_train, y_test = train_test_split(final_dataset[features],  final_dataset[target],
-                                                            test_size=0.3, random_state=123)
+X_train, X_test, y_train, y_test = train_test_split(
+    final_dataset[features],
+    final_dataset[target],
+    test_size=0.3,
+    random_state=123,
+)
 # gb.fit(X_train, y_train)
 # y_hat = gb.predict(X_test)
 
 model = Sequential()
-act1 = 'relu'
-act2 = 'sigmoid'
-act3 = 'linear'
-act4 = 'tanh'
-#act = tf.keras.layers.LeakyReLU(alpha=0.3)
+act1 = "relu"
+act2 = "sigmoid"
+act3 = "linear"
+act4 = "tanh"
+# act = tf.keras.layers.LeakyReLU(alpha=0.3)
 
-model.add(Dense(200, activation=act4, kernel_initializer='he_normal', input_shape=(len(features),)))
-model.add(Dense(200, activation=act1, kernel_initializer='he_normal' ))
-model.add(Dense(100, activation=act1, kernel_initializer='he_normal' ))
-model.add(Dense(100, activation=act1, kernel_initializer='he_normal'))
-model.add(Dense(50, activation=act1, kernel_initializer='he_normal'))
-model.add(Dense(50, activation=act1, kernel_initializer='he_normal'))
-model.add(Dense(5, activation=act1, kernel_initializer='he_normal'))
-model.add(Dense(50, activation=act1, kernel_initializer='he_normal'))
-model.add(Dense(50, activation=act1, kernel_initializer='he_normal'))
-model.add(Dense(100, activation=act1, kernel_initializer='he_normal'))
-model.add(Dense(100, activation=act1, kernel_initializer='he_normal'))
-model.add(Dense(200, activation=act1, kernel_initializer='he_normal'))
-model.add(Dense(200, activation=act1, kernel_initializer='he_normal'))
-model.add(Dense(5, activation=act1, kernel_initializer='he_normal'))
-model.add(Dense(1, activation='linear'))
+model.add(
+    Dense(
+        200,
+        activation=act4,
+        kernel_initializer="he_normal",
+        input_shape=(len(features),),
+    )
+)
+model.add(Dense(200, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(100, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(100, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(50, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(50, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(5, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(50, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(50, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(100, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(100, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(200, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(200, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(5, activation=act1, kernel_initializer="he_normal"))
+model.add(Dense(1, activation="linear"))
 # compile the model
 loss = tf.keras.losses.MeanSquaredError()
 solver = tf.keras.optimizers.Adam(
@@ -257,27 +291,37 @@ solver = tf.keras.optimizers.Adam(
     beta_2=0.999,
     epsilon=1e-07,
     amsgrad=False,
-    name="Adam"
+    name="Adam",
 )
 import tensorflow_probability as tfp
+
+
 def custom_loss_function(y_true, y_pred):
-   squared_difference = tf.square(y_true - y_pred)
-   p95 = tfp.stats.percentile(squared_difference, 95)
-   squared_difference = squared_difference[squared_difference<p95]
-   return tf.reduce_mean(squared_difference)
+    squared_difference = tf.square(y_true - y_pred)
+    p95 = tfp.stats.percentile(squared_difference, 95)
+    squared_difference = squared_difference[squared_difference < p95]
+    return tf.reduce_mean(squared_difference)
 
-#loss = 'mse'
-model.compile(loss=loss, metrics=['accuracy'], optimizer=solver)
+
+# loss = 'mse'
+model.compile(loss=loss, metrics=["accuracy"], optimizer=solver)
 # fit the model
-history = model.fit(X_train, y_train, epochs=200, batch_size=100, validation_split = 0.2, verbose=2)
+history = model.fit(
+    X_train,
+    y_train,
+    epochs=200,
+    batch_size=100,
+    validation_split=0.2,
+    verbose=2,
+)
 
 
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.title('model accuracy')
-plt.ylabel('accuracy')
-plt.xlabel('epoch')
-plt.legend(['loss', 'val'], loc='upper left')
+plt.plot(history.history["loss"])
+plt.plot(history.history["val_loss"])
+plt.title("model accuracy")
+plt.ylabel("accuracy")
+plt.xlabel("epoch")
+plt.legend(["loss", "val"], loc="upper left")
 
 
 # evaluate the model
@@ -288,10 +332,11 @@ yhat = model.predict([X_test])
 plt.figure()
 plt.scatter(y_test, yhat)
 from sklearn.metrics import r2_score
+
 accuracy = r2_score(y_test, yhat)
 c = [min(y_test), max(y_test)]
-plt.plot(c, c, 'r')
+plt.plot(c, c, "r")
 plt.title(str(accuracy))
 plt.show()
-#print('Predicted: %.3f' % yhat)
+# print('Predicted: %.3f' % yhat)
 Pxx = 1

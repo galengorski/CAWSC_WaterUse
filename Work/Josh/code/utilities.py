@@ -14,13 +14,11 @@ COMMON = (
     "y_centroid",
     "year",
     "ecode",
-    "pop_srv"
+    "pop_srv",
 )
 
 
-YEARLY = (
-    "tot_wd_mgd",
-)
+YEARLY = ("tot_wd_mgd",)
 
 MONTHLY = (
     "jan_mgd",
@@ -49,7 +47,8 @@ ndays = {
     "sep_mgd": 30,
     "oct_mgd": 31,
     "nov_mgd": 30,
-    "dec_mgd": 31}
+    "dec_mgd": 31,
+}
 
 
 def get_input_data(f, dataframe=None, monthly=False, normalized=False):
@@ -87,40 +86,42 @@ def get_input_data(f, dataframe=None, monthly=False, normalized=False):
     lowered = {i: i.lower() for i in list(df)}
     df = df.drop(columns=drop)
     df = df.rename(columns=lowered)
-    df['wsa_agidf'] = df['wsa_agidf'].str.lower()
+    df["wsa_agidf"] = df["wsa_agidf"].str.lower()
     if dataframe is not None:
         df = pd.merge(
-            left=dataframe,
-            right=df,
-            left_on='wsa_agidf',
-            right_on='wsa_agidf'
+            left=dataframe, right=df, left_on="wsa_agidf", right_on="wsa_agidf"
         )
         pop_field = "pop_srv"  # "sum_gu_pop"  # "pop_srv"
         if pop_field in list(df):
             if "tot_wd_mgd" in list(df):
-                df["wu_pp_gd"] = (df.tot_wd_mgd / df[pop_field]) * 1e+6
+                df["wu_pp_gd"] = (df.tot_wd_mgd / df[pop_field]) * 1e6
                 df = df.replace([np.inf, -np.inf], 0)
                 df = df[df.wu_pp_gd != 0]
 
             elif "jan_mgd" in list(df) and normalized:
                 df["tot_wu_mgd"] = np.zeros((len(df),))
                 for field in MONTHLY:
-                    df['tot_wu_mgd'] += (df[field] * ndays[field])
+                    df["tot_wu_mgd"] += df[field] * ndays[field]
 
                 for field in MONTHLY:
                     new = field.split("_")[0] + "_norm"
-                    df[new] = (df[field] * ndays[field]) / df['tot_wu_mgd']
+                    df[new] = (df[field] * ndays[field]) / df["tot_wu_mgd"]
 
                 df = df.drop(columns=list(MONTHLY))
-                df = df[df['tot_wu_mgd'].notna()]
+                df = df[df["tot_wu_mgd"].notna()]
 
             elif "jan_mgd" in list(df) and not normalized:
                 for field in MONTHLY:
                     new = field.split("_")[0] + "_pp_gd"
-                    df[new] = (df[field] / df[pop_field]) * 1e+6
+                    df[new] = (df[field] / df[pop_field]) * 1e6
 
                 df = df.replace([np.inf, -np.inf], 0)
-                df = df.replace([np.nan,], 0)
+                df = df.replace(
+                    [
+                        np.nan,
+                    ],
+                    0,
+                )
 
         if "year" in list(df):
             df = df.loc[df.year == 2010]
@@ -195,11 +196,12 @@ def load_national_polygons(f):
         list of vertices
     """
     import shapefile
+
     t = []
     with shapefile.Reader(f) as r:
         for shape in r.shapes():
             feat = shape.__geo_interface__
-            for poly in feat['coordinates']:
+            for poly in feat["coordinates"]:
                 t.append(poly[0])
     return t
 
@@ -229,9 +231,7 @@ def threaded_point_in_polygon(q, xc, yc, polygon, container):
     container.release()
 
 
-def get_interp_mask(xc, yc, polygons,
-                    multithread=False,
-                    num_threads=8):
+def get_interp_mask(xc, yc, polygons, multithread=False, num_threads=8):
     """
     Method to build, save, and load a mask for interpolation
 
@@ -265,8 +265,10 @@ def get_interp_mask(xc, yc, polygons,
         threads = []
         mask = np.zeros((yshape, xshape), dtype=int)
         for ix, poly in enumerate(polygons):
-            t = threading.Thread(target=threaded_point_in_polygon,
-                                 args=(q, xc, yc, poly, container))
+            t = threading.Thread(
+                target=threaded_point_in_polygon,
+                args=(q, xc, yc, poly, container),
+            )
             threads.append(t)
 
         for thread in threads:
@@ -284,8 +286,10 @@ def get_interp_mask(xc, yc, polygons,
     else:
         mask = np.zeros((yshape, xshape), dtype=int)
         for ix, poly in enumerate(polygons):
-            print("Creating mask: Percent done: "
-                  "{:.3f}".format(ix/len(polygons)))
+            print(
+                "Creating mask: Percent done: "
+                "{:.3f}".format(ix / len(polygons))
+            )
             m = point_in_polygon(xc, yc, list(poly))
             mask[m] = 1
 
@@ -325,14 +329,16 @@ def array_to_shapefile(shp_name, array, xc, yc):
 
     with shapefile.Writer(shp_name, shapeType=shapefile.POLYGON) as w:
         for k in array.keys():
-            w.field(k, 'N')
+            w.field(k, "N")
 
         for i in range(xc.shape[0]):
             for j in range(xc.shape[1]):
-                verts = [(xxv[i, j], yyv[i, j]),
-                         (xxv[i, j+1], yyv[i, j+1]),
-                         (xxv[i+1, j+1], yyv[i+1, j+1]),
-                         (xxv[i+1, j], yyv[i+1, j])]
+                verts = [
+                    (xxv[i, j], yyv[i, j]),
+                    (xxv[i, j + 1], yyv[i, j + 1]),
+                    (xxv[i + 1, j + 1], yyv[i + 1, j + 1]),
+                    (xxv[i + 1, j], yyv[i + 1, j]),
+                ]
 
                 vals = [v[i, j] for k, v in array.items()]
                 if np.isnan(vals).all():
@@ -368,7 +374,7 @@ def points_to_shapefile(shp_name, df):
             if col in ("wsa_agidf", "ecode"):
                 w.field(col, "C")
             else:
-                w.field(col, 'N', decimal=1)
+                w.field(col, "N", decimal=1)
 
         for iloc, rec in df.iterrows():
             w.point(rec.x_centroid, rec.y_centroid)
@@ -390,16 +396,18 @@ def make_alb83_proj(shp_name):
     -------
         None
     """
-    proj = 'PROJCS["NAD_1983_Contiguous_USA_Albers",' \
-           'GEOGCS["GCS_North_American_1983",DATUM["D_North_American_1983",' \
-           'SPHEROID["GRS_1980",6378137.0,298.257222101]],' \
-           'PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],' \
-           'PROJECTION["Albers"],PARAMETER["False_Easting",0.0],' \
-           'PARAMETER["False_Northing",0.0],' \
-           'PARAMETER["Central_Meridian",-96.0],' \
-           'PARAMETER["Standard_Parallel_1",29.5],' \
-           'PARAMETER["Standard_Parallel_2",45.5],' \
-           'PARAMETER["Latitude_Of_Origin",23.0],UNIT["Meter",1.0]]'
+    proj = (
+        'PROJCS["NAD_1983_Contiguous_USA_Albers",'
+        'GEOGCS["GCS_North_American_1983",DATUM["D_North_American_1983",'
+        'SPHEROID["GRS_1980",6378137.0,298.257222101]],'
+        'PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],'
+        'PROJECTION["Albers"],PARAMETER["False_Easting",0.0],'
+        'PARAMETER["False_Northing",0.0],'
+        'PARAMETER["Central_Meridian",-96.0],'
+        'PARAMETER["Standard_Parallel_1",29.5],'
+        'PARAMETER["Standard_Parallel_2",45.5],'
+        'PARAMETER["Latitude_Of_Origin",23.0],UNIT["Meter",1.0]]'
+    )
     prj_name = shp_name[:-4] + ".prj"
     with open(prj_name, "w") as foo:
         foo.write(proj)
@@ -506,11 +514,11 @@ def scatter_plot_with_histograms(df, fields, xbins=20, ybins=20, **kwargs):
     plt.figure(figsize=(8, 8))
 
     ax_scatter = plt.axes(rect_scatter)
-    ax_scatter.tick_params(direction='in', top=True, right=True)
+    ax_scatter.tick_params(direction="in", top=True, right=True)
     ax_histx = plt.axes(rect_histx)
-    ax_histx.tick_params(direction='in', labelbottom=False)
+    ax_histx.tick_params(direction="in", labelbottom=False)
     ax_histy = plt.axes(rect_histy)
-    ax_histy.tick_params(direction='in', labelleft=False)
+    ax_histy.tick_params(direction="in", labelleft=False)
 
     ax_scatter.scatter(x, y, **kwargs)
     ylim = [np.floor(np.nanmin(y)), np.ceil(np.nanmax(y))]
@@ -519,19 +527,19 @@ def scatter_plot_with_histograms(df, fields, xbins=20, ybins=20, **kwargs):
     ax_scatter.set_ylim(ylim)
 
     ax_histx.hist(x, bins=xbins)
-    ax_histy.hist(y, bins=ybins, orientation='horizontal')
+    ax_histy.hist(y, bins=ybins, orientation="horizontal")
 
     ax_histx.set_xlim(ax_scatter.get_xlim())
     ax_histy.set_ylim(ax_scatter.get_ylim())
 
-    ax_histy.set_xscale('log')
-    ax_histx.set_yscale('log')
+    ax_histy.set_xscale("log")
+    ax_histx.set_yscale("log")
 
     if xlog:
-        ax_scatter.set_xscale('log')
-        ax_histx.set_xscale('log')
+        ax_scatter.set_xscale("log")
+        ax_histx.set_xscale("log")
     if ylog:
-        ax_scatter.set_yscale('log')
-        ax_histy.set_yscale('log')
+        ax_scatter.set_yscale("log")
+        ax_histy.set_yscale("log")
 
     return ax_scatter, ax_histx, ax_histy

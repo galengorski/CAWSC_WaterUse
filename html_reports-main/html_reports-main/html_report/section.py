@@ -6,9 +6,9 @@ import copy
 
 
 class ReportSection(object):
-
-    def __init__(self, title="", section="", description="",
-                 include_plotlyjs=False):
+    def __init__(
+        self, title="", section="", description="", include_plotlyjs=False
+    ):
         self.title = title
         self.section = section
         self.description = description
@@ -38,22 +38,24 @@ class ReportSection(object):
             cols = 1
 
         elif rows == -1:
-            rows = math.ceil(len(self._plots)/cols)
+            rows = math.ceil(len(self._plots) / cols)
 
         elif cols == -1:
-            cols = math.ceil(len(self._plots)/rows)
+            cols = math.ceil(len(self._plots) / rows)
 
         else:
             pass
 
         if "specs" not in kwargs:
-            s = [None,] * cols
+            s = [
+                None,
+            ] * cols
             specs = [copy.copy(s) for _ in range(rows)]
 
             i = 0
             j = 0
             for k, d in self._json.items():
-                specs[i][j] = {'type': d['type']}
+                specs[i][j] = {"type": d["type"]}
                 if j + 1 == cols:
                     i += 1
                     j = 0
@@ -61,7 +63,7 @@ class ReportSection(object):
                     j += 1
 
         else:
-            specs = kwargs.pop('specs')
+            specs = kwargs.pop("specs")
 
         fig = make_subplots(rows=rows, cols=cols, specs=specs, **kwargs)
 
@@ -81,8 +83,9 @@ class ReportSection(object):
         if layout:
             fig.update_layout(**layout)
 
-        plot_html = to_html(fig, include_plotlyjs=self.include_plotlyjs,
-                            full_html=True)
+        plot_html = to_html(
+            fig, include_plotlyjs=self.include_plotlyjs, full_html=True
+        )
 
         html = []
         if self.title:
@@ -117,12 +120,12 @@ class ReportSection(object):
         cols = [i for i in list(df) if i.lower() != "date"]
 
         for ix, col in enumerate(cols):
-            t = dict(x=df[xfield].tolist(), y=df[col].tolist(),
-                     name=col, **kwargs)
+            t = dict(
+                x=df[xfield].tolist(), y=df[col].tolist(), name=col, **kwargs
+            )
             d[ix] = t
 
-        self._json[self._n] = {'type': "scatter",
-                               'data': d}
+        self._json[self._n] = {"type": "scatter", "data": d}
 
         traces = []
 
@@ -145,43 +148,41 @@ class ReportSection(object):
         if "header" in kwargs:
             header = kwargs.pop("header")
         else:
-            header = dict(values=list(df),
-                          font=dict(size=10),
-                          align="left")
+            header = dict(values=list(df), font=dict(size=10), align="left")
 
         if "cells" in kwargs:
             cells = kwargs.pop("cells")
         else:
-            cells = dict(values=[df[k].tolist() for k in df.columns],
-                         align="left")
+            cells = dict(
+                values=[df[k].tolist() for k in df.columns], align="left"
+            )
 
-        d = dict(header=header,
-                 cells=cells,
-                 **kwargs)
+        d = dict(header=header, cells=cells, **kwargs)
 
-        self._json[self._n] = {'type': "table",
-                               'data': d}
+        self._json[self._n] = {"type": "table", "data": d}
 
         trace = go.Table(**d)
         self._plots[self._n] = trace
 
         self._n += 1
 
-    def geojson_to_heatmap(self, geojson, featureidkey,
-                           locations, z, **kwargs):
+    def geojson_to_heatmap(
+        self, geojson, featureidkey, locations, z, **kwargs
+    ):
         """
 
         :param geojson:
         :return:
         """
-        d = dict(geojson=geojson,
-                 featureidkey=featureidkey,
-                 locations=locations,
-                 z=z,
-                 **kwargs)
+        d = dict(
+            geojson=geojson,
+            featureidkey=featureidkey,
+            locations=locations,
+            z=z,
+            **kwargs
+        )
 
-        self._json[self._n] = {"type": "choroplethmapbox",
-                               "data": d}
+        self._json[self._n] = {"type": "choroplethmapbox", "data": d}
 
         trace = go.Choroplethmapbox(**d)
         self._plots[self._n] = trace

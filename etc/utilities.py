@@ -3,33 +3,26 @@ import numpy as np
 import os
 
 
-FWS = os.path.abspath(r"C:\work\water_use\dataset\ml_county_to_sa\ml_county_to_sa")
-files = [os.path.join(FWS,  "county_data",
-                      "clean_data", "income_data.csv"),
-         os.path.join(FWS,  "county_data",
-                      "clean_data", "population_data.csv"),
-         os.path.join(FWS,  "county_data",
-                      "clean_data", "economic_profile_data.csv"),
-         os.path.join(FWS,  "county_data",
-                      "clean_data", "education_data.csv"),
-         os.path.join(FWS,  "county_data",
-                      "clean_data", "employment_data.csv"),
-         os.path.join(FWS,  "county_data",
-                      "clean_data", "gdp_data.csv"),
-         os.path.join(FWS,  "county_data",
-                      "clean_data", "gini_index_data.csv"),
-         os.path.join(FWS,  "county_data",
-                      "clean_data", "poverty_data.csv"),
-         os.path.join(FWS,  "county_data",
-                      "clean_data", "ruralurbancodes2003.csv"),
-         os.path.join(FWS,  "county_data",
-                      "clean_data", "ruralurbancodes2013.csv"),
-         os.path.join(FWS,  "county_data",
-                      "clean_data", "unemployment_data.csv")]
+FWS = os.path.abspath(
+    r"C:\work\water_use\dataset\ml_county_to_sa\ml_county_to_sa"
+)
+files = [
+    os.path.join(FWS, "county_data", "clean_data", "income_data.csv"),
+    os.path.join(FWS, "county_data", "clean_data", "population_data.csv"),
+    os.path.join(
+        FWS, "county_data", "clean_data", "economic_profile_data.csv"
+    ),
+    os.path.join(FWS, "county_data", "clean_data", "education_data.csv"),
+    os.path.join(FWS, "county_data", "clean_data", "employment_data.csv"),
+    os.path.join(FWS, "county_data", "clean_data", "gdp_data.csv"),
+    os.path.join(FWS, "county_data", "clean_data", "gini_index_data.csv"),
+    os.path.join(FWS, "county_data", "clean_data", "poverty_data.csv"),
+    os.path.join(FWS, "county_data", "clean_data", "ruralurbancodes2003.csv"),
+    os.path.join(FWS, "county_data", "clean_data", "ruralurbancodes2013.csv"),
+    os.path.join(FWS, "county_data", "clean_data", "unemployment_data.csv"),
+]
 
-dbf_file = os.path.join(FWS,
-                        "wsa_county_map",
-                        "wsa_county_map.dat.csv")
+dbf_file = os.path.join(FWS, "wsa_county_map", "wsa_county_map.dat.csv")
 
 
 def load_training_data(f):
@@ -73,7 +66,7 @@ def load_parameters(f):
     return parameters
 
 
-def join_data(wsa, df, left_on='fips', right_on='fips'):
+def join_data(wsa, df, left_on="fips", right_on="fips"):
     """
     Method to join dataframe and remove duplicate data
 
@@ -91,11 +84,9 @@ def join_data(wsa, df, left_on='fips', right_on='fips'):
         pd.DataFrame
     """
     df = df.drop_duplicates(subset=right_on)
-    merged = pd.merge(left=wsa,
-                      right=df,
-                      how="left",
-                      left_on=left_on,
-                      right_on=right_on)
+    merged = pd.merge(
+        left=wsa, right=df, how="left", left_on=left_on, right_on=right_on
+    )
 
     cols = list(merged)
     # drop duplicate data
@@ -132,11 +123,11 @@ def load_wsas(parameters):
     -------
         None
     """
-    parameters = [i.lower() for i in parameters] + ['geoid', 'fips']
+    parameters = [i.lower() for i in parameters] + ["geoid", "fips"]
     df = pd.read_csv(dbf_file)
     cols = {i: i.lower() for i in list(df)}
     df = df.rename(columns=cols)
-    df = df.rename(columns={'geoid': 'fips'})
+    df = df.rename(columns={"geoid": "fips"})
 
     drop_list = []
     for col in list(df):
@@ -146,8 +137,8 @@ def load_wsas(parameters):
     df = df.drop(columns=drop_list)
 
     for col in list(df):
-        if col not in ('geoid', 'fips', 'wsa_agidf'):
-            df = df.astype({col: 'float'})
+        if col not in ("geoid", "fips", "wsa_agidf"):
+            df = df.astype({col: "float"})
 
     return df
 
@@ -165,7 +156,7 @@ def load_csv(f, parameters):
     -------
         pd.DataFrame
     """
-    parameters = list(parameters) + ['fips', 'sys_']
+    parameters = list(parameters) + ["fips", "sys_"]
     parameters = [i.lower() for i in parameters]
     df = pd.read_csv(f)
     cols = {i: i.lower() for i in list(df)}
@@ -179,8 +170,8 @@ def load_csv(f, parameters):
     df = df.drop(columns=drop_list)
 
     for col in list(df):
-        if col not in ('geoid', 'fips', 'wsa_agidf'):
-            df = df.astype({col: 'float'})
+        if col not in ("geoid", "fips", "wsa_agidf"):
+            df = df.astype({col: "float"})
 
     return df
 
@@ -197,7 +188,7 @@ def _format_data(f):
     """
     ws, fname = os.path.split(f)
     ofname = fname.split(".")[0] + "_clean.csv"
-    d = {'fips': []}
+    d = {"fips": []}
     df = pd.read_csv(f)
     attrs = df.Attribute.unique()
     fips = df.FIPStxt.unique()
@@ -208,7 +199,7 @@ def _format_data(f):
         df1 = df[df.FIPStxt == fip]
         for k in d.keys():
             if k == "fips":
-                if df1.FIPStxt.values[0] not in d['fips']:
+                if df1.FIPStxt.values[0] not in d["fips"]:
                     d[k].append(df1.FIPStxt.values[0])
             else:
                 dft = df1[df1.Attribute == k]
@@ -236,15 +227,17 @@ def _format_data2(f, r0, r1):
     oname = "_".join(oname.split("_")[:-1]) + "_clean2.csv"
     x = [str(i) for i in range(r0, r1)]
 
-    units = {"Thousands of dollars": "th_dol",
-             "Dollars": "dol",
-             "Number of jobs": "n_job",
-             "Number of persons": "n_person"}
+    units = {
+        "Thousands of dollars": "th_dol",
+        "Dollars": "dol",
+        "Number of jobs": "n_job",
+        "Number of persons": "n_person",
+    }
 
     df = pd.read_csv(f)
     fips = df.GeoFIPS.unique()
     isin = []
-    d = {'fips': []}
+    d = {"fips": []}
     for iloc, row in df.iterrows():
         desc = row.Description
         unit = units[row.Unit]
@@ -256,9 +249,9 @@ def _format_data2(f, r0, r1):
                 d[k] = []
 
     for fip in fips:
-        d['fips'].append(fip)
+        d["fips"].append(fip)
         df1 = df[df.GeoFIPS == fip]
-        hits = ['fips']
+        hits = ["fips"]
         for iloc, row in df1.iterrows():
             desc = row.Description
             unit = units[row.Unit]

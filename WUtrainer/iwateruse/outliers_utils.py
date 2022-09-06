@@ -11,7 +11,7 @@ import operator
 def outliers_func(model, args=None):
     df = model.df_train
     df = df.dropna(axis=0)
-    df = df[df['pop'] > 100]
+    df = df[df["pop"] > 100]
     mask = (df[model.target] >= 20) & (df[model.target] <= 1000)
     df = df[mask]
 
@@ -28,23 +28,25 @@ def drop_values(model, **kwargs):
     :param kwargs:
     :return:
     """
-    ops_dict = {'>': operator.gt,
-                '<': operator.lt,
-                '>=': operator.ge,
-                '<=': operator.le,
-                '==': operator.eq}
+    ops_dict = {
+        ">": operator.gt,
+        "<": operator.lt,
+        ">=": operator.ge,
+        "<=": operator.le,
+        "==": operator.eq,
+    }
 
     def parse(op):
-        op_order = ['>=', '<=', '>', '<', '==']
+        op_order = [">=", "<=", ">", "<", "=="]
         for o in op_order:
-            if o in ['=>', '=<']:
+            if o in ["=>", "=<"]:
                 raise ValueError("Unknown operator")
 
             if o in op:
                 col, cut = op.split(o)
                 return col, o, cut
 
-    opts = kwargs['opts']
+    opts = kwargs["opts"]
 
     df = model.df_train.copy()
     for opt in opts:
@@ -58,6 +60,7 @@ def drop_values(model, **kwargs):
     model.log.info("Data after data removed is")
     model.log.to_table(model.df_train)
 
+
 def drop_na_target(model):
 
     df = model.df_train.copy()
@@ -68,7 +71,6 @@ def drop_na_target(model):
     model.log.info("Drop any NaN target.. ")
     model.log.info("Data after data removed is")
     model.log.to_table(model.df_train)
-
 
 
 def filter1(X, y):
@@ -89,7 +91,7 @@ def drop_abnormal_percapita_wu(X, y, thresh_max, thresh_min):
     return X, y
 
 
-def get_monthly_frac(df, var_col='', date_col='Date', month_col=None):
+def get_monthly_frac(df, var_col="", date_col="Date", month_col=None):
     """
 
     :param df: pandas dataframe with data to calculate average monthly fractions
@@ -154,7 +156,7 @@ def is_similair(x_, y_):
     if len(x) <= 1:
         return 0
 
-    xis_increasing = (np.diff(x) > 0)
+    xis_increasing = np.diff(x) > 0
     yis_increasing = np.diff(y) > 0
 
     sign_similarity = np.sum(xis_increasing == yis_increasing) / len(x)
@@ -195,19 +197,19 @@ def flag_monthly_wu_abnormal_fac(df, sys_id, year, month, mon_wu, ann_wu):
         mon, fr = m.strip().split()
         mon_frac[im] = [int(mon), float(fr)]
 
-    df['frac'] = df[mon_wu] / df[ann_wu]
-    mon_frac = pd.DataFrame(mon_frac, columns=[month, 'standard_fraction'])
-    df = df.merge(mon_frac, on=month, how='left')
+    df["frac"] = df[mon_wu] / df[ann_wu]
+    mon_frac = pd.DataFrame(mon_frac, columns=[month, "standard_fraction"])
+    df = df.merge(mon_frac, on=month, how="left")
 
     def seasonality_test(_df):
         _df.sort_values(by=month, inplace=True)
-        cor = is_similair(_df['frac'].values, _df['standard_fraction'].values)
+        cor = is_similair(_df["frac"].values, _df["standard_fraction"].values)
         return cor
 
     df2 = df.groupby(by=[sys_id, year]).apply(seasonality_test)
     df2 = pd.DataFrame(df2).reset_index()
-    df = df.merge(df2, how='left', on=[sys_id, year])
-    df.drop(columns=['frac', 'standard_fraction'], inplace=True)
-    df.rename(columns={0: 'seasonality_simil'}, inplace=True)
+    df = df.merge(df2, how="left", on=[sys_id, year])
+    df.drop(columns=["frac", "standard_fraction"], inplace=True)
+    df.rename(columns={0: "seasonality_simil"}, inplace=True)
 
     return df

@@ -4,7 +4,8 @@ import shapefile
 import calendar
 import pandas as pd
 import warnings
-warnings.simplefilter('always', UserWarning)
+
+warnings.simplefilter("always", UserWarning)
 
 
 class CensusTimeSeries(object):
@@ -27,6 +28,7 @@ class CensusTimeSeries(object):
             radius information
 
     """
+
     def __init__(self, shp, apikey, field=None, filter=(), radius=0):
         self._shp = shp
         self.__apikey = apikey
@@ -123,11 +125,21 @@ class CensusTimeSeries(object):
         else:
             return self._albers_shapes[name]
 
-    def get_timeseries(self, feature_name, sf3_variables=(),
-                       sf3_variables_1990=(), acs_variables=(), years=(),
-                       polygons='internal', hr_dict=None, retry=1000,
-                       verbose=1, multiproc=False, multithread=False,
-                       thread_pool=4):
+    def get_timeseries(
+        self,
+        feature_name,
+        sf3_variables=(),
+        sf3_variables_1990=(),
+        acs_variables=(),
+        years=(),
+        polygons="internal",
+        hr_dict=None,
+        retry=1000,
+        verbose=1,
+        multiproc=False,
+        multithread=False,
+        thread_pool=4,
+    ):
         """
         Method to get a time series from 1990 through 2018 of census
         data from available products
@@ -180,12 +192,15 @@ class CensusTimeSeries(object):
         from ..datacollector.dec import Sf3HR1990, Sf3HR, Sf1HR
         from ..datacollector.cbase import CensusBase
         from ..datacollector.acs import AcsHR
+
         refresh = False
 
         if self._filter:
             if feature_name not in self._filter:
-                raise KeyError("Feature name: {} not in filtered "
-                               "features".format(feature_name))
+                raise KeyError(
+                    "Feature name: {} not in filtered "
+                    "features".format(feature_name)
+                )
 
         verb = False
         if isinstance(verbose, int):
@@ -198,8 +213,9 @@ class CensusTimeSeries(object):
         else:
             for year in years:
                 if year not in TigerWebMapServer.base:
-                    raise KeyError("No census API data available "
-                                   "for {}".format(year))
+                    raise KeyError(
+                        "No census API data available " "for {}".format(year)
+                    )
 
         if self._censusobj is None:
             url0 = ""
@@ -210,29 +226,38 @@ class CensusTimeSeries(object):
                     continue
 
                 if verbose:
-                    print("Getting Tigerline data for census "
-                          "year {}".format(year))
+                    print(
+                        "Getting Tigerline data for census "
+                        "year {}".format(year)
+                    )
                 if url == url0:
                     # reuse tigerweb from previous year
                     pass
 
                 else:
-                    tw = TigerWeb(self._shp, self._field, self._radius,
-                                  self._filter)
+                    tw = TigerWeb(
+                        self._shp, self._field, self._radius, self._filter
+                    )
                     if year in (2005, 2006, 2007, 2008, 2009):
-                        tw.get_data(year, level="county",
-                                    verbose=verb,
-                                    multiproc=multiproc,
-                                    multithread=multithread,
-                                    thread_pool=thread_pool,
-                                    retry=retry)
+                        tw.get_data(
+                            year,
+                            level="county",
+                            verbose=verb,
+                            multiproc=multiproc,
+                            multithread=multithread,
+                            thread_pool=thread_pool,
+                            retry=retry,
+                        )
                     else:
-                        tw.get_data(year, level="tract",
-                                    verbose=verb,
-                                    multiproc=multiproc,
-                                    multithread=multithread,
-                                    thread_pool=thread_pool,
-                                    retry=retry)
+                        tw.get_data(
+                            year,
+                            level="tract",
+                            verbose=verb,
+                            multiproc=multiproc,
+                            multithread=multithread,
+                            thread_pool=thread_pool,
+                            retry=retry,
+                        )
 
                     if not self.shapes:
                         self._shapes = tw.shapes
@@ -243,37 +268,53 @@ class CensusTimeSeries(object):
 
                 if verbose:
                     print("Getting data for census year {}".format(year))
-                if year in (2000, ):
-                    cen = CensusBase(tw.albers_features, year,
-                                     self.__apikey, 'sf1')
+                if year in (2000,):
+                    cen = CensusBase(
+                        tw.albers_features, year, self.__apikey, "sf1"
+                    )
                     if year == 1990:
-                        cen.get_data(level='tract',
-                                     variables=sf3_variables_1990,
-                                     retry=retry, verbose=verb,
-                                     multiproc=multiproc,
-                                     multithread=multithread,
-                                     thread_pool=thread_pool)
+                        cen.get_data(
+                            level="tract",
+                            variables=sf3_variables_1990,
+                            retry=retry,
+                            verbose=verb,
+                            multiproc=multiproc,
+                            multithread=multithread,
+                            thread_pool=thread_pool,
+                        )
                     else:
-                        cen.get_data(level="tract", variables=sf3_variables,
-                                     retry=retry, verbose=verb,
-                                     multiproc=multiproc,
-                                     multithread=multithread,
-                                     thread_pool=thread_pool)
+                        cen.get_data(
+                            level="tract",
+                            variables=sf3_variables,
+                            retry=retry,
+                            verbose=verb,
+                            multiproc=multiproc,
+                            multithread=multithread,
+                            thread_pool=thread_pool,
+                        )
 
                 elif year in (2005, 2006, 2007, 2008, 2009):
                     cen = Acs1(tw.albers_features, year, self.__apikey)
-                    cen.get_data(level='county', variables=acs_variables,
-                                 retry=retry, verbose=verb,
-                                 multiproc=multiproc,
-                                 multithread=multithread,
-                                 thread_pool=thread_pool)
+                    cen.get_data(
+                        level="county",
+                        variables=acs_variables,
+                        retry=retry,
+                        verbose=verb,
+                        multiproc=multiproc,
+                        multithread=multithread,
+                        thread_pool=thread_pool,
+                    )
                 else:
                     cen = Acs5(tw.albers_features, year, self.__apikey)
-                    cen.get_data(level='tract', variables=acs_variables,
-                                 retry=retry, verbose=verb,
-                                 multiproc=multiproc,
-                                 multithread=multithread,
-                                 thread_pool=thread_pool)
+                    cen.get_data(
+                        level="tract",
+                        variables=acs_variables,
+                        retry=retry,
+                        verbose=verb,
+                        multiproc=multiproc,
+                        multithread=multithread,
+                        thread_pool=thread_pool,
+                    )
 
                 censusobj[year] = cen
 
@@ -295,24 +336,35 @@ class CensusTimeSeries(object):
         timeseries = {}
         for year, cen in censusobj.items():
             if verbose > 1:
-                print("performing intersections {}, {}".format(year,
-                                                               feature_name))
+                print(
+                    "performing intersections {}, {}".format(
+                        year, feature_name
+                    )
+                )
             gf = GeoFeatures(cen.get_feature(feature_name), feature_name)
             if polygons is not None:
-                gf.intersect(polygons, verbose=verb, multiproc=multiproc,
-                             multithread=multithread,
-                             thread_pool=thread_pool)
+                gf.intersect(
+                    polygons,
+                    verbose=verb,
+                    multiproc=multiproc,
+                    multithread=multithread,
+                    thread_pool=thread_pool,
+                )
                 features = gf.intersected_features
             else:
                 features = gf.features
 
             if features is None:
-                raise AssertionError("Check that intersection polygons "
-                                     "intersect the census AOI and that "
-                                     "projection is WGS84")
+                raise AssertionError(
+                    "Check that intersection polygons "
+                    "intersect the census AOI and that "
+                    "projection is WGS84"
+                )
             if not features:
-                msg = "No census data found for {}: year {}, check that " \
-                      "projection is in WGS84".format(feature_name, year)
+                msg = (
+                    "No census data found for {}: year {}, check that "
+                    "projection is in WGS84".format(feature_name, year)
+                )
                 warnings.warn(msg, UserWarning)
 
             if hr_dict is None:
@@ -338,9 +390,15 @@ class CensusTimeSeries(object):
         return timeseries[feature_name]
 
     @staticmethod
-    def interpolate(df, skip_years=(), drop=(), discretization='daily',
-                    kind='linear', min_extrapolate=False,
-                    max_extrapolate=False):
+    def interpolate(
+        df,
+        skip_years=(),
+        drop=(),
+        discretization="daily",
+        kind="linear",
+        min_extrapolate=False,
+        max_extrapolate=False,
+    ):
         """
         Interpolation method to get daily or monthly data from a census
         timeseries dataframe
@@ -449,13 +507,14 @@ class CensusTimeSeries(object):
                 dy = year + (182 / 366)
             dyear.append(dy)
 
-        d = {'dyear': x}
+        d = {"dyear": x}
         for column in list(df.columns):
             if column in ("year", "dyear"):
                 continue
 
-            f = interpolate.interp1d(dyear, df[column].values,
-                                     kind=kind, fill_value='extrapolate')
+            f = interpolate.interp1d(
+                dyear, df[column].values, kind=kind, fill_value="extrapolate"
+            )
 
             cnew = f(x)
 

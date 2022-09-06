@@ -20,8 +20,8 @@ else:
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(message)s')
-file_handler = logging.FileHandler('GridMETDataCollector.log')
+formatter = logging.Formatter("%(asctime)s:%(levelname)s:%(message)s")
+file_handler = logging.FileHandler("GridMETDataCollector.log")
 file_handler.setFormatter(formatter)
 # file_handler.setLevel(logging.INFO)
 logger.addHandler(file_handler)
@@ -31,7 +31,6 @@ logger.propagate = False
 
 
 class _DataDict(dict):
-
     def __init__(self):
         super(_DataDict, self).__init__()
 
@@ -45,7 +44,6 @@ class _DataDict(dict):
 
 
 class DataCollector(object):
-
     def __init__(self, verbose=True):
 
         # build gridMET grid
@@ -55,38 +53,46 @@ class DataCollector(object):
         self._verbose = verbose
 
         self._params = {
-            'etr': {
-                'nc': 'agg_met_etr_1979_CurrentYear_CONUS',
-                'var': 'daily_mean_reference_evapotranspiration_alfalfa',
-                'col': 'etr_mm'},
-            'pet': {
-                'nc': 'agg_met_pet_1979_CurrentYear_CONUS',
-                'var': 'daily_mean_reference_evapotranspiration_grass',
-                'col': 'eto_mm'},
-            'pr': {
-                'nc': 'agg_met_pr_1979_CurrentYear_CONUS',
-                'var': 'precipitation_amount',
-                'col': 'prcp_mm'},
-            'sph': {
-                'nc': 'agg_met_sph_1979_CurrentYear_CONUS',
-                'var': 'daily_mean_specific_humidity',
-                'col': 'q_kgkg'},
-            'srad': {
-                'nc': 'agg_met_srad_1979_CurrentYear_CONUS',
-                'var': 'daily_mean_shortwave_radiation_at_surface',
-                'col': 'srad_wm2'},
-            'vs': {
-                'nc': 'agg_met_vs_1979_CurrentYear_CONUS',
-                'var': 'daily_mean_wind_speed',
-                'col': 'u10_ms'},
-            'tmmx': {
-                'nc': 'agg_met_tmmx_1979_CurrentYear_CONUS',
-                'var': 'daily_maximum_temperature',
-                'col': 'tmax_k'},
-            'tmmn': {
-                'nc': 'agg_met_tmmn_1979_CurrentYear_CONUS',
-                'var': 'daily_minimum_temperature',
-                'col': 'tmin_k'},
+            "etr": {
+                "nc": "agg_met_etr_1979_CurrentYear_CONUS",
+                "var": "daily_mean_reference_evapotranspiration_alfalfa",
+                "col": "etr_mm",
+            },
+            "pet": {
+                "nc": "agg_met_pet_1979_CurrentYear_CONUS",
+                "var": "daily_mean_reference_evapotranspiration_grass",
+                "col": "eto_mm",
+            },
+            "pr": {
+                "nc": "agg_met_pr_1979_CurrentYear_CONUS",
+                "var": "precipitation_amount",
+                "col": "prcp_mm",
+            },
+            "sph": {
+                "nc": "agg_met_sph_1979_CurrentYear_CONUS",
+                "var": "daily_mean_specific_humidity",
+                "col": "q_kgkg",
+            },
+            "srad": {
+                "nc": "agg_met_srad_1979_CurrentYear_CONUS",
+                "var": "daily_mean_shortwave_radiation_at_surface",
+                "col": "srad_wm2",
+            },
+            "vs": {
+                "nc": "agg_met_vs_1979_CurrentYear_CONUS",
+                "var": "daily_mean_wind_speed",
+                "col": "u10_ms",
+            },
+            "tmmx": {
+                "nc": "agg_met_tmmx_1979_CurrentYear_CONUS",
+                "var": "daily_maximum_temperature",
+                "col": "tmax_k",
+            },
+            "tmmn": {
+                "nc": "agg_met_tmmn_1979_CurrentYear_CONUS",
+                "var": "daily_minimum_temperature",
+                "col": "tmin_k",
+            },
         }
         self._ray = False
         if platform.system().lower() != "windows":
@@ -97,33 +103,49 @@ class DataCollector(object):
     def divide_chunks(l, n):
         # looping till length l
         for i in range(0, len(l), n):
-            yield l[i:i + n]
+            yield l[i : i + n]
 
-    def get_data(self, shp, zone_field, year_filter=None, climate_filter=None,
-             multiprocessing=False, chunksize=None, save_to_csv=False, cpu_count=None,
-                 filter_field=None, out_folder=None, loadpickle=False):
+    def get_data(
+        self,
+        shp,
+        zone_field,
+        year_filter=None,
+        climate_filter=None,
+        multiprocessing=False,
+        chunksize=None,
+        save_to_csv=False,
+        cpu_count=None,
+        filter_field=None,
+        out_folder=None,
+        loadpickle=False,
+    ):
 
-        logger.info('Starting processing climate data...')
+        logger.info("Starting processing climate data...")
 
         # get shapefile projection epsg code
         master_climate_dict = {}
         shp_epsg = _get_spatial_ref(shp)
         if shp_epsg != 4326:  # WGS84 GridMET prj
-            logger.error('PROJECTION ERROR: The shapefile projection must be WGS84')
-            raise Exception('PROJECTION ERROR: The shapefile '
-                            'projection must be WGS84')
+            logger.error(
+                "PROJECTION ERROR: The shapefile projection must be WGS84"
+            )
+            raise Exception(
+                "PROJECTION ERROR: The shapefile " "projection must be WGS84"
+            )
 
         self._build_met(climate_filter=climate_filter)
 
-        shp_geo_list, shp_attr_list = _read_shapefile(shp, zone_field, filter_field=filter_field)
+        shp_geo_list, shp_attr_list = _read_shapefile(
+            shp, zone_field, filter_field=filter_field
+        )
         total_polygons = len(shp_attr_list)
-        logger.info('Total Polygons = {}'.format(total_polygons))
-        logger.info('Chunk size = {}'.format(chunksize))
+        logger.info("Total Polygons = {}".format(total_polygons))
+        logger.info("Chunk size = {}".format(chunksize))
         if loadpickle:
-            logger.warning('RESTART: Loaded from pickle')
+            logger.warning("RESTART: Loaded from pickle")
             left_off = load_pickle()[0]
             # print('loaded pickle left off @ {}', left_off)
-            logger.info('Finding restart point....')
+            logger.info("Finding restart point....")
             index = shp_attr_list.index(left_off)
             npolys = len(shp_attr_list[:index])
             shp_attr_list = shp_attr_list[index:]
@@ -136,11 +158,11 @@ class DataCollector(object):
         # shp_geo, shp_attr = _read_shapefile(shp, zone_field)
         # print('shape attr list', shp_attr_list)
         if self._verbose:
-            print('Processing climate data')
+            print("Processing climate data")
         # logger.info('Processing climate data')
 
         if chunksize is not None:
-            logger.info('Dividing Chunks.....')
+            logger.info("Dividing Chunks.....")
             shp_geo_list = list(self.divide_chunks(shp_geo_list, chunksize))
             shp_attr_list = list(self.divide_chunks(shp_attr_list, chunksize))
             # number of chunks
@@ -155,48 +177,70 @@ class DataCollector(object):
                 shp_geo = shp_geo_list[ichunk]
                 shp_attr = shp_attr_list[ichunk]
 
-                logging.info('Writing pickle...')
+                logging.info("Writing pickle...")
                 write_pickle(shp_attr)
 
-                logger.info('Chunk IDS {}'.format(','.join(shp_attr)))
-                logger.info('Chunk IDS {}'.format(','.join(shp_attr)))
+                logger.info("Chunk IDS {}".format(",".join(shp_attr)))
+                logger.info("Chunk IDS {}".format(",".join(shp_attr)))
 
                 # intersect the shp with the met grid
                 # returns a weights dictionary
-                logger.info('Intersecting polygons with GridMET....')
+                logger.info("Intersecting polygons with GridMET....")
                 intersect_time = time.time()
                 weights = self._met_grid.intersect(shp_geo, zones=shp_attr)
                 intersect_time = time.time() - intersect_time
-                logger.info('Intersect time = {}'.format(intersect_time))
+                logger.info("Intersect time = {}".format(intersect_time))
 
                 # process the downloaded data
                 climate_dict_time = time.time()
-                climate_dict = self._process(weights, year_filter=year_filter,
-                                 multiprocessing=multiprocessing, cpu_count=cpu_count)
+                climate_dict = self._process(
+                    weights,
+                    year_filter=year_filter,
+                    multiprocessing=multiprocessing,
+                    cpu_count=cpu_count,
+                )
                 climate_dict_time = time.time() - climate_dict_time
-                logger.info('Time to build climate dict for chunk = {}'.format(climate_dict_time))
+                logger.info(
+                    "Time to build climate dict for chunk = {}".format(
+                        climate_dict_time
+                    )
+                )
 
                 if save_to_csv:
                     savetocsv_time = time.time()
                     self.clim_to_csv(climate_dict, out_folder)
                     savetocsv_time = time.time() - savetocsv_time
-                    logger.info('Save to CSV time = {}'.format(savetocsv_time))
+                    logger.info("Save to CSV time = {}".format(savetocsv_time))
                     npolys += len(shp_geo)
-                    precent_polys = (npolys/float(total_polygons)) * 100
-                    logger.info('PROCESSED {}/{} POLYGONS {}%'.format(npolys,
-                                    total_polygons, precent_polys))
+                    precent_polys = (npolys / float(total_polygons)) * 100
+                    logger.info(
+                        "PROCESSED {}/{} POLYGONS {}%".format(
+                            npolys, total_polygons, precent_polys
+                        )
+                    )
                     chunk_time = time.time() - chunk_time
-                    logger.info('Chunk Process Time = {}'.format(chunk_time))
+                    logger.info("Chunk Process Time = {}".format(chunk_time))
                     total_chunk_time += chunk_time
-                    avg_chunk_time = total_chunk_time/float(chunk_count)
-                    logger.info('Average Chunk Process Time = {}'.format(avg_chunk_time))
+                    avg_chunk_time = total_chunk_time / float(chunk_count)
+                    logger.info(
+                        "Average Chunk Process Time = {}".format(
+                            avg_chunk_time
+                        )
+                    )
                     remaining_chunks = nchunks - chunk_count
-                    logger.info('Number of Remaining Chunks = {}'.format(remaining_chunks))
+                    logger.info(
+                        "Number of Remaining Chunks = {}".format(
+                            remaining_chunks
+                        )
+                    )
                     est_remaining_time = avg_chunk_time * remaining_chunks
-                    logger.info('Estimated Remaining Time = {}'.format(est_remaining_time))
+                    logger.info(
+                        "Estimated Remaining Time = {}".format(
+                            est_remaining_time
+                        )
+                    )
 
                     chunk_count += 1
-
 
                 else:
                     # returning climate dict
@@ -207,24 +251,35 @@ class DataCollector(object):
                         for climate_var, climate_df in climate_dict.items():
                             if climate_var in master_climate_dict:
                                 # data frame area colums
-                                master_climate_dict[climate_var] = \
-                                    pd.concat([master_climate_dict[climate_var],
-                                              climate_df], axis=1)
+                                master_climate_dict[climate_var] = pd.concat(
+                                    [
+                                        master_climate_dict[climate_var],
+                                        climate_df,
+                                    ],
+                                    axis=1,
+                                )
 
         else:
 
             # intersect the shp with the met grid
             # returns a weights dictionary
-            weights = self._met_grid.intersect(shp_geo_list, zones=shp_attr_list)
+            weights = self._met_grid.intersect(
+                shp_geo_list, zones=shp_attr_list
+            )
 
             # process the downloaded data
-            climate_dict = self._process(weights, year_filter=year_filter,
-                                         multiprocessing=multiprocessing,
-                                         cpu_count=cpu_count)
+            climate_dict = self._process(
+                weights,
+                year_filter=year_filter,
+                multiprocessing=multiprocessing,
+                cpu_count=cpu_count,
+            )
 
             if save_to_csv:
                 if out_folder == None:
-                    raise Exception('Error: Need to set path to output folder with output_folder keyword')
+                    raise Exception(
+                        "Error: Need to set path to output folder with output_folder keyword"
+                    )
                 self.clim_to_csv(climate_dict, out_folder)
 
             else:
@@ -235,7 +290,7 @@ class DataCollector(object):
 
     @staticmethod
     def clim_to_csv(climate_dict, out_folder):
-        logger.info('Saving to CSV')
+        logger.info("Saving to CSV")
         if not os.path.exists(out_folder):
             os.mkdir(out_folder)
 
@@ -243,16 +298,18 @@ class DataCollector(object):
             df = climate_dict[item[0]]
             for col in df.columns:
                 ws = out_folder
-                fn = '{}_{}.csv'.format(item[0], col)
+                fn = "{}_{}.csv".format(item[0], col)
                 fn = os.path.join(ws, fn)
                 df_ = pd.DataFrame(climate_dict[item[0]][col])
                 df_.to_csv(fn)
 
     def _build_met(self, climate_filter=None):
 
-        pd.options.display.float_format = '{:,.10f}'.format
+        pd.options.display.float_format = "{:,.10f}".format
         # set up url and paramters
-        opendap_url = 'http://thredds.northwestknowledge.net:8080/thredds/dodsC'
+        opendap_url = (
+            "http://thredds.northwestknowledge.net:8080/thredds/dodsC"
+        )
         # elev_nc = '{}/{}'.format(
         #     opendap_url, '/MET/elev/metdata_elevationdata.nc#fillmismatch')
 
@@ -263,38 +320,45 @@ class DataCollector(object):
             elif isinstance(climate_filter, list):
                 pass
             else:
-                raise Exception('climate_filter is not str or list of str')
+                raise Exception("climate_filter is not str or list of str")
 
             for name in climate_filter:
                 if name not in self._params:
                     name = name.lower()
-                    raise Exception('Name {} is a valid GridMET climate '
-                                    'variable'.format(name))
+                    raise Exception(
+                        "Name {} is a valid GridMET climate "
+                        "variable".format(name)
+                    )
         else:
             climate_filter = self._params.keys()
 
         # check whats in the climate dictionary
         # add whats needed
-        missing_met = [met for met in climate_filter if met not in
-                       self._met_list]
+        missing_met = [
+            met for met in climate_filter if met not in self._met_list
+        ]
 
         for met_name in missing_met:
-            logger.info('adding {} to metlist'.format(met_name))
+            logger.info("adding {} to metlist".format(met_name))
             # if self._verbose:
             #     print('downloading data for ', met_name)
             self._met_list.append(met_name)
 
     def _set_up_opendap(self, met_name):
 
-        pd.options.display.float_format = '{:,.10f}'.format
-        opendap_url = 'http://thredds.northwestknowledge.net:8080/thredds/dodsC'
-        met_nc = '{}/{}.nc#fillmismatch'.format(opendap_url,
-                                                self._params[met_name][
-                                                    'nc'])
+        pd.options.display.float_format = "{:,.10f}".format
+        opendap_url = (
+            "http://thredds.northwestknowledge.net:8080/thredds/dodsC"
+        )
+        met_nc = "{}/{}.nc#fillmismatch".format(
+            opendap_url, self._params[met_name]["nc"]
+        )
 
         return met_nc
 
-    def _process(self, weights, year_filter=None, multiprocessing=False, cpu_count=None):
+    def _process(
+        self, weights, year_filter=None, multiprocessing=False, cpu_count=None
+    ):
         # logger.info('Processing climate data')
         # if self._verbose:
         #     print('print processing climate data...')
@@ -310,40 +374,66 @@ class DataCollector(object):
         # cols = []
         fid_dict = {}
         for fid in fids:
-            row, col = self._get_rowcol(fid, 1386) # number of cols in gridmet
+            row, col = self._get_rowcol(fid, 1386)  # number of cols in gridmet
             # fid_dict[(row, col)] = fid
             fid_dict[fid] = row, col
             # rows.append(row)
         fid_time = time.time() - fid_time
-        logger.info('FID TIME = {}'.format(fid_time))
+        logger.info("FID TIME = {}".format(fid_time))
         climate_dict = {}
         for met_name in self._met_list:
 
             # if self._verbose:
             #     print('Processing ', met_name)
-            logger.info('Processing {}'.format(met_name))
+            logger.info("Processing {}".format(met_name))
 
             process_time = time.time()
-            logger.info('Processing cells...')
-            data = self._process_cells(met_name, fid_dict, start_date, end_date,
-                                     multiprocessing, cpu_count)
+            logger.info("Processing cells...")
+            data = self._process_cells(
+                met_name,
+                fid_dict,
+                start_date,
+                end_date,
+                multiprocessing,
+                cpu_count,
+            )
             process_time = time.time() - process_time
-            logger.info('Process time for all met cells = {}'.format(process_time))
+            logger.info(
+                "Process time for all met cells = {}".format(process_time)
+            )
 
             postprocess_time = time.time()
-            logger.info('Post Processing....')
+            logger.info("Post Processing....")
             climate_df = self._post_proc(data, weight_df)
             postprocess_time = time.time() - postprocess_time
-            logger.info('Post Process totalt time = {}'.format(postprocess_time))
+            logger.info(
+                "Post Process totalt time = {}".format(postprocess_time)
+            )
             climate_dict[met_name] = climate_df
 
         return climate_dict
 
-    def _process_cells(self, met_name, fid_dict, start_date, end_date,
-                     multiprocessing, cpu_count):
+    def _process_cells(
+        self,
+        met_name,
+        fid_dict,
+        start_date,
+        end_date,
+        multiprocessing,
+        cpu_count,
+    ):
         data_input = [
-            [self._params[met_name]['var'], fid,
-             self._set_up_opendap(met_name), fid_dict[fid][0], fid_dict[fid][1], start_date, end_date] for fid in fid_dict]
+            [
+                self._params[met_name]["var"],
+                fid,
+                self._set_up_opendap(met_name),
+                fid_dict[fid][0],
+                fid_dict[fid][1],
+                start_date,
+                end_date,
+            ]
+            for fid in fid_dict
+        ]
 
         if multiprocessing:
             # logger.info('Multiprocessing')
@@ -381,7 +471,7 @@ class DataCollector(object):
         # if self._verbose:
         #     print('post processing...')
         # get the area names
-        weight_df.fillna(0, inplace=True) #  MOVE THIS
+        weight_df.fillna(0, inplace=True)  #  MOVE THIS
         area_keys = list(weight_df.columns.values)
 
         # build a list for data frames
@@ -393,9 +483,9 @@ class DataCollector(object):
         pp1 = time.time()
         for fid, df, retry_ct in data:
             if retry_ct > 0:
-                logger.info('FID: {} RETRY COUNT = {}'.format(fid, retry_ct))
+                logger.info("FID: {} RETRY COUNT = {}".format(fid, retry_ct))
             if df is None:
-                logger.warning('FID: {} DOWNLOAD FAILED'.format(fid))
+                logger.warning("FID: {} DOWNLOAD FAILED".format(fid))
             # loop through the areas
             df.fillna(0, inplace=True)
             for area in area_keys:
@@ -403,36 +493,36 @@ class DataCollector(object):
                 weight = weight_df.loc[fid, area]
                 if store:
                     # calculate the weighted area
-                    df['{}_val'.format(area)] = df['VAL'] * weight
+                    df["{}_val".format(area)] = df["VAL"] * weight
                     # assign the weights to weight field
-                    df['{}_weight'.format(area)] = weight
+                    df["{}_weight".format(area)] = weight
 
                     # print('check store')
                     # df.to_csv('df_pre_store.csv')
                 else:
 
                     # calculate the weighted area
-                    store_df['{}_val'.format(area)] += df['VAL'] * weight
+                    store_df["{}_val".format(area)] += df["VAL"] * weight
                     # assign the weights to weight field
-                    store_df['{}_weight'.format(area)] += weight
+                    store_df["{}_weight".format(area)] += weight
                     # print('store_df')
                     # store_df.to_csv('store_df_{}_{}.csv'.format(fid, area))
                     # exit()
             if store:
                 store_df = df
-                store_df.drop('VAL', axis=1, inplace=True)
+                store_df.drop("VAL", axis=1, inplace=True)
                 # store_df.to_csv('intial_store.csv')
             store = False
         # store_df.to_csv('store_df.csv')
         # exit()
 
-                # print('second test', time.time() - test2)
-            # get rid of the VAL column
-            # df.drop('VAL', axis=1, inplace=True)
-            # append data frame to dfs (data frame list)
-            # dfs.append(df)
+        # print('second test', time.time() - test2)
+        # get rid of the VAL column
+        # df.drop('VAL', axis=1, inplace=True)
+        # append data frame to dfs (data frame list)
+        # dfs.append(df)
         pp1 = time.time() - pp1
-        logger.info('PP1 time = {}'.format(pp1))
+        logger.info("PP1 time = {}".format(pp1))
         # print('inner loop post proc time', time.time() - c1)
         # dfs = data.keys
         # pp2 = time.time()
@@ -443,14 +533,14 @@ class DataCollector(object):
         pp3 = time.time()
         # calculate the weighted average
         d = store_df
-        d.to_csv('d_test.csv')
+        d.to_csv("d_test.csv")
         for area in area_keys:
-            val_col = '{}_val'.format(area)
-            weight_col = '{}_weight'.format(area)
+            val_col = "{}_val".format(area)
+            weight_col = "{}_weight".format(area)
             d[area] = d[val_col] / d[weight_col]
             d.drop([val_col, weight_col], axis=1, inplace=True)
         pp3 = time.time() - pp3
-        logger.info('PP2 time = {}'.format(pp3))
+        logger.info("PP2 time = {}".format(pp3))
         # exit()
         # print(d)
         # print('post proc time ', time.time() - post_start)
@@ -463,7 +553,7 @@ class DataCollector(object):
             selection = set()
             invalid = set()
             # tokens are comma separated values
-            tokens = [x.strip() for x in year_filter.split(',')]
+            tokens = [x.strip() for x in year_filter.split(",")]
             for i in tokens:
                 try:
                     # typically tokens are plain old integers
@@ -471,7 +561,7 @@ class DataCollector(object):
                 except:
                     # if not, then it might be a range
                     try:
-                        token = [int(k.strip()) for k in i.split('-')]
+                        token = [int(k.strip()) for k in i.split("-")]
                         if len(token) > 1:
                             token.sort()
                             # we have items seperated by a dash
@@ -485,20 +575,24 @@ class DataCollector(object):
 
             year_list = sorted(list(selection))
             date_list = pd.date_range(
-                dt.datetime.strptime('{}-01-01'.format(min(year_list)),
-                                     '%Y-%m-%d'),
-                dt.datetime.strptime('{}-12-31'.format(max(year_list)),
-                                     '%Y-%m-%d'))
+                dt.datetime.strptime(
+                    "{}-01-01".format(min(year_list)), "%Y-%m-%d"
+                ),
+                dt.datetime.strptime(
+                    "{}-12-31".format(max(year_list)), "%Y-%m-%d"
+                ),
+            )
         else:
             # Create List of all dates
             # determine end date of data collection
             current_date = dt.datetime.today()
 
-            end_date = dt.date(current_date.year, current_date.month,
-                               current_date.day) - dt.timedelta(days=1)
-            date_list = pd.date_range(dt.datetime.strptime('1979-01-01',
-                                                           '%Y-%m-%d'),
-                                      end_date)
+            end_date = dt.date(
+                current_date.year, current_date.month, current_date.day
+            ) - dt.timedelta(days=1)
+            date_list = pd.date_range(
+                dt.datetime.strptime("1979-01-01", "%Y-%m-%d"), end_date
+            )
 
         start_date = min(date_list)
         end_date = max(date_list)
@@ -521,16 +615,18 @@ class DataCollector(object):
         while out_df is None:
             if try_num > 300:
                 # logger.error('Max Retry for fid {}'.format(fid))
-                raise Exception('MAX DOWNLOAD RETRY FOR FID {}'.format(fid))
+                raise Exception("MAX DOWNLOAD RETRY FOR FID {}".format(fid))
 
             try:
 
                 # logger.info('ray remote in try')
                 ds = xr.open_dataset(met_nc)
-                selection = ds.sel(day=slice(start_date, end_date)).isel({'lat':
-                                                                              row,
-                                                                          'lon': col}).drop(
-                    ['crs', 'lat', 'lon']).rename({met_name: 'VAL'})
+                selection = (
+                    ds.sel(day=slice(start_date, end_date))
+                    .isel({"lat": row, "lon": col})
+                    .drop(["crs", "lat", "lon"])
+                    .rename({met_name: "VAL"})
+                )
                 out_df = selection.to_dataframe()
             except Exception as e:
                 # print(e)
@@ -542,7 +638,7 @@ class DataCollector(object):
                 # print('RETRYING {}'.format(try_num))
                 # logger.info('Retrying export to df FID {}...Retry #{}'.format(fid, try_num))
                 if retry_warning:
-                    logger.warning('Retrying Download for FID {}'.format(fid))
+                    logger.warning("Retrying Download for FID {}".format(fid))
                 retry_warning = False
 
                 try_num += 1
@@ -551,39 +647,44 @@ class DataCollector(object):
 
 
 class _Grid(object):
-
     def __init__(self, verbose=True):
 
-        data_folder = os.path.join(os.path.dirname(__file__), 'data')
+        data_folder = os.path.join(os.path.dirname(__file__), "data")
         if not os.path.exists(data_folder):
             os.mkdir(data_folder)
-        grid_shp = os.path.join(os.path.dirname(__file__), 'data', 'GridMET.shp')
-        index_file = os.path.join(os.path.dirname(__file__), 'data', 'MET_INDEX')
-        index_path = index_file + '.idx'
+        grid_shp = os.path.join(
+            os.path.dirname(__file__), "data", "GridMET.shp"
+        )
+        index_file = os.path.join(
+            os.path.dirname(__file__), "data", "MET_INDEX"
+        )
+        index_path = index_file + ".idx"
 
         if not os.path.exists(grid_shp):
-            logger.info('creating GridMET Polygons {}'.format(grid_shp))
+            logger.info("creating GridMET Polygons {}".format(grid_shp))
             if verbose:
-                print('creating GridMet Polygons ', grid_shp)
+                print("creating GridMet Polygons ", grid_shp)
             # start = time.time()
             self.grid_polys = self.netcdf_to_polygons(grid_shp)
             # print('build met shape grid time', time.time() - start)
 
         else:
-            logger.info('loading GridMEt polygons from {}'.format(grid_shp))
+            logger.info("loading GridMEt polygons from {}".format(grid_shp))
             if verbose:
-                print('GridMet polygons exist ', grid_shp)
+                print("GridMet polygons exist ", grid_shp)
             self.grid_polys = _read_shapefile(grid_shp)[0]
         if not os.path.exists(index_path):
-            logger.info('creating spatial index {}'.format(index_file))
+            logger.info("creating spatial index {}".format(index_file))
             if verbose:
-                print('creating spatial index ', index_file)
+                print("creating spatial index ", index_file)
             self._spatial_index = self.create_spatial_index(index_file)
         else:
-            logger.info('loading spatial index from {}'.format(index_file))
+            logger.info("loading spatial index from {}".format(index_file))
             if verbose:
-                print('spatial index exists', index_file)
-            self._spatial_index = rtree.index.Index(index_file, interleaved=False)
+                print("spatial index exists", index_file)
+            self._spatial_index = rtree.index.Index(
+                index_file, interleaved=False
+            )
 
     def create_spatial_index(self, index_file):
         # create spatial index
@@ -599,10 +700,11 @@ class _Grid(object):
         weight_dict = _DataDict()
         if ot_shp is not None:
             # export to shape
-            driver = ogr.GetDriverByName('ESRI Shapefile')
+            driver = ogr.GetDriverByName("ESRI Shapefile")
             out_file = driver.CreateDataSource(ot_shp)
-            out_layer = out_file.CreateLayer('intersection',
-                                             geom_type=ogr.wkbPolygon)
+            out_layer = out_file.CreateLayer(
+                "intersection", geom_type=ogr.wkbPolygon
+            )
             feature_dfn = out_layer.GetLayerDefn()
 
         cell_area = None
@@ -616,8 +718,8 @@ class _Grid(object):
             if self._spatial_index is not None:
                 xmin, xmax, ymin, ymax = geo2.GetEnvelope()
                 for fid1 in list(
-                        self._spatial_index.intersection((xmin, xmax, ymin,
-                                                          ymax))):
+                    self._spatial_index.intersection((xmin, xmax, ymin, ymax))
+                ):
 
                     geo1 = self.grid_polys[fid1]
 
@@ -654,14 +756,16 @@ class _Grid(object):
         """
 
         # get a netcdf file template
-        opendap_url = 'http://thredds.northwestknowledge.net:8080/thredds/dodsC'
-        met_nc = '{}/{}.nc#fillmismatch'.format(
-            opendap_url, 'agg_met_etr_1979_CurrentYear_CONUS')
+        opendap_url = (
+            "http://thredds.northwestknowledge.net:8080/thredds/dodsC"
+        )
+        met_nc = "{}/{}.nc#fillmismatch".format(
+            opendap_url, "agg_met_etr_1979_CurrentYear_CONUS"
+        )
 
-        driver = ogr.GetDriverByName('ESRI Shapefile')
+        driver = ogr.GetDriverByName("ESRI Shapefile")
         out_file = driver.CreateDataSource(out_path)
-        out_layer = out_file.CreateLayer('Grid',
-                                         geom_type=ogr.wkbPolygon)
+        out_layer = out_file.CreateLayer("Grid", geom_type=ogr.wkbPolygon)
         feature_dfn = out_layer.GetLayerDefn()
         poly = []
         # open netcdf file with xarray
@@ -669,19 +773,27 @@ class _Grid(object):
 
         # read some data from netcdf file
         # print('\n The meta data is: \n', json.dumps(ds.attrs, indent=4))
-        lat_handle = ds['lat']
-        lon_handle = ds['lon']
+        lat_handle = ds["lat"]
+        lon_handle = ds["lon"]
 
         lon, lat = np.meshgrid(lon_handle, lat_handle)
         res = 0.04166666 / 2.0
 
         for i in range(np.shape(lon)[0]):
             for j in range(np.shape(lon)[1]):
-                wkt_poly = "POLYGON (({0} {1}, {2} {3}, {4} {5}, {6} {7}, " \
-                           "{0} {1}))".format(lon[i, j] + res, lat[i, j] - res,
-                                              lon[i, j] + res, lat[i, j] + res,
-                                              lon[i, j] - res, lat[i, j] + res,
-                                              lon[i, j] - res, lat[i, j] - res)
+                wkt_poly = (
+                    "POLYGON (({0} {1}, {2} {3}, {4} {5}, {6} {7}, "
+                    "{0} {1}))".format(
+                        lon[i, j] + res,
+                        lat[i, j] - res,
+                        lon[i, j] + res,
+                        lat[i, j] + res,
+                        lon[i, j] - res,
+                        lat[i, j] + res,
+                        lon[i, j] - res,
+                        lat[i, j] - res,
+                    )
+                )
 
                 poly.append(ogr.CreateGeometryFromWkt(wkt_poly))
 
@@ -703,14 +815,18 @@ def to_df_ray(in_data):
     while out_df is None:
         if try_num > 300:
             # logger.error('Max Retry for fid {}'.format(fid))
-            raise Exception('MAX DOWNLOAD RETRY FOR FID {}'.format(fid))
+            raise Exception("MAX DOWNLOAD RETRY FOR FID {}".format(fid))
 
         try:
 
             # logger.info('ray remote in try')
             ds = xr.open_dataset(met_nc)
-            selection = ds.sel(day=slice(start_date, end_date)).isel({'lat':
-                row, 'lon': col}).drop(['crs', 'lat', 'lon']).rename({met_name:'VAL'})
+            selection = (
+                ds.sel(day=slice(start_date, end_date))
+                .isel({"lat": row, "lon": col})
+                .drop(["crs", "lat", "lon"])
+                .rename({met_name: "VAL"})
+            )
             out_df = selection.to_dataframe()
         except Exception as e:
             # print(e)
@@ -722,27 +838,28 @@ def to_df_ray(in_data):
             # print('RETRYING {}'.format(try_num))
             # logger.info('Retrying export to df FID {}...Retry #{}'.format(fid, try_num))
             if retry_warning:
-                logger.warning('Retrying Download for FID {}'.format(fid))
+                logger.warning("Retrying Download for FID {}".format(fid))
             retry_warning = False
             try_num += 1
 
     return fid, out_df, try_num
 
 
-
 def write_pickle(val):
-    with open('cdc_pickle_file', 'wb') as f:
+    with open("cdc_pickle_file", "wb") as f:
         pickle.dump(val, f)
 
 
 def load_pickle():
-    with open('cdc_pickle_file', 'rb') as f:
+    with open("cdc_pickle_file", "rb") as f:
         data = pickle.load(f)
     return data
 
 
 def _read_shapefile(in_shp, zone_field=None, filter_field=None):
-    logger.info("reading shapefile, {} {} {}".format(in_shp, zone_field, filter_field))
+    logger.info(
+        "reading shapefile, {} {} {}".format(in_shp, zone_field, filter_field)
+    )
 
     # start_time = time.time()
     """
@@ -750,7 +867,7 @@ def _read_shapefile(in_shp, zone_field=None, filter_field=None):
     returns: list of shapefile polygon ogr objects
 
     """
-    driver = ogr.GetDriverByName('ESRI Shapefile')
+    driver = ogr.GetDriverByName("ESRI Shapefile")
     data_source = driver.Open(in_shp, 0)
     layer = data_source.GetLayer()  # hardcoded for test
     geo_list = []
@@ -761,7 +878,9 @@ def _read_shapefile(in_shp, zone_field=None, filter_field=None):
     limit_vals = None
     if filter_field is not None:
         if not isinstance(filter_field, dict):
-            raise Exception('Filter field must be dictionary {field: [values to process]')
+            raise Exception(
+                "Filter field must be dictionary {field: [values to process]"
+            )
         if len(filter_field.keys()) > 1:
             raise Exception("Filter field only supports one field")
         limit_field = list(filter_field.keys())[0]
@@ -795,12 +914,12 @@ def _read_shapefile(in_shp, zone_field=None, filter_field=None):
 
 
 def _get_spatial_ref(in_shp):
-    driver = ogr.GetDriverByName('ESRI Shapefile')
+    driver = ogr.GetDriverByName("ESRI Shapefile")
     dataset = driver.Open(in_shp)
     # from Layer
     layer = dataset.GetLayer()
     spatial_ref = layer.GetSpatialRef()
-    epsg = int(spatial_ref.GetAttrValue('AUTHORITY', 1))
+    epsg = int(spatial_ref.GetAttrValue("AUTHORITY", 1))
 
     return epsg
 
@@ -825,22 +944,22 @@ def get_envelope(geom):
     return poly_envelope
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     # pass
 
     huc12shp = r"C:\Users\domartin\Documents\WU\WaterUseData\Missing_HUC5.shp"
-    huc12field = 'huc12'
-    huc2Field = 'HUC2'
+    huc12field = "huc12"
+    huc2Field = "HUC2"
 
     # climate types to be processed
-    climateFilter = ['pr', 'tmmn', 'tmmx', 'etr']
+    climateFilter = ["pr", "tmmn", "tmmx", "etr"]
     # climateFilter = ['pr']
 
-    huc2List = ['05']
+    huc2List = ["05"]
     gmetDC = DataCollector(verbose=True)
 
-    ot_folder = r'C:\Users\domartin\Documents\WU\WaterUseData\climate_data'
+    ot_folder = r"C:\Users\domartin\Documents\WU\WaterUseData\climate_data"
 
     # logger.info('Shapefile is {}'.format(wsaShp))
     # logger.info('Climate Filter is {}'.format(','.join(climateFilter)))
@@ -852,7 +971,7 @@ if __name__ == '__main__':
         filterField = {huc2Field: huc2}
         # filterField = {huc12Field: '102701040105'}
         # filterField = {huc12Field: '031102030601'}
-        out_folder = os.path.join(ot_folder, 'huc{}'.format(huc2))
+        out_folder = os.path.join(ot_folder, "huc{}".format(huc2))
         if not os.path.exists(out_folder):
             os.mkdir(out_folder)
         # process a single shapefile
@@ -861,13 +980,19 @@ if __name__ == '__main__':
         loadpickle = False  # change this to start fresh
         while retry:
             try:
-                gmetDC.get_data(huc12shp, huc12field,
-                                climate_filter=climateFilter,
-                                year_filter='2000-2001', multiprocessing=True,
-                                filter_field=filterField,
-                                chunksize=20, save_to_csv=True,
-                                out_folder=out_folder, loadpickle=loadpickle,
-                                cpu_count=None)
+                gmetDC.get_data(
+                    huc12shp,
+                    huc12field,
+                    climate_filter=climateFilter,
+                    year_filter="2000-2001",
+                    multiprocessing=True,
+                    filter_field=filterField,
+                    chunksize=20,
+                    save_to_csv=True,
+                    out_folder=out_folder,
+                    loadpickle=loadpickle,
+                    cpu_count=None,
+                )
                 retry = False
             except Exception as e:
                 # logger.error('CDC CRASHED... RETRYING', exc_info=True)
@@ -878,6 +1003,6 @@ if __name__ == '__main__':
         # logger.info(
         #     'HUC12s for HUC2 = {} processing time = {}'.format(huc2, huc12Time))
 
-    print('DONE!!!!')
+    print("DONE!!!!")
     totalTime = time.time() - totalTime
     # logger.info('Script Complete: Run Time = {}'.format(totalTime))

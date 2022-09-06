@@ -17,18 +17,18 @@ columns = (
     "sep_norm",
     "oct_norm",
     "nov_norm",
-    "dec_norm"
+    "dec_norm",
 )
 
 
-def describe_modality(record, inflection='max', max_pts=2):
+def describe_modality(record, inflection="max", max_pts=2):
 
     ts = np.array([record[c] for c in columns])
     intervals = UniDip(ts).run()
     if len(intervals) > 1:
         plt.plot(range(12), ts)
         plt.show()
-        print('break')
+        print("break")
     tmp = list(sorted(ts))[::-1]
     ts = list(ts)
     idx0 = ts.index(tmp[0])
@@ -46,11 +46,12 @@ def describe_modality(record, inflection='max', max_pts=2):
 
 if __name__ == "__main__":
     ws = os.path.abspath(os.path.dirname(__file__))
-    norm_file = os.path.join(ws, "..", "output", "monthly",
-                             "wu_mean_spatial_2010_normalized.csv")
+    norm_file = os.path.join(
+        ws, "..", "output", "monthly", "wu_mean_spatial_2010_normalized.csv"
+    )
 
     df = pd.read_csv(norm_file)
-    df = df.fillna(value=0.)
+    df = df.fillna(value=0.0)
     for iloc, row in df.iterrows():
         result = describe_modality(row)
-        print('break')
+        print("break")

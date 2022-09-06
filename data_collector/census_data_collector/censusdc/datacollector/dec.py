@@ -5,6 +5,7 @@ class Sf1Variables(object):
     """
     Small listing of common census variable names for querying data
     """
+
     population = "P001001"
     households = "P015001"
 
@@ -13,6 +14,7 @@ class Sf3Variables(object):
     """
     Small listing of common census variable names for querying data
     """
+
     population = "P001001"
     households = "P052001"
     income_lt_10k = "P052002"
@@ -39,6 +41,7 @@ class Sf3Variables1990(object):
     Small listing of common census variable names for querying data
     from the 1990 decennial census
     """
+
     population = "P0010001"
     income_lt_5k = "P0800001"
     income_5K_10k = "P0800002"
@@ -68,14 +71,19 @@ class Sf3Variables1990(object):
     median_income = "P080A001"
 
 
-Sf1HR = {v: k for k, v in Sf1Variables.__dict__.items()
-         if not k.startswith("__")}
+Sf1HR = {
+    v: k for k, v in Sf1Variables.__dict__.items() if not k.startswith("__")
+}
 
-Sf3HR = {v: k for k, v in Sf3Variables.__dict__.items()
-         if not k.startswith("__")}
+Sf3HR = {
+    v: k for k, v in Sf3Variables.__dict__.items() if not k.startswith("__")
+}
 
-Sf3HR1990 = {v: k for k, v in Sf3Variables1990.__dict__.items()
-             if not k.startswith("__")}
+Sf3HR1990 = {
+    v: k
+    for k, v in Sf3Variables1990.__dict__.items()
+    if not k.startswith("__")
+}
 
 
 class Sf3(CensusBase):
@@ -97,10 +105,18 @@ class Sf3(CensusBase):
     """
 
     def __init__(self, features, year, apikey):
-        super(Sf3, self).__init__(features, year, apikey, 'sf3')
+        super(Sf3, self).__init__(features, year, apikey, "sf3")
 
-    def get_data(self, level='finest', variables=(), retry=100, verbose=True,
-                 multiproc=False, multithread=False, thread_pool=4):
+    def get_data(
+        self,
+        level="finest",
+        variables=(),
+        retry=100,
+        verbose=True,
+        multiproc=False,
+        multithread=False,
+        thread_pool=4,
+    ):
         """
         Method to get data from the Sf3 servers and set it to feature
         properties!
@@ -126,11 +142,15 @@ class Sf3(CensusBase):
             number of CPU threads to use during multithread operations
 
         """
-        super(Sf3, self).get_data(level=level, variables=variables,
-                                  retry=retry, verbose=verbose,
-                                  multiproc=multiproc,
-                                  multithread=multithread,
-                                  thread_pool=thread_pool)
+        super(Sf3, self).get_data(
+            level=level,
+            variables=variables,
+            retry=retry,
+            verbose=verbose,
+            multiproc=multiproc,
+            multithread=multithread,
+            thread_pool=thread_pool,
+        )
 
 
 class Sf1(CensusBase):
@@ -152,10 +172,18 @@ class Sf1(CensusBase):
     """
 
     def __init__(self, features, year, apikey):
-        super(Sf1, self).__init__(features, year, apikey, 'sf1')
+        super(Sf1, self).__init__(features, year, apikey, "sf1")
 
-    def get_data(self, level='finest', variables=(), retry=100, verbose=True,
-                 multiproc=False, multithread=False, thread_pool=4):
+    def get_data(
+        self,
+        level="finest",
+        variables=(),
+        retry=100,
+        verbose=True,
+        multiproc=False,
+        multithread=False,
+        thread_pool=4,
+    ):
         """
         Method to get data from the Sf3 servers and set it to feature
         properties!
@@ -181,8 +209,12 @@ class Sf1(CensusBase):
             number of CPU threads to use during multithread operations
 
         """
-        super(Sf1, self).get_data(level=level, variables=variables,
-                                  retry=retry, verbose=verbose,
-                                  multiproc=multiproc,
-                                  multithread=multithread,
-                                  thread_pool=thread_pool)
+        super(Sf1, self).get_data(
+            level=level,
+            variables=variables,
+            retry=retry,
+            verbose=verbose,
+            multiproc=multiproc,
+            multithread=multithread,
+            thread_pool=thread_pool,
+        )

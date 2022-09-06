@@ -18,7 +18,7 @@ for file in file_list:
     fn = os.path.join(db_root, ppath)
     fn = os.path.join(fn, str(huc2))
 
-    if not(os.path.isdir(fn)):
+    if not (os.path.isdir(fn)):
         os.mkdir(fn)
 
     fn = os.path.join(fn, "climate")
@@ -27,23 +27,23 @@ for file in file_list:
     src = os.path.join(download_folder, file)
     dst = os.path.join(fn, file)
     try:
-        shutil.copy(src = src, dst = dst  )
+        shutil.copy(src=src, dst=dst)
     except:
         print(" {} exist".format(dst))
 
-    with py7zr.SevenZipFile(dst, 'r') as archive:
+    with py7zr.SevenZipFile(dst, "r") as archive:
         archive.extractall(path=os.path.dirname(dst))
 
-    unzipped_folder = os.path.join(os.path.dirname(dst),  os.path.splitext(file)[0])
+    unzipped_folder = os.path.join(
+        os.path.dirname(dst), os.path.splitext(file)[0]
+    )
     unzList = os.listdir(unzipped_folder)
     for ff in unzList:
-        ssrc  = os.path.join(unzipped_folder, ff)
-        ddst  = os.path.join(os.path.dirname(dst))
-        if os.path.isfile(os.path.join(ddst,ff)):
-            os.remove(os.path.join(ddst,ff))
+        ssrc = os.path.join(unzipped_folder, ff)
+        ddst = os.path.join(os.path.dirname(dst))
+        if os.path.isfile(os.path.join(ddst, ff)):
+            os.remove(os.path.join(ddst, ff))
         shutil.move(ssrc, ddst)
     os.remove(dst)
     shutil.rmtree(unzipped_folder)
     ccc = 1
-
-

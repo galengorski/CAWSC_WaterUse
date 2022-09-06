@@ -2,12 +2,25 @@ import os, sys
 import pandas as pd
 
 
-house_age_df = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\ts_census\hs_age\nhgis0009_ds176_20105_blck_grp.csv",  encoding='cp1252')
-fmaily_hoshod = pd.read_csv(r"C:\work\water_use\mldataset\ml\training\misc_features\ts_census\misc_ts\nhgis0010_ts_geog2010_tract.csv", encoding='cp1252')
-pop_bdg_timeseries = pd.read_csv(r"C:\work\water_use\ml_experiments\annual_v_0_0\pop_timeseries.csv")
-nhouses_bdg_timeseries = pd.read_csv(r"C:\work\water_use\ml_experiments\annual_v_0_0\nhouses_timeseries.csv")
+house_age_df = pd.read_csv(
+    r"C:\work\water_use\mldataset\ml\training\misc_features\ts_census\hs_age\nhgis0009_ds176_20105_blck_grp.csv",
+    encoding="cp1252",
+)
+fmaily_hoshod = pd.read_csv(
+    r"C:\work\water_use\mldataset\ml\training\misc_features\ts_census\misc_ts\nhgis0010_ts_geog2010_tract.csv",
+    encoding="cp1252",
+)
+pop_bdg_timeseries = pd.read_csv(
+    r"C:\work\water_use\ml_experiments\annual_v_0_0\pop_timeseries.csv"
+)
+nhouses_bdg_timeseries = pd.read_csv(
+    r"C:\work\water_use\ml_experiments\annual_v_0_0\nhouses_timeseries.csv"
+)
 
-pop_bdg_timeseries['bg2wsa_factor'] = pop_bdg_timeseries['partial_bdg_count']/pop_bdg_timeseries['total_bdg_count']
+pop_bdg_timeseries["bg2wsa_factor"] = (
+    pop_bdg_timeseries["partial_bdg_count"]
+    / pop_bdg_timeseries["total_bdg_count"]
+)
 
 # =================
 # house Age
@@ -32,15 +45,17 @@ for cod in codes:
     value = value.strip()
     code_dict[key] = "hs_" + value.replace(" ", "")
 
-bg_wsa_mapping = pop_bdg_timeseries[['GISJOIN', 'WSA_AGIDF', 'bg2wsa_factor']]
-house_age_df = house_age_df[['GISJOIN']+list(code_dict.keys())]
-house_age_df = bg_wsa_mapping.merge(house_age_df, how = 'left', on = 'GISJOIN')
+bg_wsa_mapping = pop_bdg_timeseries[["GISJOIN", "WSA_AGIDF", "bg2wsa_factor"]]
+house_age_df = house_age_df[["GISJOIN"] + list(code_dict.keys())]
+house_age_df = bg_wsa_mapping.merge(house_age_df, how="left", on="GISJOIN")
 hs_cols = list(code_dict.keys())
 for col in hs_cols:
-    house_age_df[code_dict[col]] = house_age_df[col]* house_age_df['bg2wsa_factor']
+    house_age_df[code_dict[col]] = (
+        house_age_df[col] * house_age_df["bg2wsa_factor"]
+    )
     house_age_df[code_dict[col]] = house_age_df[code_dict[col]].astype(int)
-    del(house_age_df[col])
-house_age_df = house_age_df.groupby('WSA_AGIDF').sum()
+    del house_age_df[col]
+house_age_df = house_age_df.groupby("WSA_AGIDF").sum()
 
 
 # =================
@@ -59,18 +74,18 @@ code_dict = {}
 household_df = []
 family_df = []
 for cod in codes:
-    key, year,  value = cod.split(":")
+    key, year, value = cod.split(":")
     key = key.strip()
     value = value.strip()
     year = year.strip()
     code_dict[key] = value.replace(" ", "")
-    df_ = fmaily_hoshod[['GISJOIN', key]].copy()
+    df_ = fmaily_hoshod[["GISJOIN", key]].copy()
     if "Households" in cod:
-        if len(household_df)==0:
-            df_.rename(columns = {key: int(year)}, inplace=True)
+        if len(household_df) == 0:
+            df_.rename(columns={key: int(year)}, inplace=True)
             household_df = df_.copy()
         else:
-            household_df[int(year)] =df_[key].copy()
+            household_df[int(year)] = df_[key].copy()
     else:
         if len(family_df) == 0:
             df_.rename(columns={key: int(year)}, inplace=True)
@@ -78,12 +93,16 @@ for cod in codes:
         else:
             family_df[int(year)] = df_[key].copy()
 
-household_df = household_df.melt(id_vars = ['GISJOIN'])
-household_df.rename(columns = {'variable':'year', 'value':'household3'}, inplace = True)
-family_df = family_df.melt(id_vars = ['GISJOIN'])
-family_df.rename(columns = {'variable':'year', 'value':'family3'}, inplace = True)
-fam_hous = family_df.merge(household_df, how = 'left', on = ['GISJOIN', 'year'])
-fam_hous = bg_wsa_mapping.merge(fam_hous, how = 'left', on = 'GISJOIN')
+household_df = household_df.melt(id_vars=["GISJOIN"])
+household_df.rename(
+    columns={"variable": "year", "value": "household3"}, inplace=True
+)
+family_df = family_df.melt(id_vars=["GISJOIN"])
+family_df.rename(
+    columns={"variable": "year", "value": "family3"}, inplace=True
+)
+fam_hous = family_df.merge(household_df, how="left", on=["GISJOIN", "year"])
+fam_hous = bg_wsa_mapping.merge(fam_hous, how="left", on="GISJOIN")
 
 
 x = 1

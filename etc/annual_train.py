@@ -10,17 +10,20 @@ from dask_ml.model_selection import train_test_split
 import dask_xgboost
 import matplotlib.pyplot as plt
 from xgboost import plot_importance
+
 # ===============================================
 #
 # ===============================================
-if __name__ == '__main__':
+if __name__ == "__main__":
     client = Client(n_workers=1, threads_per_worker=1)
     db_root = r"C:\work\water_use\mldataset\ml\training\features"
     huc2_folders = os.listdir(db_root)
     wu = []
     read_file = True
     if read_file:
-        wu = pdd.read_csv(r"C:\work\water_use\mldataset\ml\training\train_datasets\Annual\wu_annual_training.csv")
+        wu = pdd.read_csv(
+            r"C:\work\water_use\mldataset\ml\training\train_datasets\Annual\wu_annual_training.csv"
+        )
     else:
         for huc2_folder in huc2_folders:
             fn = os.path.join(db_root, os.path.join(huc2_folder, "assemble"))
@@ -31,40 +34,81 @@ if __name__ == '__main__':
 
         wu = pdd.concat(wu)
         wu_df = wu.compute()
-        wu_df.to_csv(r"C:\work\water_use\mldataset\ml\training\train_datasets\Annual\wu_annual_training.csv")
-        del(wu_df)
+        wu_df.to_csv(
+            r"C:\work\water_use\mldataset\ml\training\train_datasets\Annual\wu_annual_training.csv"
+        )
+        del wu_df
 
     wu = wu.dropna()
-    wu['wu_per_capita'] = wu['wu_rate']/(wu['population3'])
-    #wu = wu[ wu['wu_per_capita']<200]
-    wu = wu[wu['wu_rate'] >0]
-    wu['wu_rate'] = np.log10(wu['wu_rate'])
-    wu['wu_per_capita'] = np.log10(wu['wu_per_capita'])
+    wu["wu_per_capita"] = wu["wu_rate"] / (wu["population3"])
+    # wu = wu[ wu['wu_per_capita']<200]
+    wu = wu[wu["wu_rate"] > 0]
+    wu["wu_rate"] = np.log10(wu["wu_rate"])
+    wu["wu_per_capita"] = np.log10(wu["wu_per_capita"])
 
-    wu = wu[wu['wu_per_capita']> wu['wu_per_capita'].quantile(0.01)]
-    wu = wu[wu['wu_per_capita']< wu['wu_per_capita'].quantile(0.99)]
+    wu = wu[wu["wu_per_capita"] > wu["wu_per_capita"].quantile(0.01)]
+    wu = wu[wu["wu_per_capita"] < wu["wu_per_capita"].quantile(0.99)]
     use_normal_xgb = True
     if use_normal_xgb:
         wu = wu.compute()
-    #wu = wu[wu['wu_per_capita'] > 20]☺
-    #y = wu['wu_rate']
-    y = wu['wu_per_capita']
-    feats = [ 'HUC2', 'households2', 'median_income', 'tot_h_age', 'h_age_newer_2005',
-       'h_age_2000_2004', 'h_age_1990_1999', 'h_age_1980_1989',
-       'h_age_1970_1979', 'h_age_1960_1969', 'h_age_1950_1959',
-       'h_age_1940_1949', 'h_age_older_1939', 'pop_density',
-       'etr', 'pr', 'tmmn', 'tmmx',  'LAT', 'LONG', 'Year', 'population3'
-      ]
-    X = wu[['households2', 'median_income',
-       'pop_density', 'etr', 'pr',
-       'tmmn', 'tmmx', 'LAT', 'LONG', 'swud_pop']]#, 'swud_pop', population
+    # wu = wu[wu['wu_per_capita'] > 20]☺
+    # y = wu['wu_rate']
+    y = wu["wu_per_capita"]
+    feats = [
+        "HUC2",
+        "households2",
+        "median_income",
+        "tot_h_age",
+        "h_age_newer_2005",
+        "h_age_2000_2004",
+        "h_age_1990_1999",
+        "h_age_1980_1989",
+        "h_age_1970_1979",
+        "h_age_1960_1969",
+        "h_age_1950_1959",
+        "h_age_1940_1949",
+        "h_age_older_1939",
+        "pop_density",
+        "etr",
+        "pr",
+        "tmmn",
+        "tmmx",
+        "LAT",
+        "LONG",
+        "Year",
+        "population3",
+    ]
+    X = wu[
+        [
+            "households2",
+            "median_income",
+            "pop_density",
+            "etr",
+            "pr",
+            "tmmn",
+            "tmmx",
+            "LAT",
+            "LONG",
+            "swud_pop",
+        ]
+    ]  # , 'swud_pop', population
     X = wu[feats]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state = 123)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=123
+    )
     # *****************************************************
     if use_normal_xgb:
-        #data_dmatrix = xgb.DMatrix(data=X, label=y)  # 'objective': 'binary:logistic',
-        gb = xgb.XGBRegressor(objective='reg:squarederror', colsample_bytree=0.3, learning_rate=0.1,
-                              max_depth=7, alpha=0.1, n_estimators=1000, rate_drop=0.9, skip_drop=0.5)
+        # data_dmatrix = xgb.DMatrix(data=X, label=y)  # 'objective': 'binary:logistic',
+        gb = xgb.XGBRegressor(
+            objective="reg:squarederror",
+            colsample_bytree=0.3,
+            learning_rate=0.1,
+            max_depth=7,
+            alpha=0.1,
+            n_estimators=1000,
+            rate_drop=0.9,
+            skip_drop=0.5,
+        )
         gb.fit(X_train, y_train)
 
         ypredict = gb.predict(X_test)
@@ -73,34 +117,47 @@ if __name__ == '__main__':
         plt.scatter(y_test, ypredict)
         # plt.plot([0, 6000], [0, 6000], 'r')
         c = [min(y_test), max(y_test)]
-        plt.plot(c, c,'r')
+        plt.plot(c, c, "r")
         plt.title(str(roh))
         plt.figure()
         plot_importance(gb)
 
         plt.figure()
-        gain_imp = gb.get_booster().get_score(importance_type='gain')
+        gain_imp = gb.get_booster().get_score(importance_type="gain")
         fig = plt.bar(*zip(*gain_imp.items()))
-        plt.xticks(rotation=45, ha='right')
+        plt.xticks(rotation=45, ha="right")
         plt.show()
-        x =1
-# ************************************************************************************************
+        x = 1
+    # ************************************************************************************************
     else:
-        params = {'objective': 'reg:squarederror', 'eval_metric':["error", "rmse"]} #, 'booster':'gbtree'
-        params = {'objective':'reg:squarederror', 'colsample_bytree':0.3, 'learning_rate':0.01,
-                                  'max_depth':7, 'alpha':0.1, 'n_estimators':1000, 'rate_drop':0.9, 'skip_drop':0.5}
-        #params['booster'] = 'dart' # become very slow
-        params['verbosity'] = 2 # print information
-        #params['min_split_loss'] = 10e10
-        #params['min_child_weight '] = 0
-        params['subsample'] = 0.5
+        params = {
+            "objective": "reg:squarederror",
+            "eval_metric": ["error", "rmse"],
+        }  # , 'booster':'gbtree'
+        params = {
+            "objective": "reg:squarederror",
+            "colsample_bytree": 0.3,
+            "learning_rate": 0.01,
+            "max_depth": 7,
+            "alpha": 0.1,
+            "n_estimators": 1000,
+            "rate_drop": 0.9,
+            "skip_drop": 0.5,
+        }
+        # params['booster'] = 'dart' # become very slow
+        params["verbosity"] = 2  # print information
+        # params['min_split_loss'] = 10e10
+        # params['min_child_weight '] = 0
+        params["subsample"] = 0.5
 
-        bst = dask_xgboost.train(client, params, X_train, y_train,  num_boost_round=2000)
+        bst = dask_xgboost.train(
+            client, params, X_train, y_train, num_boost_round=2000
+        )
         y_hat = dask_xgboost.predict(client, bst, X_test).persist()
         y_test = y_test.compute()
         y_hat = y_hat.compute()
         plt.scatter(y_test, y_hat)
-        plt.plot([[min(y_test),  max(y_test)],[min(y_test), max(y_test)]])
+        plt.plot([[min(y_test), max(y_test)], [min(y_test), max(y_test)]])
 
         import xgboost as xgb
 
@@ -111,7 +168,7 @@ if __name__ == '__main__':
 
         accuracy = r2_score(y_test, y_hat)
         c = [min(y_test), max(y_test)]
-        plt.plot(c,c)
+        plt.plot(c, c)
 
         print("Accuracy: %.2f%%" % (accuracy * 100.0))
         plt.title(accuracy)

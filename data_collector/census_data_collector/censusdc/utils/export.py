@@ -19,7 +19,9 @@ def geojson_to_shapefile(f, features):
         f += ".shp"
 
     if isinstance(features, geojson.Feature):
-        features = [features, ]
+        features = [
+            features,
+        ]
 
     elif isinstance(features, (list, tuple)):
         pass
@@ -27,14 +29,13 @@ def geojson_to_shapefile(f, features):
     else:
         raise TypeError("{} not supported".format(type(features)))
 
-
     fields = {}
     for feature in features:
         for property in feature.properties.keys():
             if property not in fields:
                 ftype = type(feature.properties[property])
                 if ftype == str:
-                    atype = 'C'
+                    atype = "C"
                 else:
                     atype = "N"
 
@@ -48,18 +49,19 @@ def geojson_to_shapefile(f, features):
                 w.field(k, v)
 
         for feature in features:
-            if feature.geometry.type.lower() == 'polygon':
+            if feature.geometry.type.lower() == "polygon":
                 w.poly(feature.geometry.coordinates)
 
-            elif feature.geometry.type.lower() == 'multipolygon':
+            elif feature.geometry.type.lower() == "multipolygon":
                 poly = []
                 for coord in feature.geometry.coordinates:
                     poly.append(coord[0])
                 w.poly(poly)
 
             else:
-                raise TypeError("Unsupported shape type {}".format(
-                                feature.geometry.type))
+                raise TypeError(
+                    "Unsupported shape type {}".format(feature.geometry.type)
+                )
 
             record = []
             for k in sorted(fields):

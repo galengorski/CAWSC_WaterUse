@@ -131,36 +131,44 @@ def cluster_based_on_water_exchange():
 #
 #     return 1
 
+
 def up_scale_data(df, groupby_col, skip_cols, agg_rules):
     """
     take a dataset and aggregate it to a county level
     :return:
-     """
+    """
     import copy
 
     col_means = copy.deepcopy(groupby_col)
     col_sums = copy.deepcopy(groupby_col)
     col_mode = copy.deepcopy(groupby_col)
 
-    for irow, feat, in agg_rules.iterrows():
-        if feat['Feature'] in skip_cols:
+    for (
+        irow,
+        feat,
+    ) in agg_rules.iterrows():
+        if feat["Feature"] in skip_cols:
             continue
 
-        if not(feat['Feature'] in df.columns):
+        if not (feat["Feature"] in df.columns):
             continue
 
-        if feat['aggregation method'] in ['mean']:
-            col_means.append(feat['Feature'])
-        elif feat['aggregation method'] in ['sum']:
-            col_sums.append(feat['Feature'])
-        elif feat['aggregation method'] in ['mode']:
-            col_mode.append(feat['Feature'])
+        if feat["aggregation method"] in ["mean"]:
+            col_means.append(feat["Feature"])
+        elif feat["aggregation method"] in ["sum"]:
+            col_sums.append(feat["Feature"])
+        elif feat["aggregation method"] in ["mode"]:
+            col_mode.append(feat["Feature"])
         else:
             continue
 
     df1 = df[set(col_means)].groupby(by=groupby_col).mean()
     df2 = df[set(col_sums)].groupby(by=groupby_col).sum()
-    df3 = df[set(col_mode)].groupby(by=groupby_col).agg(lambda x:x.value_counts().index[0])
+    df3 = (
+        df[set(col_mode)]
+        .groupby(by=groupby_col)
+        .agg(lambda x: x.value_counts().index[0])
+    )
 
     df_agg = pd.concat([df1, df2, df3], axis=1)
     df_agg.reset_index(inplace=True)
@@ -173,16 +181,32 @@ if __name__ == "__main__":
     agg_rules = pd.read_csv(r"aggregation_roles.csv")
 
     annual_wu = pd.read_csv(r"annual_wu.csv")
-    annual_wu['wu_rate_mean'] = annual_wu[['annual_wu_G_swuds', 'annual_wu_G_nonswuds']].mean(axis=1)
-    annual_wu['wu_rate_mean'] = annual_wu['wu_rate_mean'] / annual_wu['days_in_year']
-    avg_wu = annual_wu[['WSA_AGIDF', 'YEAR', 'wu_rate_mean']].copy()
-    avg_wu.rename(columns={'WSA_AGIDF': 'sys_id', 'YEAR': 'Year', 'wu_rate_mean': 'wu_rate'}, inplace=True)
+    annual_wu["wu_rate_mean"] = annual_wu[
+        ["annual_wu_G_swuds", "annual_wu_G_nonswuds"]
+    ].mean(axis=1)
+    annual_wu["wu_rate_mean"] = (
+        annual_wu["wu_rate_mean"] / annual_wu["days_in_year"]
+    )
+    avg_wu = annual_wu[["WSA_AGIDF", "YEAR", "wu_rate_mean"]].copy()
+    avg_wu.rename(
+        columns={
+            "WSA_AGIDF": "sys_id",
+            "YEAR": "Year",
+            "wu_rate_mean": "wu_rate",
+        },
+        inplace=True,
+    )
 
-    del (dataset['wu_rate'])
-    dataset = dataset.merge(avg_wu, on=['sys_id', 'Year'], how='left')
-    dataset = dataset[dataset['wu_rate'] > 0]
+    del dataset["wu_rate"]
+    dataset = dataset.merge(avg_wu, on=["sys_id", "Year"], how="left")
+    dataset = dataset[dataset["wu_rate"] > 0]
 
-    df_agg = up_scale_data(df=dataset, groupby_col=["county_id", "Year"], skip_cols=[], agg_rules=agg_rules)
+    df_agg = up_scale_data(
+        df=dataset,
+        groupby_col=["county_id", "Year"],
+        skip_cols=[],
+        agg_rules=agg_rules,
+    )
     x = 1
 
     # pop_info = pd.read_csv(r"pop_info.csv")

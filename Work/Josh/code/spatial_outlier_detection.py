@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def spatial_detect(df, radius, funcs,  field="wu_pp_gd"):
+def spatial_detect(df, radius, funcs, field="wu_pp_gd"):
     """
     Driver method for spatial outlier detection. Method
     uses distance formula to determine if records are within a
@@ -27,7 +27,7 @@ def spatial_detect(df, radius, funcs,  field="wu_pp_gd"):
 
     for ix, agidf in enumerate(agidfs):
         if (ix % 250) == 0:
-            print("Percent done: {:.3f}".format(ix/len(df)))
+            print("Percent done: {:.3f}".format(ix / len(df)))
         a2 = np.power(xc - xc[ix], 2)
         b2 = np.power(yc - yc[ix], 2)
         dist = np.sqrt(a2 + b2)
