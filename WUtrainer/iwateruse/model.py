@@ -25,10 +25,10 @@ class Model:
                 print("...>  remove {}".format(self.model_ws))
                 shutil.rmtree(model_ws)
                 os.mkdir(self.model_ws)
-                os.mkdir(os.path.join(self.model_ws, "figs"))
+                os.mkdir(os.path.join(self.model_ws, "diagnose"))
         else:
             os.mkdir(self.model_ws)
-            os.mkdir(os.path.join(self.model_ws, "figs"))
+            os.mkdir(os.path.join(self.model_ws, "diagnose"))
 
         if log_file is None:
             self.log_file = os.path.join(self.model_ws, "train_log.log")

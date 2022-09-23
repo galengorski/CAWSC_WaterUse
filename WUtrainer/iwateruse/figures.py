@@ -297,7 +297,7 @@ def plot_national_pc_change(df_, x, y, figfile=""):
         )  # labelpad=15,
         title = "Annual Average Per Capita Water Use [2000-2020]"
         styles.heading(ax=ax, heading=title, idx=0, fontsize=16)
-        ax.set_ylim([100, 140])
+        ax.set_ylim([df[y].min()-5, df[y].max()+5])
 
         plt.savefig(figfile)
         joblib.dump(fig, figfile + ".fig")

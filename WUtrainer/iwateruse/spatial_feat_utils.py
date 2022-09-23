@@ -91,7 +91,7 @@ def generate_local_statistics(
     df, sys_id_col="sys_id", max_points=50, raduis=500
 ):
 
-    max_pc = 500
+    max_pc = 600
     min_pc = 20
 
     if (not ("X" in df.columns)) | (not ("Y" in df.columns)):
@@ -111,7 +111,7 @@ def generate_local_statistics(
             max_pp = max_points * 2
         else:
             max_pp = max_points
-        for feat in ["pc_pop", "pc_swud", "pc_tpopsrv"]:
+        for feat in ["pc_pop"]:
             mask = (df_[feat] >= min_pc) & (df_[feat] <= max_pc)
             neighbors = get_near_pointsXY(
                 x0=x0,
@@ -128,7 +128,8 @@ def generate_local_statistics(
                 (var >= var.quantile(0.2)) & (var <= var.quantile(0.8))
             ]
             pc_median = var.quantile(0.5)
-            vv = vv + [np.mean(pc_trim_mean), pc_median]
+            vv = vv + [np.mean(var), np.mean(pc_trim_mean), np.min(var), var.quantile(0.05), var.quantile(0.25),
+                       pc_median, var.quantile(0.75), var.quantile(0.95), np.max(var)]
         return vv
 
     distributed = True
@@ -148,12 +149,15 @@ def generate_local_statistics(
             "sys_id",
             "x",
             "y",
-            "pop_tmean",
-            "pop_median",
-            "swud_tmean",
-            "swud_median",
-            "tpop_tmean",
-            "tpop_median",
+            "mean",
+            "trim_mean",
+            'min',
+            'q5',
+            'q25',
+            'median',
+            'q75',
+            'q95',
+            'max'
         ],
     )
     return pc_stat_df

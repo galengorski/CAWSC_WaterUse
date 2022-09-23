@@ -106,9 +106,13 @@ thermo_2015 = pd.read_excel(
 tourism_df = pd.read_csv(
     r"C:\work\water_use\mldataset\ml\training\misc_features\tourism\water_use_service_areas_tourism_trd.csv"
 )
+sdwis_df = pd.read_csv(
+    r"C:\work\water_use\mldataset\ml\training\misc_features\DO NOT SHARE-SDWIS_Fac2013q4-2013.csv",
+    encoding="cp1252",
+)
 
 collect_all_annual_data = False
-collect_all_monthly_data = True
+collect_all_monthly_data = False
 drop_repeated_records = False
 add_full_climate = False
 fill_lat_lon_gaps = False
@@ -125,7 +129,7 @@ add_land_use = False
 add_area = False
 add_climate_classes = False
 compute_education_perc = False
-add_enhanced_pop = False
+add_enhanced_pop = True
 update_wu_data = False
 make_negative_nan = False
 add_annual_water_use = False
@@ -133,6 +137,8 @@ add_cii_water_use = False
 add_thermo = False
 add_pop_density = False
 add_tourism = False
+modify_pop_using_SDWIS = False
+make_proximity_analysis = False
 
 
 # =======================================
@@ -844,7 +850,7 @@ if compute_education_perc:
 # =======================================
 if add_enhanced_pop:
     master_pop = pd.read_csv(
-        r"C:\work\water_use\ml_experiments\annual_v_0_0\master_population.csv"
+        r"C:\work\water_use\CAWSC_WaterUse\ml_experiments\annual_v_0_0\master_population.csv"
     )
     master_pop.rename(columns={"WSA_AGIDF": "sys_id"}, inplace=True)
     master_pop = master_pop[["sys_id", "pop", "Year"]]
@@ -1174,59 +1180,62 @@ if add_tourism:
     train_db.to_csv(annual_training_file, index=False)
     del temp_
 
+if modify_pop_using_SDWIS:
+    xxx = 1
 
-if 0:
 
-    # =======================================
-    # add update water use
-    # =======================================
-    annual_wu = pd.read_csv(r"annual_wu.csv")
+if make_proximity_analysis:
 
-    # =======================================
-    # add spatial averages
-    # =======================================
-    # add population
-    pop_master = pd.read_csv(
-        r"C:\work\water_use\ml_experiments\annual_v_0_0\master_population.csv"
-    )
-    pop_master = pop_master[
-        ["WSA_AGIDF", "Year", "population_c", "pop", "pop_swud16", "TPOPSRV"]
-    ]
-    pop_master.rename(columns={"WSA_AGIDF": "sys_id"}, inplace=True)
-    train_db = train_db.merge(pop_master, how="left", on=["sys_id", "Year"])
+    # # =======================================
+    # # add update water use
+    # # =======================================
+    # annual_wu = pd.read_csv(r"annual_wu.csv")
+    #
+    # # =======================================
+    # # add spatial averages
+    # # =======================================
+    # # add population
+    # pop_master = pd.read_csv(
+    #     r"C:\work\water_use\ml_experiments\annual_v_0_0\master_population.csv"
+    # )
+    # pop_master = pop_master[
+    #     ["WSA_AGIDF", "Year", "population_c", "pop", "pop_swud16", "TPOPSRV"]
+    # ]
+    # pop_master.rename(columns={"WSA_AGIDF": "sys_id"}, inplace=True)
+    # train_db = train_db.merge(pop_master, how="left", on=["sys_id", "Year"])
+    #
+    # annual_wu = pd.read_csv(
+    #     r"C:\work\water_use\ml_experiments\annual_v_0_0\annual_wu.csv"
+    # )
+    # annual_wu = annual_wu[annual_wu["inWSA"] == 1].copy()
+    # tn_mask = annual_wu["WSA_AGIDF"].str.contains("TN")
+    # annual_wu.loc[tn_mask, "annual_wu_G_nonswuds"] = np.nan
+    #
+    # # drop outliers
+    # annual_wu = annual_wu[
+    #     annual_wu["flg_annual_isdiff_annualize_month_swud"] == 0
+    # ]
+    # annual_wu = annual_wu[annual_wu["flg_no_annual"] == 0]
+    # annual_wu = annual_wu[
+    #     (annual_wu["prc_time_change_swud"].isna())
+    #     | (annual_wu["prc_time_change_swud"] < 20)
+    # ]
+    #
+    # # annual_wu['wu_rate'] = annual_wu[['annual_wu_G_swuds', 'annual_wu_G_nonswuds']].mean(axis = 1)/annual_wu['days_in_year']
+    # annual_wu["wu_rate"] = (
+    #     annual_wu["annual_wu_G_swuds"] / annual_wu["days_in_year"]
+    # )
+    # annual_wu = annual_wu[annual_wu["wu_rate"] > 0]
+    # annual_wu = annual_wu[["WSA_AGIDF", "YEAR", "wu_rate"]]
+    # annual_wu.rename(
+    #     columns={"WSA_AGIDF": "sys_id", "YEAR": "Year", "wu_rate": "wu_rate2"},
+    #     inplace=True,
+    # )
+    # train_db = train_db.merge(annual_wu, how="left", on=["sys_id", "Year"])
 
-    annual_wu = pd.read_csv(
-        r"C:\work\water_use\ml_experiments\annual_v_0_0\annual_wu.csv"
-    )
-    annual_wu = annual_wu[annual_wu["inWSA"] == 1].copy()
-    tn_mask = annual_wu["WSA_AGIDF"].str.contains("TN")
-    annual_wu.loc[tn_mask, "annual_wu_G_nonswuds"] = np.nan
-
-    # drop outliers
-    annual_wu = annual_wu[
-        annual_wu["flg_annual_isdiff_annualize_month_swud"] == 0
-    ]
-    annual_wu = annual_wu[annual_wu["flg_no_annual"] == 0]
-    annual_wu = annual_wu[
-        (annual_wu["prc_time_change_swud"].isna())
-        | (annual_wu["prc_time_change_swud"] < 20)
-    ]
-
-    # annual_wu['wu_rate'] = annual_wu[['annual_wu_G_swuds', 'annual_wu_G_nonswuds']].mean(axis = 1)/annual_wu['days_in_year']
-    annual_wu["wu_rate"] = (
-        annual_wu["annual_wu_G_swuds"] / annual_wu["days_in_year"]
-    )
-    annual_wu = annual_wu[annual_wu["wu_rate"] > 0]
-    annual_wu = annual_wu[["WSA_AGIDF", "YEAR", "wu_rate"]]
-    annual_wu.rename(
-        columns={"WSA_AGIDF": "sys_id", "YEAR": "Year", "wu_rate": "wu_rate2"},
-        inplace=True,
-    )
-    train_db = train_db.merge(annual_wu, how="left", on=["sys_id", "Year"])
-
-    train_db["pc_pop"] = train_db["wu_rate2"] / train_db["pop"]
-    train_db["pc_swud"] = train_db["wu_rate2"] / train_db["pop_swud16"]
-    train_db["pc_tpopsrv"] = train_db["wu_rate2"] / train_db["TPOPSRV"]
+    train_db["pc_pop"] = train_db["wu_rate"] / train_db["pop"]
+    # train_db["pc_swud"] = train_db["wu_rate2"] / train_db["pop_swud16"]
+    # train_db["pc_tpopsrv"] = train_db["wu_rate2"] / train_db["TPOPSRV"]
 
     df_spatial = spatial_feat.generate_local_statistics(
         train_db, sys_id_col="sys_id", max_points=50, raduis=500

@@ -4,6 +4,7 @@ Annual Water Use Model
 Date: 7/14/2022
 """
 # ===============****===================
+from lightgbm import LGBMRegressor
 import os
 import warnings
 import pandas as pd
@@ -43,21 +44,19 @@ xgb.set_config(verbosity=0)
 # =============================
 # Flags
 # =============================
-work_space = r"models\annual\m7_29_2022"
+work_space = r"models\annual\D600_9_21"
 clean_folder = False
 log_file = "train_log.log"
 split_seed = 123
 
-# features
-# apply_onehot_encoding = False
-# apply_summary_encoding = True
-# include_all_features = False
+max_pc = 650
+min_pc = 30
 
+train_models = True
 train_all_models = True
-train_initial_model = False
-train_model_no_encoding = False
-train_denoised_model = False
-plot_diagnosis = False
+diagnose_models = True
+
+models_to_train = ["all_denoised_smc_xgb", "reduced_denoised_smc_xgb"]
 
 run_boruta = False
 use_boruta_results = False
@@ -65,29 +64,21 @@ run_permutation_selection = False
 run_chi_selection = False
 run_RFECV_selection = False
 detect_outliers = False
-make_prediction = False
+compute_noise_weights = False
+make_prediction = True
 interpret_model = True
 quantile_regression = False
 
 # files
 files_info = {}
-files_info[
-    "usa_conus_file"
-] = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_usa2.shp"
-files_info[
-    "huc2_shp_file"
-] = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_huc2.shp"
-files_info[
-    "state_shp_file"
-] = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_states.shp"
-files_info[
-    "county_shp_file"
-] = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_county.shp"
-files_info["outliers_file_used"] = r"outliers_7_24_22.csv"
-files_info["outliers_weights_file_used"] = r"outliers_weight_7_24_22.csv"
-files_info[
-    "AWUDS_file"
-] = r"C:\work\water_use\mldataset\ml\training\misc_features\awuds_all_years.csv"
+files_info["usa_conus_file"] = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_usa2.shp"
+files_info["huc2_shp_file"] = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_huc2.shp"
+files_info["state_shp_file"] = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_states.shp"
+files_info["county_shp_file"] = r"C:\work\water_use\mldataset\gis\nation_gis_files\conus_county.shp"
+files_info["outliers_files"] = [r"outliers_7_24_22.csv", r"outliers_8_4_22.csv"]
+files_info["outliers_weights_file_used"] = r"weight_outliers_8_4_22.csv"
+#files_info["outliers_weights_file_used"] = r"outliers_weight_7_24_22.csv"
+files_info["AWUDS_file"] = r"C:\work\water_use\mldataset\ml\training\misc_features\awuds_all_years.csv"
 
 # =============================
 # Setup Training
@@ -99,7 +90,7 @@ model = Model(
     model_ws=work_space,
     clean=clean_folder,
 )
-figures_folder = os.path.join(model.model_ws, "figs")
+figures_folder = os.path.join(model.model_ws, "diagnose")
 model.raw_target = "wu_rate"
 model.target = "per_capita"
 model.files_info = files_info
@@ -107,12 +98,60 @@ datafile = r"clean_train_db.csv"
 outliers_weights_df = pd.read_csv(files_info["outliers_weights_file_used"])
 df_train = pd.read_csv(datafile)
 model.add_training_df(df_train=df_train)
+model.add_feature_to_skip_list([ 'cii_frac', 'dom_frac'])
 base_features = model.features
-
-# model.light_copy(model)
 
 model.features_info = {}
 model.features_info["all_base_features"] = model.features
+
+# =============================
+# Population corrections
+# =============================
+model.df_train['old_pop'] = model.df_train['pop'].copy()
+
+sdwis_df = pd.read_csv( r"C:\work\water_use\mldataset\ml\training\misc_features\DO NOT SHARE-SDWIS_Fac2013q4-2013.csv",
+                        encoding="cp1252")
+sdwis_df = sdwis_df[['PWSID','POPULATION_SERVED_COUNT']].groupby('PWSID').mean()
+sdwis_df.reset_index(inplace = True)
+sdwis_df.rename(columns = {'PWSID':'sys_id', 'POPULATION_SERVED_COUNT':'sdwis_pop'}, inplace=True)
+master_pop_df = pd.read_csv(r"C:\work\water_use\CAWSC_WaterUse\ml_experiments\annual_v_0_0\master_population.csv")
+del(master_pop_df['Unnamed: 0'])
+master_pop_df.rename(columns = {'WSA_AGIDF':'sys_id'}, inplace=True)
+# master_pop_df = master_pop_df.groupby(by =['sys_id', 'Year']).mean()
+# master_pop_df.reset_index(inplace =True)
+del(model.df_train['pop'])
+model.df_train = model.df_train.merge(master_pop_df[['sys_id', 'Year', 'pop']], how = 'left', on = ['sys_id', 'Year']  )
+
+if 1:
+    master_pop_df = master_pop_df.merge(sdwis_df, how = 'left', on = 'sys_id')
+
+    wu_df = model.df_train[model.df_train['wu_rate']>0][['sys_id', 'Year', 'wu_rate']]
+    master_pop_df = master_pop_df.merge(wu_df, how = 'left', on = ['sys_id', 'Year'])
+
+
+    master_pop_df['pc_pop'] = master_pop_df['wu_rate']/ master_pop_df['pop']
+    master_pop_df['pc_swud'] = master_pop_df['wu_rate']/ master_pop_df['pop_swud15']
+    master_pop_df['pc_tpop'] = master_pop_df['wu_rate']/ master_pop_df['TPOPSRV']
+    master_pop_df['pc_sdwis'] = master_pop_df['wu_rate']/ master_pop_df['sdwis_pop']
+
+    master_pop_df = master_pop_df[master_pop_df['sys_id'].isin(model.df_train['sys_id'])]
+
+    masks_not_nan =  master_pop_df['wu_rate']>0
+    mask_issues1 =  ((((master_pop_df['pc_pop']- master_pop_df['pc_swud'])/master_pop_df['pc_pop'])>0.25) & (master_pop_df['pc_swud']>50))
+    pop_df = master_pop_df[mask_issues1]
+    pop_df = pop_df[['sys_id','Year', 'pop_swud15']]
+
+    model.df_train = model.df_train.merge(pop_df, how = 'left', on = ['sys_id', 'Year'])
+
+    corr_fac = model.df_train[model.df_train['pop_swud15'] > 0]
+    corr_fac = corr_fac.groupby(by=['sys_id']).mean()
+    corr_fac['swud_corr_fact'] = corr_fac['pop_swud15'] / corr_fac['pop']
+    corr_fac.reset_index(inplace = True)
+    model.df_train = model.df_train.merge(corr_fac[['sys_id', 'swud_corr_fact']], how='left', on='sys_id')
+    model.df_train.loc[model.df_train['swud_corr_fact'].isna(), 'swud_corr_fact'] = 1
+    model.df_train['pop'] = model.df_train['swud_corr_fact'] * model.df_train['pop']
+
+model.add_feature_to_skip_list([ 'old_pop', 'pop_swud15'])
 
 # =============================
 # Use selected features
@@ -165,19 +204,12 @@ del df_trans
 model.features_info["summary_tragte_features"] = list(summary_tragte_features)
 
 model.get_model_options()
-# =============================
-# Prepare Prediction df
-# =============================
 model.df_pred = model.df_train.copy()
-
-
-
-
 
 # =============================
 # Outliers
 # =============================
-opts = ["pop<=100", "per_capita>=700", "per_capita<=20"]
+opts = ["pop<=100", "per_capita>={}".format(max_pc), "per_capita<={}".format(min_pc)]
 model.apply_func(
     func=outliers_utils.drop_values, type="outliers_func", opts=opts
 )
@@ -276,15 +308,17 @@ available_model_options = [
     "reduced_denoised_smc_xgb",
 ]
 
-models_to_train = ["all_full_NoEncoding_xgb", "all_denoised_NoEncoding_xgb", "reduced_denoised_NoEncoding_xgb",
-                   "reduced_denoised_smc_xgb"]
-models_to_train = available_model_options
+
+if train_all_models:
+    models_to_train = available_model_options
+
 model_samples = {}
 all_light_diagnosis = []
 weight_threshold = 0.05
 model.df_train.replace([np.inf, -np.inf], np.nan, inplace=True)
-train_all_models = False
-if train_all_models:
+
+
+if train_models:
     for mmodel in models_to_train:
         print("Training model {}".format(mmodel))
 
@@ -292,7 +326,58 @@ if train_all_models:
 
         # get samples to use in the training
         if mmodel.split("_")[1] in ['denoised']:
-            df_train = df_train.merge(outliers_weights_df[['sample_id', 'weight']], how="left", on="sample_id")
+            df_train = df_train.merge(
+                outliers_weights_df[['sample_id', 'weight']], how="left", on="sample_id")
+            df_train = df_train[df_train["weight"] > weight_threshold]
+
+        # more drops
+        cc = 1
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            df_train,
+            df_train[target],
+            test_size=0.3,
+            shuffle=True,
+            random_state=split_seed,
+            stratify=df_train["HUC2"],
+        )
+
+        model_samples[mmodel] = [{'train': X_train['sample_id'].values}, {
+            'test': X_test['sample_id'].values}]
+        # get features and train
+        mfeatures = model.models_features[mmodel]
+        curr_trained_model = gb.fit(X_train[mfeatures], y_train)
+
+        # diagnose
+        y_pred = curr_trained_model.predict(X_test[mfeatures])
+        diag_df = model_diagnose.generate_metrics(y_true=y_test, y_pred=y_pred)
+        diag_df['model_name'] = mmodel
+        all_light_diagnosis.append(diag_df.copy())
+        # save
+        model_file_name = os.path.join(
+            model.model_ws, r"{}.json".format(mmodel))
+        model.log.info("\n\n Model saved at {}".format(model_file_name))
+        joblib.dump(curr_trained_model, model_file_name)
+
+    all_light_diagnosis = pd.concat(all_light_diagnosis)
+    all_light_diagnosis.to_csv(
+        os.path.join(
+            model.model_ws,
+            'all_models_diagnosis.csv'))
+
+# =============================
+# Full Diagnosis of models
+# =============================
+if diagnose_models:
+    models_to_diagnose = ["reduced_denoised_smc_xgb", "all_denoised_NoEncoding_xgb"]
+    for mmodel in models_to_diagnose:
+        model_file_name = os.path.join(model.model_ws, r"{}.json".format(mmodel))
+        trained_model, pfeatures = estimators.get_model_from_file(model_file_name)
+        model.set_features(pfeatures)
+        df_train = model.df_train
+        if mmodel.split("_")[1] in ['denoised']:
+            df_train = df_train.merge(
+                outliers_weights_df[['sample_id', 'weight']], how="left", on="sample_id")
             df_train = df_train[df_train["weight"] > weight_threshold]
 
         X_train, X_test, y_train, y_test = train_test_split(
@@ -304,55 +389,15 @@ if train_all_models:
             stratify=df_train["HUC2"],
         )
 
-        model_samples[mmodel] = [{'train': X_train['sample_id'].values}, {'test': X_test['sample_id'].values}]
-        # get features and train
-        mfeatures = model.models_features[mmodel]
-        curr_trained_model = gb.fit(X_train[mfeatures], y_train)
-
-        # diagnose
-        y_pred = curr_trained_model.predict(X_test[mfeatures])
-        diag_df = model_diagnose.generate_metrics(y_true=y_test, y_pred=y_pred)
-        diag_df['model_name'] = mmodel
-        all_light_diagnosis.append(diag_df.copy())
-        # save
-        model_file_name = os.path.join(model.model_ws, r"{}.json".format(mmodel))
-        model.log.info("\n\n Model saved at {}".format(model_file_name))
-        joblib.dump(curr_trained_model, model_file_name)
-
-        all_light_diagnosis = pd.concat(all_light_diagnosis)
-        all_light_diagnosis.to_csv(os.path.join(model.model_ws, 'all_models_diagnosis.csv'))
-
-# =============================
-# Full Diagnosis of models
-# =============================
-models_to_diagnose = ["all_full_NoEncoding_xgb", "all_denoised_NoEncoding_xgb"]
-for mmodel in models_to_diagnose:
-    model_file_name = os.path.join(model.model_ws, r"{}.json".format(mmodel))
-    trained_model, pfeatures = estimators.get_model_from_file(model_file_name)
-    model.set_features(pfeatures)
-    df_train = model.df_train
-    if mmodel.split("_")[1] in ['denoised']:
-        df_train = df_train.merge(outliers_weights_df[['sample_id', 'weight']], how="left", on="sample_id")
-        df_train = df_train[df_train["weight"] > weight_threshold]
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        df_train,
-        df_train[target],
-        test_size=0.3,
-        shuffle=True,
-        random_state=split_seed,
-        stratify=df_train["HUC2"],
-    )
-
-    model.splits = {
-        "X_train": X_train,
-        "X_test": X_test,
-        "y_train": y_train,
-        "y_test": y_test,
-    }
-    model_diagnose.complete_model_diagnose(
-        model, estimator=trained_model, basename=mmodel
-    )
+        model.splits = {
+            "X_train": X_train,
+            "X_test": X_test,
+            "y_train": y_train,
+            "y_test": y_test,
+        }
+        model_diagnose.complete_model_diagnose(
+            model, estimator=trained_model, basename=mmodel
+        )
 
 # =============================
 # Simplify model by dropping
@@ -414,9 +459,9 @@ if run_boruta:
         confirmed_features = best_r2[
             (best_r2["mean_reduction"] / best_r2["mean_reduction"].max())
             > 0.015
-            ]["feature"]
+        ]["feature"]
         perm_confirm_features = (
-                perm_confirm_features + confirmed_features.values.tolist()
+            perm_confirm_features + confirmed_features.values.tolist()
         )
 
     keyname = "permutation_r2"
@@ -511,10 +556,9 @@ if detect_outliers:
 # =============================
 # generate samples weight
 # =============================
-compute_noise_weights = True
 burn_period = 30
 if compute_noise_weights:
-    noise_detect_files = []
+    noise_detect_files = files_info["outliers_files"]
     for f in noise_detect_files:
         dfff = model.df_train.copy()
         outlier_info = pd.read_csv(f)
@@ -536,21 +580,33 @@ if compute_noise_weights:
 # =============================
 if make_prediction:
 
-    model_file_name = os.path.join(
-        model.model_ws, r"denoised_model_with_selected_features.json"
-    )
-    model_predict = joblib.load(model_file_name)
-    try:
-        pfeatures = model_predict.get_booster().feature_names
-    except:
-        pfeatures = model_predict.steps[-1][1].get_booster().feature_names
-    model.df_pred["est_per_capita"] = model_predict.predict(
-        model.df_pred[pfeatures]
-    )
+    pred_folder = os.path.join(model.model_ws, "predictions")
+    if not (os.path.isdir(pred_folder)):
+        os.mkdir(pred_folder)
 
-    model_diagnose.complete_model_evaluate(
-        model, estimator=model_predict, basename="result_denoised"
-    )
+    models_to_predict = [# ['model_name', 'bool_2_evaluate']
+        ["all_denoised_smc_xgb", True],
+        ["reduced_denoised_smc_xgb", True]
+    ]
+
+    for mmodel in models_to_predict:
+        model_file_name = os.path.join(model.model_ws, mmodel[0]+'.json')
+        model_predict = joblib.load(model_file_name)
+        try:
+            pfeatures = model_predict.get_booster().feature_names
+        except BaseException:
+            pfeatures = model_predict.steps[-1][1].get_booster().feature_names
+        model.df_pred["est_per_capita"] = model_predict.predict(
+            model.df_pred[pfeatures]
+        )
+        df_p = model.df_pred[['sys_id', 'Year', 'pop', 'est_per_capita']]
+        prediction_file = os.path.join(pred_folder,  "prediction_"+mmodel[0]+ ".csv")
+        df_p.to_csv(prediction_file)
+        if mmodel[1]:  # evaluate results
+            model_diagnose.complete_model_evaluate(
+                model, estimator=model_predict, basename=mmodel[0]
+            )
+vv = 1
 
 # =============================
 # Interpret the model
@@ -560,50 +616,49 @@ if interpret_model:
     if not (os.path.isdir(interp_folder)):
         os.mkdir(interp_folder)
 
+    models_to_interp = [
+        "all_full_NoEncoding_xgb",
+        "all_denoised_NoEncoding_xgb"]
+
     # =============================
     # PDPs plots
     # =============================
-    # model_file_name = os.path.join(model.model_ws, r"1_initial_model.json")
-    model_file_name = os.path.join(
-        model.model_ws, r"1_initial_model_no_encoding.json"
-    )
-    # model_file_name = os.path.join(model.model_ws, r"denoised_model_with_selected_features.json")
-    model_predict = joblib.load(model_file_name)
-    try:
-        pfeatures = model_predict.get_booster().feature_names
-    except:
-        pfeatures = model_predict.steps[-1][1].get_booster().feature_names
-    basename = "initial_with_encoding"
+    for mmodel in models_to_interp:
+        model_file_name = os.path.join(model.model_ws, mmodel)
+        model_predict = joblib.load(model_file_name)
+        try:
+            pfeatures = model_predict.get_booster().feature_names
+        except BaseException:
+            pfeatures = model_predict.steps[-1][1].get_booster().feature_names
+        basename = "initial_with_encoding"
 
-    fn = os.path.join(
-        interp_folder, "interp_partial_dep_plots_{}.pdf".format(basename)
-    )
-    interpret.pdp_plots(
-        estimator=model_predict,
-        df=model.df_train,
-        fn=fn,
-        features=pfeatures,
-    )
+        fn = os.path.join(interp_folder, "interp_partial_dep_plots_{}.pdf".format(basename))
+        interpret.pdp_plots(
+            estimator=model_predict,
+            df=model.df_train,
+            fn=fn,
+            features=pfeatures,
+        )
 
-    ffeat = [
-        "median_income",
-        "average_income",
-        "prc_n_bachelors",
-        "prc_n_masters_phd",
-        "prc_n_associates",
-    ]
-    fn = os.path.join(
-        interp_folder,
-        "interp_by_huc2_partial_dep_plots_{}.pdf".format(basename),
-    )
-    interpret.pdp_plots_by_huc2(
-        estimator=model_predict,
-        df=model.df_train,
-        fn=fn,
-        all_features=pfeatures,
-        interp_feat=ffeat,
-        huc2=[2, 18, 11],
-    )
+        ffeat = [
+            "median_income",
+            "average_income",
+            "prc_n_bachelors",
+            "prc_n_masters_phd",
+            "prc_n_associates",
+        ]
+        fn = os.path.join(
+            interp_folder,
+            "interp_by_huc2_partial_dep_plots_{}.pdf".format(basename),
+        )
+        interpret.pdp_plots_by_huc2(
+            estimator=model_predict,
+            df=model.df_train,
+            fn=fn,
+            all_features=pfeatures,
+            interp_feat=ffeat,
+            huc2=[2, 18, 11],
+        )
 
     # =============================
     # SHAP plots for each HUC2
@@ -622,7 +677,6 @@ if interpret_model:
 # =============================
 # Quantile regression
 # =============================
-from lightgbm import LGBMRegressor
 
 lgb_params = {
     "n_jobs": 1,

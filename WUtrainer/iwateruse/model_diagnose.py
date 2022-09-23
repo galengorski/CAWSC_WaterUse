@@ -89,15 +89,21 @@ def complete_model_diagnose(
 
     :return:
     """
+    diag_folder = os.path.join(model.model_ws, "diagnose")
+    if not (os.path.isdir(diag_folder)):
+        os.mkdir(diag_folder)
+
     ws = model.model_ws
-    fig_folder = os.path.join(ws, "figs")
+    fig_folder = os.path.join(ws, "diagnose")
     files_info = model.files_info
 
-    features = model.features
+    #features = model.features
+    try:
+        features = estimator.get_booster().feature_names
+    except:
+        features = estimator.steps[-1][1].get_booster().feature_names
     target = model.target
-    X_train = model.splits["X_train"]
     X_test = model.splits["X_test"]
-    y_train = model.splits["y_train"]
     y_test = model.splits["y_test"]
 
     y_hat = estimator.predict(X_test[features])

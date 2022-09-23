@@ -436,12 +436,16 @@ if train_denoised_model:
 
 
 if make_prediction:
-    saved_models = [
-        r"1_initial_model.json",
+    pred_folder = os.path.join(model.model_ws, "predictions")
+    if not (os.path.isdir(pred_folder)):
+        os.mkdir(pred_folder)
+
+    models_to_predict = [
+        #r"1_initial_model.json",
         r"denoised_model_with_selected_features.json",
     ]
     basenames = ["denoised"]  #'intial',
-    for im, mm in enumerate(saved_models):
+    for im, mm in enumerate(models_to_predict):
         model_file_name = os.path.join(model.model_ws, mm)
         model_predict = joblib.load(model_file_name)
         try:
@@ -451,6 +455,11 @@ if make_prediction:
         model.df_pred["est_month_frac"] = model_predict.predict(
             model.df_pred[pfeatures]
         )
+
+        df_pred = model.df_pred[['sys_id', 'Year', 'Month', 'est_month_frac']]
+        mm = mm.replace(".json", "")
+        prediction_file = os.path.join(pred_folder, "prediction_" + mm + ".csv")
+        df_pred.to_csv(prediction_file)
         model_diagnose.complete_monthly_model_eval(
             model, estimator=model_predict, basename=basenames[im]
         )
